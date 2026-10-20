@@ -24,7 +24,9 @@ class OcrOptions:
             raise ExtractionFailedError("La configuracion del OCR local no es valida.")
 
 
-def ocr_pdf_page(data: bytes, page_number: int, options: OcrOptions) -> str:
+def ocr_pdf_page(
+    data: bytes, page_number: int, options: OcrOptions, *, preserve_layout: bool = False,
+) -> str:
     """Rasteriza una sola pagina acotada y lee su texto en el worker aislado."""
     renderer = shutil.which("pdftoppm")
     engine = shutil.which("tesseract")
@@ -52,8 +54,13 @@ def ocr_pdf_page(data: bytes, page_number: int, options: OcrOptions) -> str:
                 check=True, timeout=30, stdin=subprocess.DEVNULL,
                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
             )
+            # La pagina puede contener varias tablas/logotipos. Segmentar
+            # automaticamente; PSM 6 presupone un unico bloque uniforme.
+            layout = ["--psm", "3"]
+            if preserve_layout:
+                layout.extend(["-c", "preserve_interword_spaces=1"])
             result = subprocess.run(  # noqa: S603 - argumentos de datos, nunca shell
-                [engine, str(output.with_suffix(".png")), "stdout", "-l", options.language, "--psm", "3"],
+                [engine, str(output.with_suffix(".png")), "stdout", "-l", options.language, *layout],
                 check=True, timeout=30, stdin=subprocess.DEVNULL,
                 stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
             )

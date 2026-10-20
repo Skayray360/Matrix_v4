@@ -37,7 +37,7 @@ from app.llm.ollama_client import get_ollama_client
 from app.llm.provider import InferenceClient
 from app.memory.service import MemoryService
 from app.rag.chunking import ChunkDraft, chunk_blocks
-from app.rag.embedding_prompts import format_document
+from app.rag.embedding_prompts import document_embedding_title, format_document
 from app.rag.index_manifest import PIPELINE_VERSION, indexing_fingerprint
 from app.rag.schemas import SCOPE_CONVERSATION, SCOPE_CORPORATE, Chunk, ChunkMetadata
 from app.rag.vector_store import VectorStore, get_vector_store
@@ -51,6 +51,7 @@ logger = get_logger(__name__)
 #: v6 rechaza el truncamiento silencioso al calcular embeddings.
 #: v7 corrige el presupuesto del solape y la procedencia por pagina/hoja.
 #: v8 conserva localizadores Word/PPTX y permite OCR local optativo.
+#: v9 recupera imagenes de paginas mixtas, secciones CHUNK y titulos documentales.
 INGESTION_VERSION = str(PIPELINE_VERSION)
 
 #: Lote de textos por llamada a /api/embed. Equilibra memoria y numero de viajes.
@@ -605,7 +606,10 @@ class IngestionService:
                 self._llm.embed(
                     [
                         format_document(
-                            c.text, title=c.metadata.section or c.metadata.filename
+                            c.text,
+                            title=document_embedding_title(
+                                filename=c.metadata.filename, section=c.metadata.section,
+                            ),
                         )
                         for c in batch
                     ]

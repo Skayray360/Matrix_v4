@@ -24,6 +24,7 @@ $script:OriginalTemp = @{}
 $script:InstallStage = ''
 
 function Assert-Release {
+    param([switch]$AllowFrontendBuild)
     $manifest=Join-Path $script:Root 'backend\release\SHA256SUMS.txt'
     if (-not (Test-Path -LiteralPath $manifest -PathType Leaf)) { throw 'Falta backend/release/SHA256SUMS.txt. Extraiga la entrega completa; no se modifica la instalacion.' }
     $entries=@{}
@@ -32,8 +33,9 @@ function Assert-Release {
         $hash=$Matches[1]; $relative=$Matches[2]
         if ($relative -match '(^/|\\|:|(^|/)\.{1,2}(/|$)|//)' -or $entries.ContainsKey($relative)) { throw 'Ruta duplicada o no valida en el manifiesto.' }
         $entries[$relative]=$hash
-        # Original documents and operator policy are mutable; executable code is not.
-        $code=$relative -match '^(backend/(app|scripts|seeds|migrations)/|frontend/(dist|src)/)' -or $relative -match '^(instalar|iniciar|detener|diagnosticar)\.bat$' -or $relative -in @('backend/pyproject.toml','backend/uv.lock','backend/config/runtime-manifest.json','backend/config/apache/matrix-rh.conf.template','.htaccess')
+        # El build puede regenerarse; se verifica con un recibo ligado a su fuente.
+        if ($relative.StartsWith('frontend/dist/')) { continue }
+        $code=$relative -match '^(backend/(app|scripts|seeds|migrations)/|frontend/(src|public)/)' -or $relative -match '^(instalar|iniciar|detener|diagnosticar)\.bat$' -or $relative -in @('backend/pyproject.toml','backend/uv.lock','backend/config/runtime-manifest.json','backend/config/apache/matrix-rh.conf.template','.htaccess','frontend/package.json','frontend/package-lock.json','frontend/.npmrc','frontend/vite.config.ts','frontend/tsconfig.json','frontend/index.html')
         if (-not $code) { continue }
         $path=Join-Path $script:Root $relative
         if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { throw ('Entrega incompleta: ' + $relative) }
@@ -42,8 +44,9 @@ function Assert-Release {
     foreach ($required in @('backend/app/__init__.py','backend/app/main.py','backend/pyproject.toml','backend/uv.lock','backend/scripts/windows/MatrixRH.ps1','backend/scripts/windows/launch_process.py','backend/config/runtime-manifest.json','backend/config/apache/matrix-rh.conf.template','.htaccess','instalar.bat','iniciar.bat','detener.bat','diagnosticar.bat')) {
         if (-not $entries.ContainsKey($required)) { throw ('Falta entrada obligatoria de integridad: ' + $required) }
     }
-    foreach ($directory in @('backend/app','backend/scripts','backend/seeds','backend/migrations')) {
-        foreach ($file in Get-ChildItem -LiteralPath (Join-Path $script:Root $directory) -Recurse -File | Where-Object { $_.Extension -in @('.py','.ps1','.sql') }) {
+    foreach ($directory in @('backend/app','backend/scripts','backend/seeds','backend/migrations','frontend/src','frontend/public')) {
+        if (-not (Test-Path -LiteralPath (Join-Path $script:Root $directory))) { continue }
+        foreach ($file in Get-ChildItem -LiteralPath (Join-Path $script:Root $directory) -Recurse -File | Where-Object { $_.Extension -in @('.py','.ps1','.sql','.ts','.tsx','.js','.jsx','.json','.css','.html') }) {
             $relative=$file.FullName.Substring($script:Root.Length+1).Replace('\','/')
             if (-not $entries.ContainsKey($relative)) { throw ('Codigo fuera del manifiesto: ' + $relative) }
         }
@@ -53,6 +56,7 @@ function Assert-Release {
     $moduleVersion=[regex]::Match($module,'(?m)^__version__\s*=\s*["'']([^"'']+)["'']\s*$')
     $projectVersion=[regex]::Match($project,'(?m)^version\s*=\s*["'']([^"'']+)["'']\s*$')
     if (-not $moduleVersion.Success -or -not $projectVersion.Success -or $moduleVersion.Groups[1].Value -ne $projectVersion.Groups[1].Value) { throw 'La declaracion de version no coincide con pyproject.toml. No se modifica la instalacion.' }
+    if (-not $AllowFrontendBuild -and (Test-Path -LiteralPath (Join-Path $script:Root 'frontend'))) { Assert-FrontendBuild }
 }
 function Say([string]$Message) { Write-Host ('[ OK ] ' + $Message) -ForegroundColor Green }
 function Step([string]$Message) { Write-Host ('[ ...] ' + $Message) -ForegroundColor Cyan }
@@ -186,14 +190,16 @@ function Get-Wamp {
 }
 function Download-Pinned([string]$Url, [string]$Sha256, [string]$Destination) {
     if ($Sha256 -notmatch '^[0-9a-f]{64}$') { throw 'El paquete no tiene un SHA256 fijado valido.' }
+    Assert-PlainPath $Destination
     if ((Test-Path -LiteralPath $Destination) -and (Get-FileHash -LiteralPath $Destination -Algorithm SHA256).Hash -eq $Sha256) { return }
-    $allowed = @('github.com','release-assets.githubusercontent.com','objects.githubusercontent.com','releases.astral.sh','cdn.mysql.com','downloads.mysql.com')
+    $allowed = @('github.com','release-assets.githubusercontent.com','objects.githubusercontent.com','releases.astral.sh','cdn.mysql.com','downloads.mysql.com','nodejs.org','download.visualstudio.microsoft.com')
     $current = [uri]$Url
     $temporary = $Destination + '.partial'
+    Assert-PlainPath $temporary
     Ensure-Directory ([IO.Path]::GetDirectoryName($Destination))
     try {
         for ($redirect=0; $redirect -le 6; $redirect++) {
-            if ($current.Scheme -ne 'https' -or $allowed -notcontains $current.Host) { throw 'La descarga redirigio a un proveedor no autorizado.' }
+            if ($current.Scheme -ne 'https' -or $allowed -notcontains $current.Host -or $current.UserInfo -or $current.Port -ne 443 -or $current.Fragment) { throw 'La descarga redirigio a un proveedor no autorizado.' }
             $request = [Net.HttpWebRequest]::Create($current)
             $request.AllowAutoRedirect=$false; $request.Timeout=30000; $request.ReadWriteTimeout=60000
             $request.UserAgent='Matrix-RH-Installer/1.4'
@@ -201,9 +207,13 @@ function Download-Pinned([string]$Url, [string]$Sha256, [string]$Destination) {
             if ([int]$response.StatusCode -ge 300 -and [int]$response.StatusCode -lt 400) {
                 $location=$response.Headers['Location']; $response.Close(); $current=[uri]::new($current,$location); continue
             }
+            if ($response.ContentLength -gt 1GB) { $response.Close(); throw 'El paquete excede el limite de descarga.' }
             try {
                 $downloadStream=$response.GetResponseStream(); $output=[IO.File]::Create($temporary)
-                try { $downloadStream.CopyTo($output) } finally { $output.Dispose(); $downloadStream.Dispose() }
+                try {
+                    $buffer=New-Object byte[] 1048576; $total=0L
+                    while (($read=$downloadStream.Read($buffer,0,$buffer.Length)) -gt 0) { $total+=$read; if ($total -gt 1GB) { throw 'El paquete excede el limite de descarga.' }; $output.Write($buffer,0,$read) }
+                } finally { $output.Dispose(); $downloadStream.Dispose() }
             } finally { $response.Close() }
             if ((Get-FileHash -LiteralPath $temporary -Algorithm SHA256).Hash -ne $Sha256) { throw 'La descarga no coincide con el SHA256 fijado para esta entrega. No se extrae ni ejecuta.' }
             Move-Item -LiteralPath $temporary -Destination $Destination -Force
@@ -218,6 +228,7 @@ function Expand-Pinned([string]$Archive, [string]$Destination) {
     $prefix=[IO.Path]::GetFullPath($Destination) + [IO.Path]::DirectorySeparatorChar
     try {
         foreach ($entry in $zip.Entries) {
+            if ($entry.FullName -match '(^[\/]|(^|[\/])\.\.?([\/]|$)|:)') { throw 'Ruta no valida en el paquete ZIP.' }
             $path=[IO.Path]::GetFullPath((Join-Path $Destination $entry.FullName))
             if (-not $path.StartsWith($prefix,[StringComparison]::OrdinalIgnoreCase) -or $entry.FullName.Contains(':')) { throw 'Ruta no valida en el paquete ZIP.' }
         }
@@ -231,6 +242,7 @@ function Install-ZipRuntime([string]$Name, $Pin, [string]$Executable) {
         if (-not (Test-Path -LiteralPath $receipt)) { throw ('Runtime ' + $Name + ' sin registro de procedencia. No se reemplaza automaticamente.') }
         $stored=[IO.File]::ReadAllText($receipt) | ConvertFrom-Json
         if ($stored.sha256 -ne $Pin.sha256 -or (Get-FileHash -LiteralPath $Executable -Algorithm SHA256).Hash -ne $stored.executable_sha256) { throw ('Integridad o version inesperada de ' + $Name + '; conserve la carpeta para revisar.') }
+        if ($null -ne $stored.PSObject.Properties['files']) { Assert-TreeHashes $target $stored.files }
         Say ($Name + ' ya instalado y verificado'); return
     }
     if (Test-Path -LiteralPath $target) { throw ('Directorio de runtime incompleto: ' + $Name + '. Conservelo y revise el fallo anterior.') }
@@ -242,8 +254,8 @@ function Install-ZipRuntime([string]$Name, $Pin, [string]$Executable) {
     try {
         $relative=$Executable.Substring($target.Length+1)
         if (-not (Test-Path -LiteralPath (Join-Path $staging $relative))) { throw ('El ZIP ' + $Name + ' no contiene el ejecutable esperado.') }
-        $record=@{version=$Pin.version;url=$Pin.url;sha256=$Pin.sha256;executable_sha256=(Get-FileHash -LiteralPath (Join-Path $staging $relative) -Algorithm SHA256).Hash}
-        Write-Text (Join-Path $staging '.matrix-package.json') ($record | ConvertTo-Json)
+        $record=@{version=$Pin.version;url=$Pin.url;sha256=$Pin.sha256;executable_sha256=(Get-FileHash -LiteralPath (Join-Path $staging $relative) -Algorithm SHA256).Hash;files=(Get-TreeHashes $staging)}
+        Write-Text (Join-Path $staging '.matrix-package.json') ($record | ConvertTo-Json -Depth 6)
         Move-Item -LiteralPath $staging -Destination $target
     } catch { throw ('No se pudo publicar ' + $Name + '. Se conserva la extraccion temporal. ' + $_.Exception.Message) }
 }
@@ -277,6 +289,7 @@ function Install-MySql {
         if (-not (Test-Path -LiteralPath $client -PathType Leaf)) { throw 'MySQL propio esta incompleto: falta mysqladmin.exe. Restaure el runtime correspondiente a sus datos.' }
         if ($null -ne $record.PSObject.Properties['mysqladmin_sha256'] -and (Get-FileHash -LiteralPath $client -Algorithm SHA256).Hash -ne $record.mysqladmin_sha256) { throw 'Cambio no esperado de mysqladmin.exe.' }
         $version=MySql-Version $exe
+        Assert-MySqlSecurityVersion $version
         if ((MySql-Version $client) -ne $version) { throw 'Los ejecutables MySQL pertenecen a versiones distintas; no se mezclan.' }
         Say ('MySQL propio ' + $version + ' conservado; no se descarga ni actualiza su runtime.'); return
     }
@@ -288,6 +301,7 @@ function Install-MySql {
     }
     $pin=([IO.File]::ReadAllText((Join-Path $script:Config 'runtime-manifest.json')) | ConvertFrom-Json).mysql
     if ($pin.version -notmatch '^8\.4\.\d+$' -or $pin.archive_root -ne ('mysql-' + $pin.version + '-winx64') -or $pin.archive_name -ne ($pin.archive_root + '.zip')) { throw 'Manifiesto MySQL no valido.' }
+    Assert-MySqlSecurityVersion $pin.version
     $archive=Join-Path $script:Runtime ('downloads\' + $pin.archive_name)
     Step ('Preparando MySQL Community ' + $pin.version + ' x64 desde el ZIP oficial; no requiere MySQL en WAMP...')
     Download-Pinned $pin.url $pin.sha256 $archive
@@ -562,7 +576,7 @@ function Start-Stack {
 }
 function Set-InstallStage {
     param(
-        [ValidateSet('prerrequisitos','configuracion','modelos_locales','runtime_uv','runtime_mysql','runtime_python','validacion_modelos','estado_datos','migracion_sql','usuario_local','ingesta_documentos','apache_wamp','arranque','completada')][string]$Stage,
+        [ValidateSet('prerrequisitos','configuracion','modelos_locales','runtime_uv','runtime_vcredist','runtime_mysql','runtime_python','auditoria_python','runtime_node','interfaz','validacion_modelos','estado_datos','migracion_sql','usuario_local','ingesta_documentos','apache_wamp','arranque','completada')][string]$Stage,
         [ValidateSet('running','failed','completed')][string]$Status='running'
     )
     $script:InstallStage=$Stage
@@ -605,20 +619,247 @@ function Test-InstalledRuntimes {
     Write-Host '[PENDIENTE] Salud de MySQL, API, acceso web e indices: requieren completar la instalacion.' -ForegroundColor Yellow
     return $false
 }
+function Assert-InstallerEnvironment {
+    foreach ($entry in Get-ChildItem Env:) {
+        if ($entry.Name -match '^(UV_|PIP_|NPM_CONFIG_|NODE_OPTIONS$|NODE_PATH$|NODE_TLS_REJECT_UNAUTHORIZED$|PYTHONHOME$|PYTHONPATH$|PYTHONSTARTUP$)' -and $entry.Value) {
+            throw ('La variable heredada ' + $entry.Name + ' altera la instalacion verificada. Use una consola sin ese override; no comparta su valor.')
+        }
+    }
+}
+function Get-TreeHashes([string]$Directory) {
+    Assert-PlainPath $Directory
+    if (-not (Test-Path -LiteralPath $Directory -PathType Container)) { throw 'Falta un directorio que debe verificarse.' }
+    $result=@{}
+    foreach ($file in Get-ChildItem -LiteralPath $Directory -Recurse -Force) {
+        if (($file.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) { throw 'Un arbol verificado contiene enlaces o junctions.' }
+        if ($file.PSIsContainer -or $file.FullName -eq (Join-Path $Directory '.matrix-package.json')) { continue }
+        $relative=$file.FullName.Substring($Directory.Length+1).Replace('\','/')
+        $result[$relative]=(Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+    }
+    return $result
+}
+function Assert-TreeHashes([string]$Directory, $Expected) {
+    $actual=Get-TreeHashes $Directory
+    $names=if ($Expected -is [Collections.IDictionary]) { @($Expected.Keys) } else { @($Expected.PSObject.Properties.Name) }
+    if ($actual.Count -eq 0 -or $actual.Count -ne $names.Count) { throw 'Arbol incompleto o con archivos fuera de su recibo de integridad.' }
+    foreach ($name in $names) {
+        if (-not $actual.ContainsKey($name) -or $actual[$name] -ne $Expected.$name) { throw ('Integridad incorrecta del archivo: ' + $name) }
+    }
+}
+function Get-FrontendInputHash {
+    $frontend=Join-Path $script:Root 'frontend'
+    $files=@(Get-ChildItem -LiteralPath $frontend -File -Force | Where-Object { $_.Name -eq '.npmrc' -or $_.Extension -in @('.json','.js','.cjs','.mjs','.ts','.html') })
+    foreach ($name in @('src','public')) {
+        $directory=Join-Path $frontend $name
+        if (Test-Path -LiteralPath $directory) { Assert-PlainPath $directory; $files+=@(Get-ChildItem -LiteralPath $directory -Recurse -File) }
+    }
+    $lines=@($files | Sort-Object FullName | ForEach-Object {
+        Assert-PlainPath $_.FullName
+        $_.FullName.Substring($frontend.Length+1).Replace('\','/') + ':' + (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash
+    })
+    $hasher=[Security.Cryptography.SHA256]::Create()
+    try { return ([BitConverter]::ToString($hasher.ComputeHash([Text.Encoding]::UTF8.GetBytes(($lines -join "`n"))))).Replace('-','').ToLowerInvariant() }
+    finally { $hasher.Dispose() }
+}
+function Assert-FrontendBuild {
+    $dist=Join-Path $script:Root 'frontend\dist'
+    if (-not (Test-Path -LiteralPath (Join-Path $dist 'index.html') -PathType Leaf)) { throw 'Falta frontend/dist/index.html. Ejecute instalar.bat para compilar la interfaz.' }
+    $receipt=Join-Path $script:Config 'frontend-build.json'
+    if (Test-Path -LiteralPath $receipt) {
+        Assert-PlainPath $receipt
+        $record=[IO.File]::ReadAllText($receipt) | ConvertFrom-Json
+        if ($record.source_sha256 -ne (Get-FrontendInputHash)) { throw 'La interfaz corresponde a otro codigo fuente. Ejecute instalar.bat para reconstruirla.' }
+        Assert-TreeHashes $dist $record.files
+    } else {
+        $expected=@{}
+        foreach ($line in [IO.File]::ReadAllLines((Join-Path $script:Root 'backend/release/SHA256SUMS.txt'))) {
+            if ($line -match '^([0-9a-f]{64})  frontend/dist/(.+)$') { $expected[$Matches[2]]=$Matches[1] }
+        }
+        Assert-TreeHashes $dist $expected
+    }
+}
+function Get-VcRuntimeVersion {
+    $key='HKLM:\SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\x64'
+    if (-not (Test-Path -LiteralPath $key)) { return $null }
+    $entry=Get-ItemProperty -LiteralPath $key
+    if ($entry.Installed -ne 1) { return $null }
+    foreach ($name in @('vcruntime140.dll','msvcp140.dll')) {
+        $dll=Join-Path ([Environment]::SystemDirectory) $name
+        if (-not (Test-Path -LiteralPath $dll -PathType Leaf)) { return $null }
+        $signature=Get-AuthenticodeSignature -LiteralPath $dll
+        if ($signature.Status -ne 'Valid' -or $null -eq $signature.SignerCertificate -or $signature.SignerCertificate.Subject -notmatch 'O=Microsoft Corporation(?:,|$)') { throw 'Una biblioteca Visual C++ instalada no tiene firma Microsoft valida. Revise el sistema antes de instalar.' }
+    }
+    $version=$null
+    if (-not [version]::TryParse(([string]$entry.Version).TrimStart('v'),[ref]$version)) { throw 'Version de Visual C++ instalada no verificable.' }
+    return $version
+}
+function Install-VcRuntime {
+    $pin=([IO.File]::ReadAllText((Join-Path $script:Config 'runtime-manifest.json')) | ConvertFrom-Json).vcredist
+    $installed=Get-VcRuntimeVersion
+    if ($null -ne $installed -and $installed -ge [version]$pin.version) { Say ('Visual C++ x64 ' + $installed + ' ya instalado y verificado'); return }
+    $installer=Join-Path $script:Runtime ('downloads\vc-redist-' + $pin.version + '.exe')
+    Download-Pinned $pin.url $pin.sha256 $installer
+    $signature=Get-AuthenticodeSignature -LiteralPath $installer
+    if ($signature.Status -ne 'Valid' -or $null -eq $signature.SignerCertificate -or $signature.SignerCertificate.Subject -notmatch 'O=Microsoft Corporation(?:,|$)') { throw 'El instalador Visual C++ no tiene firma Microsoft valida. No se ejecuta.' }
+    Step ('Instalando Visual C++ x64 ' + $pin.version + '; sin reinicio automatico...')
+    $process=Start-Process -FilePath $installer -ArgumentList @('/install','/quiet','/norestart') -Wait -PassThru
+    if ($process.ExitCode -eq 3010) { throw 'Visual C++ requiere reiniciar Windows. Reinicie cuando sea oportuno y repita instalar.bat; Matrix no reinicia el equipo.' }
+    if ($process.ExitCode -ne 0) { throw ('Visual C++ no termino correctamente (codigo ' + $process.ExitCode + ').') }
+    $installed=Get-VcRuntimeVersion
+    if ($null -eq $installed -or $installed -lt [version]$pin.version) { throw 'Visual C++ no quedo instalado en la version requerida.' }
+}
+function Assert-MySqlSecurityVersion([string]$Version) {
+    $pin=([IO.File]::ReadAllText((Join-Path $script:Config 'runtime-manifest.json')) | ConvertFrom-Json).mysql
+    if ($Version -notmatch '^8\.4\.\d+$' -or [version]$Version -lt [version]$pin.minimum_version) {
+        throw ('MySQL ' + $Version + ' no cumple el minimo de seguridad ' + $pin.minimum_version + '. Se conservan runtime y datos: prepare un respaldo y una actualizacion controlada; no se actualiza la base automaticamente.')
+    }
+}
+function Assert-ApacheSecurity([string]$Wamp) {
+    $apache=Find-Apache $Wamp
+    $banner=(& $apache.executable -v | Out-String).Trim()
+    if ($LASTEXITCODE -ne 0 -or $banner -notmatch 'Apache/(2\.4\.\d+)') { throw 'No se pudo verificar la version de Apache de WAMP.' }
+    $version=[version]$Matches[1]
+    $minimum=([IO.File]::ReadAllText((Join-Path $script:Config 'runtime-manifest.json')) | ConvertFrom-Json).apache.minimum_version
+    if ($version -lt [version]$minimum) { throw ('Apache ' + $version + ' requiere actualizar WAMP a Apache ' + $minimum + ' o posterior. Matrix no sustituye el servidor compartido.') }
+    Say ('Apache ' + $version + ' cumple el minimo de seguridad revisado')
+}
+function Assert-OllamaSecurity {
+    $url=Local-OllamaUrl
+    $info=Invoke-RestMethod -Uri ($url + '/api/version') -TimeoutSec 10 -MaximumRedirection 0
+    if ($null -eq $info -or $null -eq $info.PSObject.Properties['version'] -or $info.version -notmatch '^\d+\.\d+\.\d+$') { throw 'Version de Ollama local no verificable.' }
+    $request=@{package=@{name='github.com/ollama/ollama';ecosystem='Go'};version=('v' + $info.version)} | ConvertTo-Json
+    try { $audit=Invoke-RestMethod -Method Post -Uri 'https://api.osv.dev/v1/query' -ContentType 'application/json' -Body $request -TimeoutSec 30 -MaximumRedirection 0 }
+    catch { throw 'No se pudo completar la consulta de vulnerabilidades de Ollama. No se acredita seguridad; revise la conexion y reintente.' }
+    if ($null -eq $audit -or $audit -isnot [pscustomobject]) { throw 'Respuesta de auditoria de Ollama no valida.' }
+    if ($null -ne $audit.PSObject.Properties['vulns'] -and @($audit.vulns).Count -gt 0) { throw ('Ollama ' + $info.version + ' tiene avisos conocidos: ' + (($audit.vulns | ForEach-Object { $_.id }) -join ', ') + '. Actualice su Ollama externo conservando los modelos y repita.') }
+    Say ('Ollama ' + $info.version + ': consulta OSV sin avisos para esa version; no certifica sus bibliotecas internas')
+}
+function Get-TreeDigest([string]$Directory) {
+    $hashes=Get-TreeHashes $Directory
+    [string[]]$names=@($hashes.Keys)
+    [Array]::Sort($names,[StringComparer]::Ordinal)
+    $lines=@($names | ForEach-Object { $_ + ':' + $hashes[$_] })
+    $hasher=[Security.Cryptography.SHA256]::Create()
+    try { return ([BitConverter]::ToString($hasher.ComputeHash([Text.Encoding]::UTF8.GetBytes(($lines -join "`n"))))).Replace('-','').ToLowerInvariant() }
+    finally { $hasher.Dispose() }
+}
+function Find-VerifiedNode($Pin) {
+    $candidate=Get-Command node.exe -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($null -eq $candidate) { return '' }
+    try {
+        Assert-PlainPath $candidate.Source
+        $directory=Split-Path -Parent $candidate.Source
+        if ((Get-FileHash -LiteralPath $candidate.Source -Algorithm SHA256).Hash -eq $Pin.executable_sha256 -and
+            (Get-TreeDigest (Join-Path $directory 'node_modules\npm')) -eq $Pin.npm_tree_sha256) {
+            return $directory
+        }
+    } catch { }
+    Warn 'El Node/npm encontrado no coincide con la distribucion aprobada; se prepara una copia propia sin modificarlo.'
+    return ''
+}
+function Install-Node {
+    $pin=([IO.File]::ReadAllText((Join-Path $script:Config 'runtime-manifest.json')) | ConvertFrom-Json).node
+    $script:NodeRoot=Join-Path $script:Runtime ('node\' + $pin.archive_root)
+    $script:Node=Join-Path $script:NodeRoot 'node.exe'
+    $script:NpmCli=Join-Path $script:NodeRoot 'node_modules\npm\bin\npm-cli.js'
+    $external=''
+    if (-not (Test-Path -LiteralPath (Join-Path $script:Runtime 'node'))) { $external=Find-VerifiedNode $pin }
+    if ($external) {
+        $script:NodeRoot=$external
+        $script:Node=Join-Path $external 'node.exe'
+        $script:NpmCli=Join-Path $external 'node_modules\npm\bin\npm-cli.js'
+        Say 'Se reutiliza el Node/npm existente: sus archivos coinciden con la distribucion aprobada'
+    } else {
+        Install-ZipRuntime 'node' $pin $script:Node
+        $record=[IO.File]::ReadAllText((Join-Path $script:Runtime 'node\.matrix-package.json')) | ConvertFrom-Json
+        if ($null -eq $record.PSObject.Properties['files']) { throw 'Node/npm no tiene recibo completo de integridad. No se ejecuta.' }
+        Assert-TreeHashes (Join-Path $script:Runtime 'node') $record.files
+    }
+    $version=(& $script:Node --version | Out-String).Trim()
+    if ($LASTEXITCODE -ne 0 -or $version -ne ('v' + $pin.version)) { throw 'Node no coincide con la version fijada.' }
+    $npm=([IO.File]::ReadAllText((Join-Path $script:NodeRoot 'node_modules\npm\package.json')) | ConvertFrom-Json).version
+    $project=([IO.File]::ReadAllText((Join-Path $script:Root 'frontend\package.json')) | ConvertFrom-Json).packageManager
+    if ($npm -ne $pin.npm_version -or $project -ne $pin.package_manager) { throw 'npm no coincide con el gestor fijado en la entrega.' }
+    Say ('Node ' + $pin.version + ' y npm ' + $npm + ' verificados para esta instalacion')
+}
+function Invoke-Npm([string[]]$Arguments) {
+    Invoke-Checked $script:Node (@($script:NpmCli,'--ignore-scripts','--registry=https://registry.npmjs.org/','--strict-ssl=true','--no-fund','--update-notifier=false','--userconfig',(Join-Path $script:Runtime 'npm-user.conf'),'--globalconfig',(Join-Path $script:Runtime 'npm-global.conf'),'--cache',(Join-Path $script:Runtime 'cache\npm')) + $Arguments)
+}
+function Build-Frontend {
+    $frontend=Join-Path $script:Root 'frontend'
+    $dist=Join-Path $frontend 'dist'
+    $stage=Join-Path $script:Runtime ('frontend-build-' + [guid]::NewGuid().ToString('N'))
+    $backup=Join-Path $script:Runtime ('frontend-previous-' + [guid]::NewGuid().ToString('N'))
+    $buildReceipt=Join-Path $script:Config 'frontend-build.json'
+    $dependencyReceipt=Join-Path $script:Runtime 'frontend-dependencies.json'
+    $previousPath=$env:PATH
+    $previousNodeEnv=$env:NODE_ENV
+    Write-Text (Join-Path $script:Runtime 'npm-user.conf') ''
+    Write-Text (Join-Path $script:Runtime 'npm-global.conf') ''
+    try {
+        $env:PATH=$script:NodeRoot + [IO.Path]::PathSeparator + $previousPath
+        $env:NODE_ENV='development'
+        Push-Location $frontend
+        try {
+            Invoke-Python @('-m','scripts.verify_supply_chain','--lock-only')
+            Step 'Auditando dependencias npm (produccion y compilacion) antes de instalar...'
+            Invoke-Npm @('audit','--package-lock-only','--include=dev','--include=optional','--audit-level=low')
+            $lockHash=(Get-FileHash -LiteralPath (Join-Path $frontend 'package-lock.json') -Algorithm SHA256).Hash
+            $reuse=$false
+            if ((Test-Path -LiteralPath $dependencyReceipt) -and (Test-Path -LiteralPath (Join-Path $frontend 'node_modules'))) {
+                $record=[IO.File]::ReadAllText($dependencyReceipt) | ConvertFrom-Json
+                if ($record.lock_sha256 -eq $lockHash -and $record.node_version -eq ((& $script:Node --version | Out-String).Trim())) {
+                    try { Assert-TreeHashes (Join-Path $frontend 'node_modules') $record.files; $reuse=$true }
+                    catch { Warn 'El arbol npm esta incompleto o cambio: se restaurara desde el lock verificado.' }
+                }
+            }
+            if (-not $reuse) {
+                Invoke-Npm @('ci','--include=dev','--include=optional','--no-audit')
+                Invoke-Python @('-m','scripts.verify_supply_chain')
+                $record=@{lock_sha256=$lockHash;node_version=((& $script:Node --version | Out-String).Trim());files=(Get-TreeHashes (Join-Path $frontend 'node_modules'))}
+                Write-Text $dependencyReceipt ($record | ConvertTo-Json -Depth 6)
+            } else { Say 'Dependencias npm ya instaladas y verificadas; se reutilizan'; Invoke-Python @('-m','scripts.verify_supply_chain') }
+            Invoke-Npm @('audit','signatures')
+            Step 'Comprobando TypeScript y compilando la interfaz...'
+            Invoke-Npm @('run','build','--','--outDir',$stage,'--emptyOutDir')
+            if (-not (Test-Path -LiteralPath (Join-Path $stage 'index.html') -PathType Leaf)) { throw 'La compilacion no genero index.html; se conserva la interfaz anterior.' }
+            $receipt=@{source_sha256=(Get-FrontendInputHash);files=(Get-TreeHashes $stage)}
+            $pendingReceipt=$stage + '.json'
+            Write-Text $pendingReceipt ($receipt | ConvertTo-Json -Depth 6)
+            $previousReceipt=if (Test-Path -LiteralPath $buildReceipt) { [IO.File]::ReadAllText($buildReceipt) } else { $null }
+            if (Test-Path -LiteralPath $dist) { Move-Item -LiteralPath $dist -Destination $backup }
+            try {
+                Move-Item -LiteralPath $stage -Destination $dist
+                Move-Item -LiteralPath $pendingReceipt -Destination $buildReceipt -Force
+                Assert-FrontendBuild
+            } catch {
+                if (Test-Path -LiteralPath $dist) { Remove-Item -LiteralPath $dist -Recurse -Force }
+                if (Test-Path -LiteralPath $backup) { Move-Item -LiteralPath $backup -Destination $dist }
+                if ($null -ne $previousReceipt) { Write-Text $buildReceipt $previousReceipt }
+                elseif (Test-Path -LiteralPath $buildReceipt) { Remove-Item -LiteralPath $buildReceipt -Force }
+                throw
+            }
+            # Vite puede generar caches durante el build; el recibo describe el
+            # arbol final para reutilizarlo en la siguiente instalacion.
+            $record=@{lock_sha256=$lockHash;node_version=((& $script:Node --version | Out-String).Trim());files=(Get-TreeHashes (Join-Path $frontend 'node_modules'))}
+            Write-Text $dependencyReceipt ($record | ConvertTo-Json -Depth 6)
+            Say 'Interfaz compilada y verificada; la copia anterior se conserva en runtime cuando existe'
+        } finally { Pop-Location }
+    } finally { $env:PATH=$previousPath; $env:NODE_ENV=$previousNodeEnv }
+}
+
 function Install-Stack {
     $principal=New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
     if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) { throw 'La integracion con Apache requiere permisos de servicio. Cierre esta ventana y use clic derecho > Ejecutar como administrador en instalar.bat.' }
-    Assert-Release
+    Assert-Release -AllowFrontendBuild
     Set-InstallStage 'prerrequisitos'
-    foreach ($name in @('PYTHONHOME','UV_PYTHON_DOWNLOADS_JSON_URL','UV_PYTHON_INSTALL_MIRROR','UV_ASTRAL_MIRROR_URL','UV_INSECURE_HOST','UV_INDEX_URL','UV_EXTRA_INDEX_URL','UV_DEFAULT_INDEX','UV_INDEX')) {
-        if ([Environment]::GetEnvironmentVariable($name,'Process')) { throw ('La variable heredada ' + $name + ' altera la procedencia del runtime. Use una consola sin ese override; no comparta su valor.') }
-    }
+    Assert-InstallerEnvironment
     $wamp=Get-Wamp
+    Assert-ApacheSecurity $wamp
     $disk=[IO.DriveInfo]::new([IO.Path]::GetPathRoot($script:Root))
     $minimum=5GB
     if (-not (Test-Path -LiteralPath $script:Python)) { $minimum=10GB }
     if ($disk.AvailableFreeSpace -lt $minimum) { throw ('Se requieren al menos ' + ($minimum/1GB) + ' GiB libres antes de instalar. No se han inicializado datos.') }
-    if (-not (Test-Path -LiteralPath (Join-Path $script:Root 'frontend\dist\index.html'))) { throw 'Falta la interfaz compilada. Extraiga la entrega completa; no se requiere Node en este equipo.' }
     Set-InstallStage 'configuracion'
     Secure-Directory $script:Secrets
     $existingDb=Test-Path -LiteralPath (Join-Path $script:Root 'knowledge-base\state\mysql\mysql')
@@ -637,6 +878,7 @@ function Install-Stack {
     Assert-LocalConfiguration
     Set-InstallStage 'modelos_locales'
     Assert-InstalledModels
+    Assert-OllamaSecurity
     Stop-Backend
     foreach ($service in @(@{name='mysql';port=[int](Setting 'MATRIX_MYSQL_PORT' '3308')})) {
         if ($null -eq (Owned-Process $service.name) -and -not (Port-Free $service.port)) { throw ('Puerto propio ocupado: ' + $service.name + ' ' + $service.port + '. No se modifica ningun proceso ajeno.') }
@@ -647,6 +889,8 @@ function Install-Stack {
     $pins=[IO.File]::ReadAllText((Join-Path $script:Config 'runtime-manifest.json')) | ConvertFrom-Json
     Set-InstallStage 'runtime_uv'
     Install-ZipRuntime 'uv' $pins.uv (Join-Path $script:Runtime 'uv\uv.exe')
+    Set-InstallStage 'runtime_vcredist'
+    Install-VcRuntime
     Set-InstallStage 'runtime_mysql'
     Install-MySql
     Set-InstallStage 'runtime_python'
@@ -657,9 +901,18 @@ function Install-Stack {
         foreach ($key in $uvEnvironment.Keys) { $previous[$key]=[Environment]::GetEnvironmentVariable($key,'Process'); [Environment]::SetEnvironmentVariable($key,$uvEnvironment[$key],'Process') }
         Step ('Instalando Python propio ' + $pins.python.version + ' y dependencias fijadas por uv.lock...')
         Invoke-Checked $uv @('python','install',$pins.python.version,'--no-config')
-        Invoke-Checked $uv @('sync','--project',(Join-Path $script:Root 'backend'),'--frozen','--no-dev','--no-editable','--python',$pins.python.version,'--managed-python','--no-python-downloads','--no-config')
+        Set-InstallStage 'auditoria_python'
+        Step 'Auditando dependencias Python antes de instalar; sin omitir avisos conocidos...'
+        Invoke-Checked $uv @('audit','--project',(Join-Path $script:Root 'backend'),'--locked','--no-dev','--no-extra','dev','--no-extra','vertex','--no-extra','oracle','--no-extra','mssql','--no-extra','postgres','--python-version',$pins.python.version,'--python-platform','x86_64-pc-windows-msvc','--no-python-downloads','--no-config')
+        Set-InstallStage 'runtime_python'
+        Invoke-Checked $uv @('sync','--project',(Join-Path $script:Root 'backend'),'--frozen','--no-dev','--no-editable','--no-build','--no-install-project','--python',$pins.python.version,'--managed-python','--no-python-downloads','--no-config')
     } finally { foreach ($key in $previous.Keys) { [Environment]::SetEnvironmentVariable($key,$previous[$key],'Process') } }
+    Invoke-Checked $uv @('pip','check','--python',$script:Python,'--no-config')
     Invoke-Python @('-m','scripts.preflight','--integrity-only')
+    Set-InstallStage 'runtime_node'
+    Install-Node
+    Set-InstallStage 'interfaz'
+    Build-Frontend
     Set-InstallStage 'validacion_modelos'
     Ensure-Models
     Set-InstallStage 'estado_datos'

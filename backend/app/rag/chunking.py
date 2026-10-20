@@ -27,6 +27,7 @@ _TOKENS_PER_WORD = 1.3
 _HEADING_RE = re.compile(r"^(#{1,6})\s+(.*)$")
 _LIST_ITEM_RE = re.compile(r"^\s*([-*+•]|\d+[.)])\s+")
 _TABLE_ROW_RE = re.compile(r"^\s*\|.*\|\s*$")
+_DOCUMENT_HEADING_RE = re.compile(r"^\s*(?:[🔹🔸▪■●•]\s*)?CHUNK\s+\d+\s*[—–:\-]\s*(\S.*)$", re.IGNORECASE)
 
 
 def estimate_tokens(text: str) -> int:
@@ -53,6 +54,8 @@ class TextBlock:
     kind: str = "paragraph"  # paragraph | heading | list | table
     #: Nivel del encabezado (1-6). Solo relevante cuando ``kind == "heading"``.
     level: int = 0
+    #: Marcadores explicitos de seccion en PDF: no mezclar temas cortos.
+    split_before: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -65,7 +68,9 @@ class ChunkDraft:
     index: int
 
 
-def split_into_blocks(text: str, *, default_section: str = "") -> list[TextBlock]:
+def split_into_blocks(
+    text: str, *, default_section: str = "", document_headings: bool = False,
+) -> list[TextBlock]:
     """Convierte texto plano/Markdown en bloques estructurales.
 
     Se agrupan las lineas consecutivas del mismo tipo: una lista completa es un
@@ -88,6 +93,12 @@ def split_into_blocks(text: str, *, default_section: str = "") -> list[TextBlock
     for raw_line in text.splitlines():
         line = raw_line.rstrip()
         heading = _HEADING_RE.match(line)
+        document_heading = _DOCUMENT_HEADING_RE.match(line) if document_headings else None
+        if document_heading:
+            flush()
+            section = document_heading.group(1).strip()
+            blocks.append(TextBlock(text=line.strip(), section=section, kind="heading", level=2, split_before=True))
+            continue
         if heading:
             flush()
             section = heading.group(2).strip()
@@ -170,7 +181,7 @@ def chunk_blocks(
         if (
             block.kind == "heading"
             and current
-            and current_tokens >= HEADING_BREAK_MIN_TOKENS
+            and (current_tokens >= HEADING_BREAK_MIN_TOKENS or block.split_before)
         ):
             emit(current)
             current, current_tokens = [], 0

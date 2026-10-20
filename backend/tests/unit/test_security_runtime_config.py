@@ -121,9 +121,10 @@ def test_exposed_corporate_configuration_requires_dedicated_database_password(ds
 
 
 def test_loopback_test_database_is_preserved_but_not_permitted_for_staging():
-    assert configured().database_url.get_secret_value().startswith("mysql+pymysql://root:")
+    local_dsn = "mysql+pymysql://root:@127.0.0.1/matrix_rh"
+    assert configured(database_url=local_dsn).database_url.get_secret_value() == local_dsn
     with pytest.raises(ValidationError, match="usuario dedicado"):
-        corporate(app_env="staging", database_url="mysql+pymysql://root:@127.0.0.1/matrix_rh")
+        corporate(app_env="staging", database_url=local_dsn)
 
 
 @pytest.mark.parametrize("environment", ["staging", "production"])

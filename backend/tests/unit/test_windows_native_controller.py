@@ -17,6 +17,7 @@ CONTROLLER = ROOT / "backend/scripts/windows/MatrixRH.ps1"
     "native_supervisor_synthetic.ps1", "native_supervisor_apache_synthetic.ps1",
     "native_supervisor_identity_synthetic.ps1", "native_supervisor_ollama_synthetic.ps1",
     "native_supervisor_mysql_synthetic.ps1", "native_supervisor_incomplete_synthetic.ps1",
+    "native_supervisor_installer_security.ps1", "native_supervisor_frontend_build.ps1",
 ])
 def test_native_controller_pure_powershell_flows(fixture: str):
     powershell = os.environ.get("MATRIX_TEST_POWERSHELL") or shutil.which("pwsh") or shutil.which("powershell")

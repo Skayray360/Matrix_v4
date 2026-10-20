@@ -83,6 +83,8 @@ EXCLUDED_PATTERNS = (
     "source-history.bundle",
     "Thumbs.db",
     ".DS_Store",
+    ".gitignore",
+    ".gitattributes",
     # Cachés de herramientas: no son fuente y guardan rutas absolutas del equipo
     # donde se ejecutaron, que no tienen sentido en el equipo destino.
     ".coverage",
@@ -100,7 +102,7 @@ EXCLUDED_PATTERNS = (
 
 GENERATED_CONFIGURATION = frozenset({
     "backend/config/mysql.ini", "backend/config/mysql-initialized.json",
-    "backend/config/apache/matrix-rh.conf",
+    "backend/config/apache/matrix-rh.conf", "backend/config/frontend-build.json",
 })
 
 PACKAGE_ROOT_DIRS = frozenset({"knowledge-base", "backend", "frontend"})

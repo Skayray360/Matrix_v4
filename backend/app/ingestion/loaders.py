@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import csv
 import io
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 from app.common.errors import ExtractionFailedError, UnsupportedFileError
@@ -208,12 +208,7 @@ def extract_docx(data: bytes) -> ExtractedDocument:
 # PDF
 # ---------------------------------------------------------------------------
 def extract_pdf(data: bytes, *, ocr_options: OcrOptions | None = None) -> ExtractedDocument:
-    """Extrae texto pagina por pagina.
-
-    Una pagina escaneada sin capa de texto produce un aviso explicito. **No** se
-    infiere ni se inventa su contenido: Matrix RH prefiere declarar que no puede
-    leer una pagina antes que fabricar una politica.
-    """
+    """Conserva texto digital y complementa las paginas mixtas con OCR optativo."""
     try:
         from pypdf import PdfReader
     except ImportError as exc:  # pragma: no cover
@@ -241,16 +236,19 @@ def extract_pdf(data: bytes, *, ocr_options: OcrOptions | None = None) -> Extrac
     if len(pages) > MAX_PDF_PAGES:
         warnings.append(f"PDF truncado a {MAX_PDF_PAGES} paginas de {len(pages)}.")
 
+    from app.ingestion.pdf_graphics import graphics_only_pdf, has_raster_images
     from app.rag.chunking import split_into_blocks
 
     empty_pages: list[int] = []
+    mixed_pages_without_ocr: list[int] = []
     options = ocr_options or OcrOptions()
     for page_number, page in enumerate(pages[:MAX_PDF_PAGES], start=1):
+        image_text = ""
         try:
             text = page.extract_text() or ""
         except Exception as exc:  # noqa: BLE001
             warnings.append(f"Pagina {page_number}: error de extraccion ({type(exc).__name__}).")
-            continue
+            text = ""
         if not text.strip():
             if options.enabled:
                 try:
@@ -264,17 +262,42 @@ def extract_pdf(data: bytes, *, ocr_options: OcrOptions | None = None) -> Extrac
             if not text.strip():
                 empty_pages.append(page_number)
                 continue
-        label = f"pagina {page_number}"
-        for block in split_into_blocks(text, default_section=label):
-            blocks.append(
-                TextBlock(
-                    text=block.text,
-                    section=block.section or label,
-                    page_or_sheet=label,
-                    kind=block.kind,
-                )
-            )
+        else:
+            # Una tabla como imagen no aparece en extract_text aunque su titulo
+            # y sus condiciones si lo hagan. Conservar siempre el texto digital.
+            try:
+                has_images = has_raster_images(page)
+                if has_images and options.enabled:
+                    image_text = ocr_pdf_page(
+                        graphics_only_pdf(page), 1, options, preserve_layout=True,
+                    )
+                    warnings.append(
+                        f"Pagina {page_number}: OCR local de imagenes; "
+                        "revisar cifras, filas y columnas contra el original."
+                        if image_text.strip() else
+                        f"Pagina {page_number}: el OCR local de imagenes no produjo texto; "
+                        "no se acredita su cobertura."
+                    )
+                elif has_images:
+                    mixed_pages_without_ocr.append(page_number)
+            except Exception as exc:  # noqa: BLE001 - conservar texto digital y avisar
+                message = exc.message if isinstance(exc, ExtractionFailedError) else "No se pudieron leer las imagenes."
+                warnings.append(f"Pagina {page_number}: {message} Cobertura de imagenes pendiente.")
 
+        label = f"pagina {page_number}"
+        page_blocks = split_into_blocks(text, default_section=label, document_headings=True)
+        # Descartar solo repeticiones literales, nunca aproximar cifras o reglas.
+        if image_text.strip() and " ".join(image_text.split()) not in " ".join(text.split()):
+            page_blocks.extend(split_into_blocks(image_text, default_section=label))
+        blocks.extend(replace(block, page_or_sheet=label) for block in page_blocks)
+
+    if mixed_pages_without_ocr:
+        warnings.insert(
+            0,
+            "OCR local desactivado: paginas con texto e imagenes cuyo contenido no se verifico: "
+            + ", ".join(str(p) for p in mixed_pages_without_ocr[:25])
+            + ". Las tablas en imagen pueden faltar en el indice.",
+        )
     if empty_pages:
         warnings.append(
             "Paginas sin texto extraible (posible escaneo sin OCR): "

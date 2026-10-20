@@ -17,12 +17,24 @@ reindexar (por eso ``INGESTION_VERSION`` los acompana).
 
 from __future__ import annotations
 
+import re
+
 #: Prefijo de consulta recomendado por el modelo para busqueda semantica.
 QUERY_TEMPLATE = "task: search result | query: {text}"
 #: Prefijo de documento. ``title`` mejora el anclaje cuando el chunk viene de una
 #: seccion con encabezado; se usa "none" cuando no hay titulo, como indica el
 #: propio formato del modelo.
 DOCUMENT_TEMPLATE = "title: {title} | text: {text}"
+_LOCATION_TITLE = re.compile(r"^(?:p[aá]gina|p[aá]rrafo|diapositiva|tabla|hoja)\s+\d+$", re.IGNORECASE)
+
+
+def document_embedding_title(*, filename: str, section: str = "") -> str:
+    """Ancla siempre el archivo; las ubicaciones genericas no son un tema."""
+    filename = " ".join(filename.split())
+    section = " ".join(section.split())
+    if not section or _LOCATION_TITLE.fullmatch(section) or section.casefold() == filename.casefold():
+        return filename or "none"
+    return f"{filename} — {section}" if filename else section
 
 
 def format_query(text: str) -> str:
