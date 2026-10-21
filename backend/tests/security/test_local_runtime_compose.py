@@ -125,7 +125,9 @@ def test_imagenes_fijadas_y_build_sin_secretos_ni_estado():
         if line.startswith("FROM "):
             assert re.search(r"@sha256:[0-9a-f]{64}(?: AS \w+)?$", line)
     assert "uv==0.12.23" in dockerfile
-    assert "--frozen --no-dev --no-editable" in dockerfile
+    assert "--locked --no-dev --no-install-project --no-build" in dockerfile
+    assert dockerfile.index("RUN uv audit ") < dockerfile.index("RUN uv sync ")
+    assert "RUN corepack npm audit signatures" in dockerfile
     assert "npm ci --ignore-scripts" in dockerfile
     assert "USER matrixrh" in dockerfile
     exclusions = (ROOT / "backend/Dockerfile.dockerignore").read_text().splitlines()

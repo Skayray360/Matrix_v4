@@ -97,8 +97,6 @@ def create_app() -> FastAPI:
         openapi_url="/api/openapi.json" if settings.app_env is not AppEnv.PRODUCTION else None,
     )
 
-    app.add_middleware(SecurityHeadersMiddleware, hsts=settings.session_cookie_secure)
-    app.add_middleware(RequestContextMiddleware)
 
     app.add_exception_handler(MatrixError, matrix_error_handler)  # type: ignore[arg-type]
     app.add_exception_handler(Exception, unhandled_error_handler)
@@ -127,6 +125,11 @@ def create_app() -> FastAPI:
     from app.api.body_limit import UploadBodyLimitMiddleware
 
     app.add_middleware(UploadBodyLimitMiddleware)
+    from app.api.request_boundary import RequestBoundaryMiddleware
+
+    app.add_middleware(RequestBoundaryMiddleware, settings=settings)
+    app.add_middleware(SecurityHeadersMiddleware, hsts=settings.session_cookie_secure)
+    app.add_middleware(RequestContextMiddleware)
 
     # --- routers -----------------------------------------------------------
     app.include_router(health.router, prefix=API_PREFIX)

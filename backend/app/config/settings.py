@@ -99,6 +99,9 @@ class Settings(BaseSettings):
     app_secret_key: SecretStr = SecretStr("")
     #: Solo los proxies concretos de TI pueden suministrar la IP del cliente.
     forwarded_allow_ips: str = "127.0.0.1,::1"
+    http_body_max_bytes: Annotated[int, Field(ge=1024, le=10_485_760)] = 65_536
+    http_body_timeout_seconds: Annotated[float, Field(gt=0, le=120)] = 10.0
+    http_max_inflight: Annotated[int, Field(ge=1, le=1024)] = 64
 
     # ------------------------------------------------------------- ollama ---
     ollama_base_url: str = "http://127.0.0.1:11434"

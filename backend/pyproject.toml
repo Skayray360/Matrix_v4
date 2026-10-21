@@ -23,6 +23,8 @@ dependencies = [
     "pymysql==1.1.1",
     "cryptography>=50,<51",
     "httpx==0.28.1",
+    # Retira raices emSign afectadas por compromiso de claves intermedias.
+    "certifi>=2026.10.19",
     # Validacion de id_token de Microsoft Entra ID (firma JWKS, iss, aud, exp, nonce).
     "pyjwt[crypto]>=2.15.1,<3",
     "argon2-cffi==23.1.0",

@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import csv
 import io
+from collections.abc import Callable
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 
@@ -454,7 +455,7 @@ def extract_csv(data: bytes) -> ExtractedDocument:
 # ---------------------------------------------------------------------------
 # Despachador
 # ---------------------------------------------------------------------------
-_EXTRACTORS = {
+_EXTRACTORS: dict[str, Callable[[bytes], ExtractedDocument]] = {
     ".txt": extract_txt,
     ".md": extract_markdown,
     ".docx": extract_docx,

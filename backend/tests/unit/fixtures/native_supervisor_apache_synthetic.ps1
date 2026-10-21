@@ -21,6 +21,8 @@ try {
     Write-Text (Join-Path $script:ApacheRoot 'httpd.conf') 'Original Apache configuration'
     Write-Text (Join-Path $script:ApacheRoot 'modules/mod_proxy.so') 'synthetic'
     Write-Text (Join-Path $script:ApacheRoot 'modules/mod_proxy_http.so') 'synthetic'
+    Write-Text (Join-Path $script:ApacheRoot 'modules/mod_headers.so') 'synthetic'
+    Write-Text (Join-Path $script:ApacheRoot 'modules/mod_reqtimeout.so') 'synthetic'
     Write-Text (Join-Path $script:Config 'apache/matrix-rh.conf') 'Original proxy configuration'
     Write-Text (Join-Path $script:Config 'apache/matrix-rh.conf.template') 'Listen 127.0.0.1:{{WEB_PORT}}'
     function Find-Apache([string]$Wamp) { return @{base=$script:ApacheRoot;config=(Join-Path $script:ApacheRoot 'httpd.conf');executable='synthetic-httpd';service='synthetic-wamp'} }

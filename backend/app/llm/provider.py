@@ -429,88 +429,15 @@ class ModelClient(OllamaClient):
                 top_k=top_k,
             )
         elif provider == "openai_compatible":
-            payload: dict[str, Any] = {
-                "model": model,
-                "messages": messages,
-                "stream": False,
-                "temperature": temperature,
-                "top_p": s.llm_top_p,
-            }
-            if max_tokens is not None:
-                payload["max_tokens"] = max_tokens
-            if stop:
-                payload["stop"] = stop
-            if think is not None:
-                payload["chat_template_kwargs"] = {"enable_thinking": think}
-            if top_k is not None:
-                payload["top_k"] = top_k
-            if response_schema is not None:
-                payload["response_format"] = {
-                    "type": "json_schema",
-                    "json_schema": {"name": "matrix_response", "schema": response_schema},
-                }
-            data = self._post(s.llm_api_base_url.rstrip("/") + "/chat/completions", payload)
-            choices = data.get("choices") or []
-            if (
-                not isinstance(choices, list)
-                or not choices
-                or not isinstance(choices[0], dict)
-                or choices[0].get("finish_reason") not in ("stop", None)
-            ):
-                raise InferenceFailureError(InferenceFailureKind.INCOMPLETE, "El modelo no completo la respuesta.")
-            message = choices[0].get("message")
-            if not isinstance(message, dict):
-                raise InferenceFailureError(InferenceFailureKind.FORMAT, "Respuesta de chat no valida.")
-            content = message.get("content")
-            # El parser del runtime separa reasoning/reasoning_content. Nunca
-            # se usan como fallback de contenido final ni se persisten.
-            raw_usage = data.get("usage")
-            usage = raw_usage if isinstance(raw_usage, dict) else {}
-            result = ChatResult(
-                content=content or "", model=model, latency_ms=int((time.perf_counter() - started) * 1000),
-                prompt_eval_count=_metric(usage, "prompt_tokens"),
-                eval_count=_metric(usage, "completion_tokens"),
+            result = self._compatible_chat(
+                model=model, messages=messages, temperature=temperature, max_tokens=max_tokens,
+                stop=stop, response_schema=response_schema, think=think, top_k=top_k, started=started,
             )
         else:
-            if think is not None or top_k is not None:
-                raise ConfigurationError("Thinking/top_k por perfil requieren un adapter local compatible.")
-            config: dict[str, Any] = {"temperature": temperature, "topP": s.llm_top_p}
-            if max_tokens is not None:
-                config["maxOutputTokens"] = max_tokens
-            if stop:
-                config["stopSequences"] = stop
-            if response_schema is not None:
-                config.update(responseMimeType="application/json", responseSchema=vertex_schema(response_schema))
-            payload = {
-                "contents": [
-                    {"role": "model" if m["role"] == "assistant" else "user", "parts": [{"text": m["content"]}]}
-                    for m in messages
-                    if m["role"] != "system"
-                ],
-                "generationConfig": config,
-            }
-            systems = [m["content"] for m in messages if m["role"] == "system"]
-            if systems:
-                payload["systemInstruction"] = {"parts": [{"text": "\n\n".join(systems)}]}
-            data = self._post(
-                s.llm_vertex_base_url.rstrip("/") + "/" + quote(model, safe="") + ":generateContent", payload
+            result = self._vertex_chat(
+                model=model, messages=messages, temperature=temperature, max_tokens=max_tokens,
+                stop=stop, response_schema=response_schema, think=think, top_k=top_k, started=started,
             )
-            candidates = data.get("candidates") or []
-            if (
-                not isinstance(candidates, list)
-                or not candidates
-                or not isinstance(candidates[0], dict)
-                or candidates[0].get("finishReason") != "STOP"
-            ):
-                raise InferenceFailureError(InferenceFailureKind.INCOMPLETE, "Vertex rechazo o trunco la respuesta.")
-            candidate_content = candidates[0].get("content")
-            parts = candidate_content.get("parts") if isinstance(candidate_content, dict) else None
-            if not isinstance(parts, list) or any(
-                not isinstance(part, dict) or not isinstance(part.get("text", ""), str) for part in parts
-            ):
-                raise InferenceFailureError(InferenceFailureKind.FORMAT, "Vertex devolvio contenido no valido.")
-            content = "".join(part.get("text", "") for part in parts if not part.get("thought"))
-            result = ChatResult(content=content, model=model, latency_ms=int((time.perf_counter() - started) * 1000))
         if not isinstance(result.content, str):
             raise InferenceFailureError(InferenceFailureKind.FORMAT, "Respuesta de chat no valida.")
         if not result.content.strip():
@@ -529,6 +456,105 @@ class ModelClient(OllamaClient):
                 raise InferenceFailureError(
                     InferenceFailureKind.SCHEMA, "La respuesta no cumple el schema solicitado.",
                 ) from exc
+        return result
+
+    def _compatible_chat(
+        self, *, model: str, messages: list[dict[str, str]], temperature: float,
+        max_tokens: int | None, stop: list[str] | None, response_schema: dict[str, Any] | None,
+        think: bool | None, top_k: int | None, started: float,
+    ) -> ChatResult:
+        """Construye y valida el protocolo de chat compatible."""
+        s = self.settings
+        payload: dict[str, Any] = {
+            "model": model,
+            "messages": messages,
+            "stream": False,
+            "temperature": temperature,
+            "top_p": s.llm_top_p,
+        }
+        if max_tokens is not None:
+            payload["max_tokens"] = max_tokens
+        if stop:
+            payload["stop"] = stop
+        if think is not None:
+            payload["chat_template_kwargs"] = {"enable_thinking": think}
+        if top_k is not None:
+            payload["top_k"] = top_k
+        if response_schema is not None:
+            payload["response_format"] = {
+                "type": "json_schema",
+                "json_schema": {"name": "matrix_response", "schema": response_schema},
+            }
+        data = self._post(s.llm_api_base_url.rstrip("/") + "/chat/completions", payload)
+        choices = data.get("choices") or []
+        if (
+            not isinstance(choices, list)
+            or not choices
+            or not isinstance(choices[0], dict)
+            or choices[0].get("finish_reason") not in ("stop", None)
+        ):
+            raise InferenceFailureError(InferenceFailureKind.INCOMPLETE, "El modelo no completo la respuesta.")
+        message = choices[0].get("message")
+        if not isinstance(message, dict):
+            raise InferenceFailureError(InferenceFailureKind.FORMAT, "Respuesta de chat no valida.")
+        content = message.get("content")
+        # El parser del runtime separa reasoning/reasoning_content. Nunca
+        # se usan como fallback de contenido final ni se persisten.
+        raw_usage = data.get("usage")
+        usage = raw_usage if isinstance(raw_usage, dict) else {}
+        result = ChatResult(
+            content=content or "", model=model, latency_ms=int((time.perf_counter() - started) * 1000),
+            prompt_eval_count=_metric(usage, "prompt_tokens"),
+            eval_count=_metric(usage, "completion_tokens"),
+        )
+        return result
+
+    def _vertex_chat(
+        self, *, model: str, messages: list[dict[str, str]], temperature: float,
+        max_tokens: int | None, stop: list[str] | None, response_schema: dict[str, Any] | None,
+        think: bool | None, top_k: int | None, started: float,
+    ) -> ChatResult:
+        """Construye y valida Vertex sin mezclar sus campos con Ollama."""
+        s = self.settings
+        if think is not None or top_k is not None:
+            raise ConfigurationError("Thinking/top_k por perfil requieren un adapter local compatible.")
+        config: dict[str, Any] = {"temperature": temperature, "topP": s.llm_top_p}
+        if max_tokens is not None:
+            config["maxOutputTokens"] = max_tokens
+        if stop:
+            config["stopSequences"] = stop
+        if response_schema is not None:
+            config.update(responseMimeType="application/json", responseSchema=vertex_schema(response_schema))
+        payload = {
+            "contents": [
+                {"role": "model" if m["role"] == "assistant" else "user", "parts": [{"text": m["content"]}]}
+                for m in messages
+                if m["role"] != "system"
+            ],
+            "generationConfig": config,
+        }
+        systems = [m["content"] for m in messages if m["role"] == "system"]
+        if systems:
+            payload["systemInstruction"] = {"parts": [{"text": "\n\n".join(systems)}]}
+        data = self._post(
+            s.llm_vertex_base_url.rstrip("/") + "/" + quote(model, safe="") + ":generateContent", payload
+        )
+        candidates = data.get("candidates") or []
+        if (
+            not isinstance(candidates, list)
+            or not candidates
+            or not isinstance(candidates[0], dict)
+            or candidates[0].get("finishReason") != "STOP"
+        ):
+            raise InferenceFailureError(InferenceFailureKind.INCOMPLETE, "Vertex rechazo o trunco la respuesta.")
+        candidate_content = candidates[0].get("content")
+        parts = candidate_content.get("parts") if isinstance(candidate_content, dict) else None
+        if not isinstance(parts, list) or any(
+            not isinstance(part, dict) or not isinstance(part.get("text", ""), str) for part in parts
+        ):
+            raise InferenceFailureError(InferenceFailureKind.FORMAT, "Vertex devolvio contenido no valido.")
+        content = "".join(part.get("text", "") for part in parts if not part.get("thought"))
+        result = ChatResult(content=content, model=model, latency_ms=int((time.perf_counter() - started) * 1000))
         return result
 
     def _ollama_chat(self, **arguments: Any) -> ChatResult:

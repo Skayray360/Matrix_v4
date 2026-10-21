@@ -18,6 +18,7 @@ from starlette.responses import Response
 from app.common.errors import ErrorCode, MatrixError
 from app.common.ids import new_id
 from app.common.logging import bind_request_context, get_logger, reset_request_context, safe_error_fields
+from app.config import get_settings
 
 logger = get_logger(__name__)
 
@@ -128,6 +129,10 @@ async def unhandled_error_handler(request: Request, exc: Exception) -> JSONRespo
     )
     return JSONResponse(
         status_code=500,
+        headers={**SECURITY_HEADERS, "X-Request-ID": request_id or "", **(
+            {"Strict-Transport-Security": "max-age=31536000; includeSubDomains"}
+            if get_settings().session_cookie_secure else {}
+        )},
         content={
             "code": str(ErrorCode.INTERNAL_ERROR),
             "message": "Ocurrio un error interno.",

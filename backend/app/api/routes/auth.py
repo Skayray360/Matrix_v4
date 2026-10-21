@@ -15,8 +15,9 @@ from __future__ import annotations
 
 import secrets
 from collections.abc import Sequence
+from typing import Annotated
 
-from fastapi import APIRouter, Depends, Request, Response
+from fastapi import APIRouter, Depends, Query, Request, Response
 from fastapi.responses import RedirectResponse
 from sqlalchemy import and_, delete, or_, select
 from sqlalchemy.orm import Session
@@ -89,6 +90,10 @@ def login(request: Request, db: Session = Depends(get_db)) -> RedirectResponse:
         # Con el proveedor local no hay redireccion federada: la UI muestra su
         # propio formulario.
         return RedirectResponse(url="/login", status_code=302)
+    if not get_rate_limiter().check(
+        _client_key(request, "federated-start"), limit=settings.rate_limit_login_per_minute,
+    ).allowed:
+        raise RateLimitedError()
     challenge = get_identity_provider().start_login(db)
     redirect = RedirectResponse(url=challenge.authorization_url, status_code=302)
     redirect.set_cookie(
@@ -107,8 +112,8 @@ def login(request: Request, db: Session = Depends(get_db)) -> RedirectResponse:
 def auth_callback(
     request: Request,
     response: Response,
-    code: str = "",
-    state: str = "",
+    code: Annotated[str, Query(max_length=4096)] = "",
+    state: Annotated[str, Query(max_length=256)] = "",
     db: Session = Depends(get_db),
 ) -> RedirectResponse:
     """Callback OIDC de Microsoft Entra ID."""
@@ -117,7 +122,7 @@ def auth_callback(
         raise UnauthorizedError("El proveedor Entra ID no esta activo.")
 
     correlation = request.cookies.get("matrixrh_oidc_state", "")
-    if not state or not correlation or not secrets.compare_digest(state, correlation):
+    if not state or not correlation or not secrets.compare_digest(state.encode("utf-8"), correlation.encode("utf-8")):
         raise UnauthorizedError("La autenticacion no corresponde a este navegador.")
     provider = get_identity_provider()
     identity = provider.authenticate(db, code=code, state=state)
