@@ -120,7 +120,7 @@ def extract_markdown(data: bytes) -> ExtractedDocument:
     from app.rag.chunking import split_into_blocks
 
     text = _decode_text(data)
-    return ExtractedDocument(blocks=split_into_blocks(text), mime_type="text/markdown")
+    return ExtractedDocument(blocks=split_into_blocks(text, markdown_tables=True), mime_type="text/markdown")
 
 
 # ---------------------------------------------------------------------------
@@ -163,6 +163,7 @@ def extract_docx(data: bytes) -> ExtractedDocument:
                 if any(cells):
                     rows.append("| " + " | ".join(cells) + " |")
             if rows:
+                rows.insert(1, "| " + " | ".join("---" for _ in item.rows[0].cells) + " |")
                 blocks.append(
                     TextBlock(
                         "\n".join(rows),
@@ -342,18 +343,20 @@ def extract_xlsx(data: bytes) -> ExtractedDocument:
 
     blocks: list[TextBlock] = []
     warnings: list[str] = []
+    formula_workbook = None
     try:
+        # Segunda lectura acotada para distinguir celdas vacias de formulas
+        # sin resultado guardado. No calcular formulas ni resolver enlaces.
+        formula_workbook = load_workbook(io.BytesIO(data), read_only=True, data_only=False, keep_links=False)
         sheet_names = workbook.sheetnames[:MAX_XLSX_SHEETS]
         if len(workbook.sheetnames) > MAX_XLSX_SHEETS:
             warnings.append(f"Libro truncado a {MAX_XLSX_SHEETS} hojas.")
 
         for sheet_name in sheet_names:
             sheet = workbook[sheet_name]
-            blocks.append(
-                TextBlock(f"## Hoja: {sheet_name}", section=sheet_name, page_or_sheet=sheet_name, kind="heading")
-            )
             headers: list[str] = []
             row_lines: list[str] = []
+            missing_formula_values = 0
             if sheet.max_column and sheet.max_column > MAX_XLSX_COLUMNS:
                 warnings.append(f"Hoja '{sheet_name}' truncada a {MAX_XLSX_COLUMNS} columnas.")
             read_rows = min(sheet.max_row or MAX_XLSX_ROWS_PER_SHEET + 1, MAX_XLSX_ROWS_PER_SHEET + 1)
@@ -363,15 +366,19 @@ def extract_xlsx(data: bytes) -> ExtractedDocument:
             # ya materializaba todas las columnas de una fila. Contar filas
             # fisicas evita recorrer millones de huecos en libros dispersos.
             # Una fila adicional permite informar el truncamiento al operador.
-            for row_number, row in enumerate(sheet.iter_rows(
-                values_only=True, max_row=read_rows, max_col=read_columns,
-            ), start=1):
+            value_rows = sheet.iter_rows(values_only=True, max_row=read_rows, max_col=read_columns)
+            formula_rows = formula_workbook[sheet_name].iter_rows(max_row=read_rows, max_col=read_columns)
+            for row_number, (row, formula_row) in enumerate(zip(value_rows, formula_rows, strict=True), start=1):
                 if row_number > MAX_XLSX_ROWS_PER_SHEET:
                     warnings.append(
                         f"Hoja '{sheet_name}' truncada a {MAX_XLSX_ROWS_PER_SHEET} filas."
                     )
                     break
-                values = ["" if v is None else str(v).strip() for v in row[:MAX_XLSX_COLUMNS]]
+                missing_formula_values += sum(
+                    cell.data_type == "f" and value is None
+                    for value, cell in zip(row, formula_row, strict=True)
+                )
+                values = ["" if v is None else " ".join(str(v).split()) for v in row[:MAX_XLSX_COLUMNS]]
                 if not any(values):
                     continue
                 if not headers:
@@ -383,9 +390,17 @@ def extract_xlsx(data: bytes) -> ExtractedDocument:
                     if i < len(headers) and value
                 ]
                 if pairs:
-                    row_lines.append("- " + "; ".join(pairs))
+                    row_lines.append(f"- Fila {row_number}: " + "; ".join(pairs))
 
+            if missing_formula_values:
+                warnings.append(
+                    f"Hoja '{sheet_name}': {missing_formula_values} formulas sin resultado guardado; "
+                    "recalcule y guarde el libro en Excel antes de cargarlo. No se evaluaron formulas."
+                )
             if headers:
+                blocks.append(
+                    TextBlock(f"## Hoja: {sheet_name}", section=sheet_name, page_or_sheet=sheet_name, kind="heading")
+                )
                 blocks.append(
                     TextBlock(
                         "Columnas: " + ", ".join(headers),
@@ -400,11 +415,13 @@ def extract_xlsx(data: bytes) -> ExtractedDocument:
                         "\n".join(row_lines),
                         section=sheet_name,
                         page_or_sheet=sheet_name,
-                        kind="list",
+                        kind="rows",
                     )
                 )
     finally:
         workbook.close()
+        if formula_workbook is not None:
+            formula_workbook.close()
 
     if not blocks:
         warnings.append("El libro de Excel no contiene datos extraibles.")
@@ -469,9 +486,10 @@ _EXTRACTORS: dict[str, Callable[[bytes], ExtractedDocument]] = {
 def extract_document(data: bytes, *, filename: str, ocr_options: OcrOptions | None = None) -> ExtractedDocument:
     """Selecciona el extractor por extension. Extension desconocida = rechazo."""
     extension = Path(filename).suffix.lower()
-    if extension in {".doc", ".ppt"}:
+    if extension in {".doc", ".ppt", ".xls"}:
         raise UnsupportedFileError(
-            "El formato Office antiguo requiere conversion local a DOCX o PPTX; no hay conversor automatico habilitado."
+            "El formato Office antiguo requiere conversion local a DOCX, PPTX o XLSX; "
+            "no hay conversor automatico habilitado."
         )
     extractor = _EXTRACTORS.get(extension)
     if extractor is None:

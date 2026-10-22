@@ -10,8 +10,8 @@ from types import SimpleNamespace
 
 import docx
 import pytest
-from qdrant_client import QdrantClient
-from sqlalchemy import create_engine
+from qdrant_client import QdrantClient, models
+from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
 
 from app.agents.orchestrator import Orchestrator
@@ -22,13 +22,88 @@ from app.ingestion.loaders import extract_docx
 from app.llm.model_policy import Intent
 from app.rag.chunking import chunk_blocks
 from app.rag.document_selection import explicit_document_filenames, has_document_reference
-from app.rag.index_manifest import indexing_fingerprint
+from app.rag.index_manifest import active_filter, indexing_fingerprint
 from app.rag.retriever import Retriever
 from app.rag.schemas import Chunk, ChunkMetadata
 from app.rag.vector_store import VectorStore
 from tests.conftest import make_context
 
 pytestmark = pytest.mark.unit
+
+
+def test_document_generation_filter_does_not_load_other_documents(corpus):
+    requested = corpus.publish("Requested.docx")[0].metadata
+    for number in range(20):
+        corpus.publish(f"Other{number}.docx", count=1)
+    query = corpus.store.build_private_filter(user_id="owner", conversation_id="thread")
+    query.must.append(models.FieldCondition(key="document_id", match=models.MatchValue(value=requested.document_id)))
+    selected = active_filter(query)
+    assert selected.must[-1].match.any == [requested.generation]
+    query.must.append(models.FieldCondition(key="generation", match=models.MatchValue(value="old-generation")))
+    assert active_filter(query).must[-1].match.any == ["__none__"]
+
+
+@pytest.mark.parametrize("count", [1, 8])
+def test_document_reads_use_two_sql_queries_regardless_of_document_count(corpus, count):
+    for number in range(count):
+        corpus.publish(f"Document{number}.docx", count=2)
+    options = {"scope": "conversation", "user_id": "owner", "conversation_id": "thread",
+               "index_fingerprint": corpus.fingerprint}
+    documents = corpus.store.list_authorized_documents(**options)
+    with corpus.scope() as db:
+        engine = db.get_bind()
+    statements = []
+
+    def capture(_connection, _cursor, statement, _parameters, _context, _many):
+        statements.append(statement)
+
+    event.listen(engine, "before_cursor_execute", capture)
+    try:
+        chunks, truncated = corpus.store.list_document_chunks(documents=documents, limit=count * 2, **options)
+    finally:
+        event.remove(engine, "before_cursor_execute", capture)
+    assert len(chunks) == count * 2 and not truncated
+    assert len(statements) == 2
+
+
+def test_final_visibility_check_removes_document_deleted_during_later_scroll(corpus, monkeypatch):
+    first = corpus.publish("A.docx", count=1)[0].metadata
+    corpus.publish("B.docx", count=1)
+    options = {"scope": "conversation", "user_id": "owner", "conversation_id": "thread",
+               "index_fingerprint": corpus.fingerprint}
+    documents = corpus.store.list_authorized_documents(**options)
+    original = corpus.store._client.scroll
+    calls = 0
+
+    def scroll(**kwargs):
+        nonlocal calls
+        calls += 1
+        if calls == 2:
+            with corpus.scope() as db:
+                db.get(Document, first.document_id).deleted_at = utcnow_naive()
+        return original(**kwargs)
+
+    monkeypatch.setattr(corpus.store._client, "scroll", scroll)
+    chunks, truncated = corpus.store.list_document_chunks(documents=documents, limit=2, **options)
+    assert len(chunks) == 1 and truncated
+    assert chunks[0].payload["filename"] == "B.docx"
+
+
+def test_large_document_upserts_are_bounded_and_complete(corpus, monkeypatch):
+    original = corpus.store._client.upsert
+    sizes = []
+
+    def upsert(**kwargs):
+        sizes.append(len(kwargs["points"]))
+        return original(**kwargs)
+
+    monkeypatch.setattr(corpus.store._client, "upsert", upsert)
+    chunks = corpus.publish("Large.docx", count=150)
+    assert sizes == [64, 64, 22]
+    result = corpus.retriever.retrieve_attachment_summary(
+        ctx=corpus.ctx, conversation_id="thread", question="resume Large.docx",
+    )
+    assert {item.chunk_id for item in result.evidences} == {chunk.metadata.chunk_id for chunk in chunks}
 
 
 class NoEmbedding:

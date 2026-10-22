@@ -263,31 +263,36 @@ class VectorStore:
         if len(chunks) != len(vectors):
             raise QdrantUnavailableError(detail="chunks y vectors tienen distinta longitud")
 
-        by_collection: dict[str, list[models.PointStruct]] = {}
-        for chunk, vector in zip(chunks, vectors, strict=True):
+        # Validar todas las dimensiones antes de escribir; materializar los puntos
+        # solo por lote para acotar memoria y tamano de cada peticion.
+        by_collection: dict[str, list[int]] = {}
+        for index, (chunk, vector) in enumerate(zip(chunks, vectors, strict=True)):
             if len(vector) != self._dimension:
                 raise QdrantUnavailableError(
                     detail=f"vector de dimension {len(vector)}, esperada {self._dimension}"
                 )
             collection = self.collection_for(chunk.metadata.scope)
-            by_collection.setdefault(collection, []).append(
-                models.PointStruct(
-                    id=chunk.metadata.chunk_id,
-                    vector=vector,
-                    payload=chunk.metadata.to_payload(chunk.text),
-                )
-            )
+            by_collection.setdefault(collection, []).append(index)
 
         total = 0
-        for collection, points in by_collection.items():
+        for collection, indices in by_collection.items():
             self.ensure_collection(collection)
             try:
-                self._client.upsert(collection_name=collection, points=points, wait=True)
+                for start in range(0, len(indices), 64):
+                    points = [
+                        models.PointStruct(
+                            id=chunks[index].metadata.chunk_id,
+                            vector=vectors[index],
+                            payload=chunks[index].metadata.to_payload(chunks[index].text),
+                        )
+                        for index in indices[start:start + 64]
+                    ]
+                    self._client.upsert(collection_name=collection, points=points, wait=True)
             except Exception as exc:  # noqa: BLE001
                 raise QdrantUnavailableError(
                     "Fallo la escritura en el almacen vectorial.", detail=str(exc)
                 ) from exc
-            total += len(points)
+            total += len(indices)
         return total
 
     # ----------------------------------------------------------------- delete
@@ -632,13 +637,15 @@ class VectorStore:
         truncated = False
         remaining = limit
         capacities = [max(1, document.chunk_count or limit) for document in documents]
+        remaining_capacity = sum(capacities)
         for position, document in enumerate(documents):
             if remaining < 1:
                 truncated = True
                 break
             # Distribuir el presupuesto segun el tamano publicado; si todos
             # caben, una diferencia de tamanos no trunca al primer documento.
-            quota = min(capacities[position], max(1, remaining * capacities[position] // sum(capacities[position:])))
+            quota = min(capacities[position], max(1, remaining * capacities[position] // remaining_capacity))
+            remaining_capacity -= capacities[position]
             conditions: list[Any] = [
                 query_filter,
                 models.FieldCondition(key="document_id", match=models.MatchValue(value=document.document_id)),
@@ -673,11 +680,14 @@ class VectorStore:
             except Exception as exc:  # noqa: BLE001
                 raise QdrantUnavailableError("Fallo la recuperacion documental autorizada.", detail=str(exc)) from exc
             page_items.sort(key=lambda item: int(item.payload.get("chunk_index", 0)))
-            visible = visible_candidates(page_items[:quota])
-            truncated = truncated or len(page_items) > quota or len(visible) < min(document.chunk_count, quota)
-            collected.extend(visible)
-            remaining -= len(visible)
-        return collected, truncated
+            selected = page_items[:quota]
+            truncated = truncated or len(page_items) > quota or len(selected) < min(document.chunk_count, quota)
+            collected.extend(selected)
+            remaining -= len(selected)
+        # Una sola consulta SQL final, tambien para detectar una eliminacion o
+        # reindexacion ocurrida mientras se leian los documentos anteriores.
+        visible = visible_candidates(collected)
+        return visible, truncated or len(visible) < len(collected)
 
     # ------------------------------------------------------------- utilidades
     def count(self, collection: str) -> int:

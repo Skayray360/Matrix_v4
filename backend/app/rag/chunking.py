@@ -27,6 +27,7 @@ _TOKENS_PER_WORD = 1.3
 _HEADING_RE = re.compile(r"^(#{1,6})\s+(.*)$")
 _LIST_ITEM_RE = re.compile(r"^\s*([-*+•]|\d+[.)])\s+")
 _TABLE_ROW_RE = re.compile(r"^\s*\|.*\|\s*$")
+_FENCE_RE = re.compile(r"^ {0,3}(`{3,}|~{3,})(.*)$")
 _DOCUMENT_HEADING_RE = re.compile(r"^\s*(?:[🔹🔸▪■●•]\s*)?CHUNK\s+\d+\s*[—–:\-]\s*(\S.*)$", re.IGNORECASE)
 
 
@@ -51,7 +52,7 @@ class TextBlock:
     text: str
     section: str
     page_or_sheet: str = ""
-    kind: str = "paragraph"  # paragraph | heading | list | table
+    kind: str = "paragraph"  # paragraph | heading | list | table | rows | code
     #: Nivel del encabezado (1-6). Solo relevante cuando ``kind == "heading"``.
     level: int = 0
     #: Marcadores explicitos de seccion en PDF: no mezclar temas cortos.
@@ -69,7 +70,7 @@ class ChunkDraft:
 
 
 def split_into_blocks(
-    text: str, *, default_section: str = "", document_headings: bool = False,
+    text: str, *, default_section: str = "", document_headings: bool = False, markdown_tables: bool = False,
 ) -> list[TextBlock]:
     """Convierte texto plano/Markdown en bloques estructurales.
 
@@ -81,6 +82,8 @@ def split_into_blocks(
     section = default_section
     buffer: list[str] = []
     buffer_kind = "paragraph"
+    fence = ""
+    table_columns = 0
 
     def flush() -> None:
         nonlocal buffer, buffer_kind
@@ -90,8 +93,35 @@ def split_into_blocks(
         buffer = []
         buffer_kind = "paragraph"
 
-    for raw_line in text.splitlines():
+    lines = text.splitlines()
+    for position, raw_line in enumerate(lines):
         line = raw_line.rstrip()
+        if fence:
+            buffer.append(raw_line)
+            if re.fullmatch(r" {0,3}" + re.escape(fence[0]) + "{" + str(len(fence)) + r",}\s*", line):
+                flush()
+                fence = ""
+            continue
+        opening = _FENCE_RE.match(line)
+        if opening and not (opening[1][0] == "`" and "`" in opening[2]):
+            flush()
+            fence = opening[1]
+            buffer_kind = "code"
+            buffer.append(raw_line)
+            table_columns = 0
+            continue
+        if markdown_tables:
+            cells = _markdown_cells(line)
+            if table_columns and len(cells) == table_columns:
+                line = "| " + " | ".join(cells) + " |"
+            else:
+                table_columns = 0
+                following = _markdown_cells(lines[position + 1]) if position + 1 < len(lines) else []
+                if cells and len(cells) == len(following) and all(
+                    re.fullmatch(r":?-+:?", cell) for cell in following
+                ):
+                    table_columns = len(cells)
+                    line = "| " + " | ".join(cells) + " |"
         heading = _HEADING_RE.match(line)
         document_heading = _DOCUMENT_HEADING_RE.match(line) if document_headings else None
         if document_heading:
@@ -128,6 +158,26 @@ def split_into_blocks(
 
     flush()
     return blocks
+
+
+def _markdown_cells(line: str) -> list[str]:
+    """Separar barras sin confundir una barra escapada con una columna."""
+    cells: list[str] = []
+    start = 0
+    escaped = False
+    for position, char in enumerate(line):
+        if char == "|" and not escaped:
+            cells.append(line[start:position].strip())
+            start = position + 1
+        escaped = char == "\\" and not escaped
+    if not cells:
+        return []
+    cells.append(line[start:].strip())
+    if not cells[0]:
+        cells.pop(0)
+    if cells and not cells[-1]:
+        cells.pop()
+    return cells
 
 
 def chunk_blocks(
@@ -239,6 +289,8 @@ def _split_oversized(block: TextBlock, chunk_size_tokens: int) -> list[TextBlock
     """Divide un bloque demasiado grande, primero por frases y luego por palabras."""
     if block.kind == "table":
         return _split_table(block, chunk_size_tokens)
+    if block.kind in {"rows", "code"}:
+        return _split_atomic_lines(block, chunk_size_tokens)
     sentences = re.split(r"(?<=[.!?])\s+", block.text)
     pieces: list[TextBlock] = []
     buffer: list[str] = []
@@ -268,6 +320,38 @@ def _split_oversized(block: TextBlock, chunk_size_tokens: int) -> list[TextBlock
 
     if buffer:
         pieces.append(TextBlock(" ".join(buffer), block.section, block.page_or_sheet, block.kind))
+    return pieces
+
+
+def _split_atomic_lines(block: TextBlock, chunk_size_tokens: int) -> list[TextBlock]:
+    """Mantener cada fila con sus columnas y el codigo con sus delimitadores."""
+    lines = block.text.splitlines()
+    prefix: list[str] = []
+    suffix: list[str] = []
+    if block.kind == "code":
+        opening = _FENCE_RE.match(lines[0])
+        if opening:
+            prefix = [lines.pop(0)]
+            suffix = [opening[1]]
+            if lines and re.fullmatch(
+                r" {0,3}" + re.escape(opening[1][0]) + "{" + str(len(opening[1])) + r",}\s*", lines[-1],
+            ):
+                suffix = [lines.pop()]
+    pieces: list[TextBlock] = []
+    rows: list[str] = []
+
+    def content(items: list[str]) -> str:
+        return "\n".join([*prefix, *items, *suffix])
+
+    for line in lines:
+        if estimate_tokens(content([line])) > chunk_size_tokens:
+            raise ValueError("Una fila o linea de codigo excede el limite de fragmentacion.")
+        if rows and estimate_tokens(content([*rows, line])) > chunk_size_tokens:
+            pieces.append(TextBlock(content(rows), block.section, block.page_or_sheet, block.kind))
+            rows = []
+        rows.append(line)
+    if rows or not pieces:
+        pieces.append(TextBlock(content(rows), block.section, block.page_or_sheet, block.kind))
     return pieces
 
 

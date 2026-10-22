@@ -186,7 +186,10 @@ def build_zip(root: Path, destino: Path, files: list[Path]) -> PackageStats:
             contenido = path.read_bytes()
             info = zipfile.ZipInfo.from_file(path, arcname=f"{raiz_interna}/{relativa.as_posix()}")
             archivo.writestr(info, contenido, compress_type=zipfile.ZIP_DEFLATED, compresslevel=9)
-            checksums.append(f"{hashlib.sha256(contenido).hexdigest()}  {relativa.as_posix()}")
+            # El corpus viaja en el ZIP, pero sus nombres y hashes no forman
+            # parte del manifiesto publico de integridad del codigo.
+            if relativa.parts[0] != "knowledge-base":
+                checksums.append(f"{hashlib.sha256(contenido).hexdigest()}  {relativa.as_posix()}")
             stats.files += 1
             stats.bytes_uncompressed += len(contenido)
         manifiesto = ("\n".join(checksums) + "\n").encode("utf-8")

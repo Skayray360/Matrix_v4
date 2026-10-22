@@ -43,11 +43,14 @@ def test_zip_preserva_corpus_y_excluye_todo_estado_privado(tmp_path: Path):
         root = "matrix-rh-1.4.0/"
         manifest_name = "backend/release/SHA256SUMS.txt"
         assert {name.removeprefix(root) for name in result.namelist()} == expected | {manifest_name}
+        manifest_paths = set()
         for line in result.read(root + manifest_name).decode().splitlines():
             digest, name = line.split("  ", 1)
+            manifest_paths.add(name)
             assert digest == hashlib.sha256(result.read(root + name)).hexdigest()
         original = "knowledge-base/documents/prestaciones/original.pdf"
         assert result.read(root + original) == (source / original).read_bytes()
+        assert original not in manifest_paths
     # Exclusiones de distribucion nunca eliminan archivos de una instalacion.
     assert all((source / name).is_file() for name in private)
 
