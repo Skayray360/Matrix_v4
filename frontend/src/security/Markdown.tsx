@@ -27,6 +27,8 @@ type Props = {
    * renderizador, ilegible en mitad de un parrafo.
    */
   sourceNumbers?: Map<string, number>;
+  /** Destinos internos asignados por la lista de mensajes, nunca URLs del modelo. */
+  sourceTargets?: Map<string, string>;
 };
 
 const CITATION = /\[\[([^\]]{1,1024})\]\]/g;
@@ -37,6 +39,7 @@ function renderInline(
   text: string,
   knownSources?: Set<string>,
   sourceNumbers?: Map<string, number>,
+  sourceTargets?: Map<string, string>,
 ): ReactNode[] {
   const nodes: ReactNode[] = [];
   let key = 0;
@@ -52,10 +55,22 @@ function renderInline(
       const sourceId = match[1].trim();
       const known = !knownSources || knownSources.has(sourceId);
       const number = sourceNumbers?.get(sourceId);
+      const target = sourceTargets?.get(sourceId);
       nodes.push(
         known ? (
           <sup key={key++} className="citation" title={sourceId} data-testid="citation">
-            {number === undefined ? `[${sourceId}]` : number}
+            {target ? (
+              <a
+                href={`#${encodeURIComponent(target)}`}
+                aria-label={`Ver fuente ${number ?? sourceId}`}
+              >
+                {number ?? `[${sourceId}]`}
+              </a>
+            ) : number === undefined ? (
+              `[${sourceId}]`
+            ) : (
+              number
+            )}
           </sup>
         ) : (
           // Cita desconocida: se muestra como texto plano, sin apariencia de
@@ -75,11 +90,15 @@ function renderInline(
     if (!part) continue;
     if (part.startsWith("**") && part.endsWith("**") && part.length > 4) {
       nodes.push(
-        <strong key={key++}>{renderInline(part.slice(2, -2), knownSources, sourceNumbers)}</strong>,
+        <strong key={key++}>
+          {renderInline(part.slice(2, -2), knownSources, sourceNumbers, sourceTargets)}
+        </strong>,
       );
     } else if (part.startsWith("*") && part.endsWith("*") && part.length > 2) {
       nodes.push(
-        <em key={key++}>{renderInline(part.slice(1, -1), knownSources, sourceNumbers)}</em>,
+        <em key={key++}>
+          {renderInline(part.slice(1, -1), knownSources, sourceNumbers, sourceTargets)}
+        </em>,
       );
     } else if (part.startsWith("`") && part.endsWith("`") && part.length > 2) {
       nodes.push(<code key={key++}>{part.slice(1, -1)}</code>);
@@ -99,7 +118,7 @@ function parseTableRow(line: string): string[] {
     .map((cell) => cell.trim());
 }
 
-export function Markdown({ text, knownSources, sourceNumbers }: Props): JSX.Element {
+export function Markdown({ text, knownSources, sourceNumbers, sourceTargets }: Props): JSX.Element {
   const lines = (text ?? "").split("\n");
   const blocks: ReactNode[] = [];
   let key = 0;
@@ -130,7 +149,11 @@ export function Markdown({ text, knownSources, sourceNumbers }: Props): JSX.Elem
     if (heading) {
       const level = Math.min(6, heading[1].length);
       const Tag = `h${level + 2 > 6 ? 6 : level + 2}` as keyof JSX.IntrinsicElements;
-      blocks.push(<Tag key={key++}>{renderInline(heading[2], knownSources, sourceNumbers)}</Tag>);
+      blocks.push(
+        <Tag key={key++}>
+          {renderInline(heading[2], knownSources, sourceNumbers, sourceTargets)}
+        </Tag>,
+      );
       index += 1;
       continue;
     }
@@ -159,7 +182,9 @@ export function Markdown({ text, knownSources, sourceNumbers }: Props): JSX.Elem
               <thead>
                 <tr>
                   {header.map((cell, i) => (
-                    <th key={i}>{renderInline(cell, knownSources, sourceNumbers)}</th>
+                    <th key={i}>
+                      {renderInline(cell, knownSources, sourceNumbers, sourceTargets)}
+                    </th>
                   ))}
                 </tr>
               </thead>
@@ -167,7 +192,9 @@ export function Markdown({ text, knownSources, sourceNumbers }: Props): JSX.Elem
                 {body.map((row, r) => (
                   <tr key={r}>
                     {row.map((cell, c) => (
-                      <td key={c}>{renderInline(cell, knownSources, sourceNumbers)}</td>
+                      <td key={c}>
+                        {renderInline(cell, knownSources, sourceNumbers, sourceTargets)}
+                      </td>
                     ))}
                   </tr>
                 ))}
@@ -200,7 +227,7 @@ export function Markdown({ text, knownSources, sourceNumbers }: Props): JSX.Elem
         <ListTag key={key++}>
           {items.map((item, i) => (
             <li key={i} value={item.number}>
-              {renderInline(item.text, knownSources, sourceNumbers)}
+              {renderInline(item.text, knownSources, sourceNumbers, sourceTargets)}
             </li>
           ))}
         </ListTag>,
@@ -230,7 +257,9 @@ export function Markdown({ text, knownSources, sourceNumbers }: Props): JSX.Elem
       index += 1;
     }
     blocks.push(
-      <p key={key++}>{renderInline(paragraph.join(" "), knownSources, sourceNumbers)}</p>,
+      <p key={key++}>
+        {renderInline(paragraph.join(" "), knownSources, sourceNumbers, sourceTargets)}
+      </p>,
     );
   }
 

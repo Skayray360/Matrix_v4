@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import sys
 from dataclasses import asdict, dataclass
@@ -177,19 +178,25 @@ RULES: tuple[tuple[str, re.Pattern[str], str], ...] = (
 
 
 def _iter_files(root: Path):  # noqa: ANN202
-    for path in root.rglob("*"):
-        if not path.is_file():
-            continue
-        if any(part in EXCLUDED_DIRS for part in path.parts):
-            continue
-        if path.suffix.lower() in BINARY_SUFFIXES:
-            continue
-        try:
-            if path.stat().st_size > MAX_FILE_BYTES:
+    base = root.resolve()
+    # Podar antes de recorrer evita leer dependencias y enlaces a datos ajenos.
+    for directory, subdirectories, filenames in os.walk(base, followlinks=False):
+        parent = Path(directory)
+        subdirectories[:] = sorted(
+            name for name in subdirectories
+            if name not in EXCLUDED_DIRS and not (parent / name).is_symlink()
+        )
+        for name in sorted(filenames):
+            path = parent / name
+            if path.suffix.lower() in BINARY_SUFFIXES:
                 continue
-        except OSError:
-            continue
-        yield path
+            try:
+                if (path.is_symlink() or not path.is_file() or not path.resolve().is_relative_to(base)
+                        or path.stat().st_size > MAX_FILE_BYTES):
+                    continue
+            except OSError:
+                continue
+            yield path
 
 
 def _classify(
@@ -230,7 +237,7 @@ def _classify(
 
 def scan(root: Path | None = None) -> list[Finding]:
     """Ejecuta todas las reglas sobre el arbol del proyecto."""
-    base = root or PROJECT_ROOT
+    base = (root or PROJECT_ROOT).resolve()
     findings: list[Finding] = []
 
     for path in _iter_files(base):
@@ -262,7 +269,7 @@ def scan(root: Path | None = None) -> list[Finding]:
                         severity=severity,
                         classification=classification,
                         # Nunca se imprime el valor: solo el contexto redactado.
-                        excerpt=line.strip()[:60].replace(captured, "[MATCH]")[:80],
+                        excerpt="[MATCH]",  # Sin contexto: puede contener otros secretos en la misma linea.
                     )
                 )
 

@@ -4,19 +4,59 @@
 
 Asistente documental de Recursos Humanos con FastAPI/Python, React/TypeScript, MySQL, Qdrant y modelos locales mediante Ollama. Consulta documentos autorizados, resume secciones, compara fuentes y analiza adjuntos privados de la conversación. Conserva cuentas, permisos, conversaciones e índices en esta instalación.
 
-La instalación principal es **Windows x64 con WampServer**, dentro de `C:\wamp64\www\matrix-rh-1.4.2`. Apache de WAMP publica la aplicación; Python sirve la API y la interfaz compilada. No se usa PHP ni la base de datos compartida de WAMP. Docker es una alternativa separada para Linux.
+La instalación principal es **Windows x64 con WampServer**, dentro de `D:\wamp64\www\matrix-rh-1.4.2`. Apache de WAMP publica la aplicación; Python sirve la API y la interfaz compilada. No se usa PHP ni la base de datos compartida de WAMP. Docker es una alternativa separada para Linux.
 
 ## Arquitectura y alcance
 
-```mermaid
-flowchart TD
-    U["Navegador local :8085"] --> A["Apache de WAMP"]
-    A --> B["FastAPI + React :8000"]
-    B --> M["MySQL propio :3308"]
-    B --> Q["Qdrant embebido"]
-    B --> O["Ollama local existente :11434"]
-    D["Documentos y adjuntos autorizados"] --> Q
-```
+![Arquitectura local de Matrix RH: entrada, orquestación, RAG, modelos y datos](backend/release/architecture/matrix-architecture.svg)
+
+El diagrama representa componentes existentes. El perfil `standalone` mantiene autenticación, generación, embeddings, índice y datos localmente. Los adaptadores `openai_compatible` permiten runtimes locales aprobados; la configuración Vertex y `LLM_LOCAL_ONLY=false` se rechazan. Activar Entra ID cambia la frontera de identidad a un proveedor externo y debe describirse como perfil híbrido de autenticación, aunque la inferencia permanezca local. Las descargas y auditorías de instalación usan red; la operación local no significa instalación sin Internet.
+
+### Responsabilidades en el código
+
+![Estructura real por capas y responsabilidades de Matrix RH](backend/release/architecture/matrix-layers.svg)
+
+| Responsabilidad | Implementación real | Contrato que protege |
+|---|---|---|
+| Interacción | `frontend/src/pages`, `components`, `services`, `security` | Mensajes, adjuntos y referencias; la UI no concede permisos |
+| Entrada HTTP | `backend/app/api/routes`, `deps.py`, middleware | Sesión, CSRF, validación y límites antes de operar |
+| Orquestación | `backend/app/agents` | Cola, selección de flujo, plazo total y cancelación |
+| Conocimiento | `backend/app/ingestion`, `rag` | Extracción aislada, ACL antes de recuperar, versiones y citas |
+| Modelos | `backend/app/llm` | Generación y embeddings configurables; endpoints locales aprobados |
+| Persistencia | `backend/app/database`, `memory`, `rag/vector_store.py` | Estado en MySQL, vectores en Qdrant y adjuntos por propietario/conversación |
+| Controles comunes | `auth`, `authorization`, `security`, `audit` | Identidad, mínimo privilegio, trazabilidad y errores redactados |
+
+Los dibujos adaptan las referencias visuales proporcionadas por el propietario al código real de Matrix. Las carpetas conservan su organización actual; la persistencia utiliza SQLAlchemy y servicios especializados, sin añadir una capa `Repositories` vacía.
+
+### Recorrido de una respuesta
+
+1. El navegador envía la pregunta con su sesión; la API comprueba origen, CSRF, cuerpo y permisos.
+2. La cola reserva capacidad, conserva la operación y aplica el límite por usuario/conversación.
+3. El orquestador construye el contexto permitido. Una pregunta documental recupera dentro del alcance autorizado; los resúmenes recorren el documento seleccionado con un presupuesto acotado.
+4. Qdrant aporta fragmentos de generaciones activas y compatibles con el embedding; el modelo local recibe evidencia delimitada, historial autorizado e instrucciones.
+5. Se validan afirmaciones, localizadores y reglas numéricas aplicables. El usuario recibe respuesta con fuentes, una respuesta parcial o una limitación explícita.
+6. MySQL conserva la operación y los mensajes; el frontend muestra estados legibles, permite cancelar y elimina la vista privada cuando una respuesta 401 confirma la expiración de sesión.
+
+### Decisión de arquitectura: RAG y CAG
+
+**Se conserva RAG autorizado como estrategia principal. No se implementó ni se midió CAG en esta revisión.**
+
+CAG (*Cache-Augmented Generation*) precarga conocimiento en el contexto del modelo y reutiliza estados de inferencia. El [trabajo original](https://arxiv.org/abs/2412.15605) lo estudia para conocimiento de tamaño manejable; sus resultados no establecen una superioridad universal. Matrix ya tiene una caché de embeddings de consulta: reutilizar esos vectores no equivale a mantener una caché KV del corpus.
+
+| Criterio | RAG actual | CAG como experimento futuro |
+|---|---|---|
+| Documentos y permisos cambiantes | Filtrado previo y generaciones activas | Reconstruir o invalidar la caché al cambiar permisos, fuentes o modelo |
+| Adjuntos privados | Propietario y conversación delimitan búsqueda/contexto | Aislamiento estricto por esos mismos alcances; nunca una caché global compartida |
+| Memoria y contexto | Enviar evidencia seleccionada con presupuesto | El corpus autorizado, instrucciones y salida deben caber en el contexto efectivo |
+| Coste por consulta | Recuperación y generación | Precarga inicial y reutilización dependen del runtime; requieren medición |
+| Evidencia disponible aquí | Contratos y pruebas sintéticas | Sin comparación A/B real; ventaja no demostrada para Matrix |
+
+La documentación de [contexto](https://docs.ollama.com/context-length) y [concurrencia de Ollama](https://docs.ollama.com/faq) explica el aumento de memoria con contexto y paralelismo. Por eso no se aumenta el contexto ni se elimina Qdrant por preferencia arquitectónica. Para decidir, comparar RAG y CAG con el mismo modelo/digest, roles, preguntas y corpus autorizado: exactitud revisada por RH, citas correctas, abstención, cero fugas ACL, p50/p95, primera respuesta, memoria y coste de reconstruir la caché. Conservar RAG si CAG pierde cualquiera de esos controles.
+
+### Estado de verificación actual
+
+Revisión del **25 de octubre de 2026**, sobre el commit base `dbc6eea2492ae75b428cd2b92e60758b19eb74af`. Los [resultados agregados de validación](backend/release/audit-2026-10-25/validation.json) y la [puntuación provisional](backend/release/audit-2026-10-25/score.json) documentan lo comprobado. El informe detallado se entrega por separado al propietario. La aceptación productiva y la meta de 9.5/10 siguen pendientes. Las cifras históricas al final de esta guía corresponden a sus revisiones indicadas y no sustituyen los resultados actuales.
+
 
 Los documentos, índices, SQL, secretos y runtimes propios de Matrix permanecen dentro de su carpeta. **Se reutilizan el Ollama y los modelos ya instalados por el usuario**, en su ubicación actual: no se copian, descargan, actualizan ni eliminan. Windows, WAMP y Ollama local activo son prerrequisitos. El instalador agrega un include al Apache existente y valida su configuración antes de reiniciarlo; ese reinicio interrumpe brevemente los demás sitios de WAMP. `detener.bat` deja Apache disponible.
 
@@ -90,7 +130,7 @@ Para instalaciones nuevas se descarga el ZIP oficial de MySQL (aproximadamente 2
 
 Reserve espacio para los runtimes propios, índices y respaldos; el instalador exige al menos 10 GiB libres inicialmente y 5 GiB para operación/reinstalación. No reserva ni duplica los pesos de su Ollama. Estos mínimos no garantizan espacio para cualquier corpus. RAM/VRAM y tiempo de respuesta dependen del modelo instalado y del contexto; el instalador ejecuta pruebas de inferencia y embeddings para detectar incompatibilidad o falta de recursos. No se promete funcionamiento de Gemma en cualquier equipo.
 
-1. Detenga Matrix desde su carpeta actual; conserve esa carpeta y sus respaldos. Extraiga **el ZIP completo en una carpeta nueva**: `C:\wamp64\www\matrix-rh-1.4.2`. No superponga archivos sobre otra versión.
+1. Detenga Matrix desde su carpeta actual; conserve esa carpeta y sus respaldos. Extraiga **el ZIP completo en una carpeta nueva**: `D:\wamp64\www\matrix-rh-1.4.2`. No superponga archivos sobre otra versión.
 2. Inicie WampServer y su aplicación Ollama. Confirme que Apache funciona y que `ollama list` muestra `gemma4:latest` y `embeddinggemma:latest`.
 3. Clic derecho en `instalar.bat` → **Ejecutar como administrador**. Use la misma cuenta de Windows y elevación para los cuatro BAT: necesitan consultar la identidad de procesos elevados y operar el servicio Apache. No se elevan silenciosamente.
 4. Espere la validación de Visual C++, la preparación de MySQL/Python/Node, las auditorías de paquetes y la compilación de la interfaz. Crea configuración y claves únicas, comprueba su Ollama antes de descargar dependencias propias o inicializar MySQL, verifica los modelos instalados, comprueba coherencia de datos, migra la base, crea el administrador e indexa documentos. Luego espera `/health` y `/ready` y abre `http://127.0.0.1:8085`.
@@ -269,6 +309,8 @@ Restaure siempre el directorio `installation` completo a una carpeta nueva y vac
 Para actualizar: respaldo frío verificado, ZIP completo nuevo, conservación conjunta del estado compatible y configuración, reinstalación y prueba de aceptación. Esta versión no ejecuta un traslado automático desde 1.3.x: ese flujo se retiró tras los incidentes de carpetas borradas y estado incompleto. Mantenga la instalación anterior para una migración supervisada o inicie una base nueva con los documentos originales. Nunca borre la anterior antes de verificar usuarios, archivos y consultas en la nueva.
 
 ## Docker opcional: Linux
+
+**Estado de aceptación (25-oct-2026):** este perfil sigue pendiente de remediación y validación operativa antes de un nuevo release. El informe detallado y el plan de actualización se entregan por separado al propietario. El perfil Windows usa Qdrant embebido.
 
 **Este perfil Linux es opcional y distinto del solicitado para Windows/WAMP; ninguno de los cuatro BAT lo ejecuta.** Sus comandos de descarga requieren una ejecución manual explícita y no utilizan el Ollama de Windows. Para reutilizar sus modelos actuales utilice la instalación Windows descrita arriba. La operación Windows/WAMP no utiliza Docker. La alternativa contenedorizada se prepara sobre una copia separada en un sistema de archivos Linux; no monte el datadir MySQL ni Qdrant de Windows en esos contenedores. Sus datos, configuración y credenciales son independientes dentro de la copia Linux.
 

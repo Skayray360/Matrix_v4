@@ -28,10 +28,32 @@ type Props = {
 
 const ACCEPTED = ".docx,.md,.pdf,.pptx,.txt,.xlsx,.csv";
 
+function attachmentStatus(status: string): string {
+  switch (status) {
+    case "uploading":
+      return "Subiendo archivo";
+    case "pending":
+    case "queued":
+      return "En espera";
+    case "processing":
+      return "Procesando archivo";
+    case "indexed":
+      return "Listo para consultar";
+    case "empty":
+      return "No se encontró texto en el archivo";
+    case "deleted":
+      return "Archivo eliminado";
+    case "failed":
+      return "No se pudo procesar";
+    default:
+      return "Estado pendiente de confirmar";
+  }
+}
+
 /** El estado se lee por icono ademas de por color: el color solo no basta. */
 function statusIcon(status: string): IconName {
   if (status === "indexed") return "check";
-  if (status === "failed") return "alert";
+  if (["failed", "empty", "deleted"].includes(status)) return "alert";
   return "spinner";
 }
 
@@ -72,6 +94,8 @@ export function Composer({
 
   function handleKeyDown(event: KeyboardEvent<HTMLTextAreaElement>): void {
     // Enter envia; Shift+Enter inserta salto de linea.
+    // Durante IME, Enter confirma caracteres; todavía no expresa un envío.
+    if (event.nativeEvent.isComposing || event.keyCode === 229) return;
     if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
       submit();
@@ -118,14 +142,11 @@ export function Composer({
                 key={attachment.id}
                 className="attachment"
                 data-status={attachment.status}
-                title={attachment.error_message ?? attachment.status}
+                title={attachment.error_message ?? attachmentStatus(attachment.status)}
               >
                 <Icon name={statusIcon(attachment.status)} size={13} />
                 <span className="filename">{attachment.filename}</span>
-                <span className="status">
-                  {attachment.status}
-                  {attachment.status === "indexed" ? ` · ${attachment.chunk_count} fragmentos` : ""}
-                </span>
+                <span className="status">{attachmentStatus(attachment.status)}</span>
               </span>
             ))}
           </div>

@@ -86,6 +86,49 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+describe("Sesión vencida durante el chat", () => {
+  it("retira el contenido sensible y avisa a la aplicación al recibir 401", async () => {
+    const user = userEvent.setup();
+    const onSessionExpired = vi.fn();
+    vi.mocked(api.getConversation).mockResolvedValue({
+      ...detail("A"),
+      messages: [
+        {
+          id: "private-history",
+          role: "assistant",
+          content: "Historial privado de prueba",
+          sources: [],
+          model: null,
+          created_at: "2026-10-25",
+        },
+      ],
+    });
+    vi.spyOn(api, "submitChat").mockRejectedValue(
+      new ApiError("unauthenticated", "Sesión vencida", 401, "synthetic-401"),
+    );
+    render(<ChatPage me={me} onLogout={vi.fn()} onSessionExpired={onSessionExpired} />);
+    await user.click(await screen.findByText("Conversacion A"));
+    expect(await screen.findByText("Historial privado de prueba")).toBeInTheDocument();
+    await user.type(screen.getByTestId("composer-input"), "Consulta privada{Enter}");
+    await waitFor(() => expect(onSessionExpired).toHaveBeenCalledTimes(1));
+    expect(screen.queryByText("Historial privado de prueba")).not.toBeInTheDocument();
+    expect(screen.getByTestId("composer-input")).toHaveValue("");
+  });
+
+  it("un error de transporte no se interpreta como una sesión vencida", async () => {
+    const user = userEvent.setup();
+    const onSessionExpired = vi.fn();
+    vi.spyOn(api, "submitChat").mockRejectedValue(new TypeError("Failed to fetch"));
+    render(<ChatPage me={me} onLogout={vi.fn()} onSessionExpired={onSessionExpired} />);
+    await user.click(await screen.findByText("Conversacion A"));
+    await waitFor(() => expect(screen.getByTestId("composer-input")).toBeEnabled());
+    await user.type(screen.getByTestId("composer-input"), "Conservar borrador{Enter}");
+    expect(await screen.findByTestId("error-banner")).toHaveTextContent("Conservamos el borrador");
+    expect(onSessionExpired).not.toHaveBeenCalled();
+    expect(screen.getByTestId("composer-input")).toHaveValue("Conservar borrador");
+  });
+});
+
 describe("ChatPage origen de respuestas", () => {
   const notice = "Respuesta general: no basada en documentación de la empresa";
 
@@ -738,7 +781,7 @@ describe("ChatPage ciclo de adjuntos", () => {
       new File(["Contenido sintético"], attachment.filename),
     );
     await waitFor(() =>
-      expect(screen.getByTestId("attachments")).toHaveTextContent("85 fragmentos"),
+      expect(screen.getByTestId("attachments")).toHaveTextContent("Listo para consultar"),
     );
     await user.type(screen.getByTestId("composer-input"), `${question}{Enter}`);
     await screen.findByText(reply.answer);
@@ -750,7 +793,7 @@ describe("ChatPage ciclo de adjuntos", () => {
       expect.any(AbortSignal),
     );
     expect(screen.getByTestId("attachments")).toHaveTextContent(attachment.filename);
-    expect(screen.getByTestId("attachments")).toHaveTextContent("indexed");
+    expect(screen.getByTestId("attachments")).toHaveTextContent("Listo para consultar");
   });
 
   it("reconcilia el estado del adjunto al regresar a A durante su carga", async () => {
@@ -776,10 +819,14 @@ describe("ChatPage ciclo de adjuntos", () => {
     await user.click(screen.getByText("Conversacion B"));
     expect(screen.queryByTestId("attachments")).not.toBeInTheDocument();
     await user.click(screen.getByText("Conversacion A"));
-    await waitFor(() => expect(screen.getByTestId("attachments")).toHaveTextContent("processing"));
+    await waitFor(() =>
+      expect(screen.getByTestId("attachments")).toHaveTextContent("Procesando archivo"),
+    );
     await act(async () => upload.resolve({ documents: [attachment] }));
-    await waitFor(() => expect(screen.getByTestId("attachments")).toHaveTextContent("indexed"));
-    expect(screen.getByTestId("attachments")).toHaveTextContent("85 fragmentos");
+    await waitFor(() =>
+      expect(screen.getByTestId("attachments")).toHaveTextContent("Listo para consultar"),
+    );
+    expect(screen.getByTestId("attachments")).toHaveTextContent("Listo para consultar");
     expect(screen.getAllByText(attachment.filename)).toHaveLength(1);
     expect(screen.getByTestId("composer-input")).toHaveValue("Resume el adjunto");
     expect(screen.getByTestId("composer-input")).toBeEnabled();
@@ -830,8 +877,11 @@ describe("ChatPage ciclo de adjuntos", () => {
         attachments: [{ ...attachment, status: "processing", chunk_count: 0 }],
       }),
     );
-    expect(screen.getByTestId("attachments")).toHaveTextContent("indexed");
-    expect(screen.getByTestId("attachments")).toHaveTextContent("85 fragmentos");
+    expect(screen.getByTestId("attachments")).toHaveTextContent("Listo para consultar");
+    expect(screen.getByTestId("attachments").querySelector(".attachment")).toHaveAttribute(
+      "data-status",
+      "indexed",
+    );
     expect(screen.getAllByText(attachment.filename)).toHaveLength(1);
     expect(api.getConversation).toHaveBeenCalledTimes(3);
   });

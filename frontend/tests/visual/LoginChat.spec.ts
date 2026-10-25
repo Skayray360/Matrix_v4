@@ -31,7 +31,7 @@ const attachment = {
 const reply = {
   conversation_id: conversation.id,
   message_id: "respuesta-ui",
-  answer: "Esta es una respuesta sintética para validar la interfaz. [fuente-ui]",
+  answer: "Esta es una respuesta sintética para validar la interfaz. [[fuente-ui]]",
   sources: [
     {
       source_id: "fuente-ui",
@@ -246,6 +246,8 @@ test("consulta, fuentes, trazabilidad y cierre de sesión con CSRF", async ({ pa
   await page.getByTestId("send-button").click();
   await expect(page.getByTestId("message-assistant")).toContainText("respuesta sintética");
   await expect(page.getByTestId("sources")).toContainText("Manual de prueba");
+  await page.getByRole("link", { name: "Ver fuente 1" }).click();
+  await expect(page.getByTestId("sources").locator("li")).toBeFocused();
   await expect(page.getByTestId("capacity-notice")).toHaveCount(0);
   await page.getByRole("button", { name: "Mostrar u ocultar trazabilidad" }).click();
   await expect(page.locator(".inspector")).toBeVisible();
@@ -328,7 +330,7 @@ test("menú móvil, tema oscuro y adjunto privado", async ({ page }, testInfo) =
     buffer: Buffer.from("Documento sintético para la prueba visual."),
   });
   await expect(page.getByTestId("attachments")).toContainText("manual.txt");
-  await expect(page.getByTestId("attachments")).toContainText("indexed");
+  await expect(page.getByTestId("attachments")).toContainText("Listo para consultar");
   await noOverflow(page);
   await page.screenshot({ path: testInfo.outputPath("chat-dark-mobile.png"), fullPage: true });
   expect(

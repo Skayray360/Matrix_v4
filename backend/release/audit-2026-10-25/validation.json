@@ -1,0 +1,70 @@
+{
+  "baseline_commit": "dbc6eea2492ae75b428cd2b92e60758b19eb74af",
+  "date": "2026-10-25",
+  "environment": {
+    "os": "Linux",
+    "machine": "x86_64",
+    "python": "3.12.14",
+    "data": "synthetic fixtures; disposable SQLite and in-memory Qdrant",
+    "real_gpu_or_ollama": false
+  },
+  "backend": {
+    "command": "APP_ENV=test SCHEDULER_ENABLED=false .venv/bin/python -m pytest tests -q",
+    "tests": 3363,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 164,
+    "passed": 3199,
+    "duration_seconds": 64.784,
+    "skipped_reasons": {
+      "MySQL/MariaDB no disponible": 58,
+      "MySQL/MariaDB no disponible en este entorno": 98,
+      "PowerShell is required to execute isolated supervisor functions": 8
+    },
+    "status": "INCOMPLETE_EXTERNAL_SERVICES",
+    "junit": "backend-tests.xml.gz",
+    "result_count_includes_subtests": true,
+    "top_level_testcases": 3323,
+    "top_level_passed": 3159,
+    "passed_subtests": 40
+  },
+  "frontend": {
+    "tests": 127,
+    "passed": 127,
+    "failures": 0,
+    "skipped": 0,
+    "status": "PASS",
+    "build": "PASS",
+    "eslint": "PASS",
+    "format": "PASS",
+    "browser_visual": "NOT_EXECUTED: Chromium unavailable; download invalid"
+  },
+  "static": {
+    "ruff": "PASS",
+    "mypy": "PASS; 109 source files",
+    "npm_lock_and_tree_local_controls": "PASS; 301 lock packages, 276 installed manifests",
+    "live_dependency_vulnerability_and_signature_scan": "NOT_EVALUATED; primary Qdrant advisory reviewed separately",
+    "bandit": {
+      "signals": 37,
+      "low": 29,
+      "medium": 8,
+      "high": 0,
+      "meaning": "signals reviewed in context; not 37 confirmed vulnerabilities; no clean-pass claim"
+    },
+    "secrets_scan": "PASS; zero real classified findings in current scoped source scan"
+  },
+  "benchmark": {
+    "requests": 594,
+    "scenarios": 15,
+    "normal_completed": 441,
+    "overload_completed": 12,
+    "expected_503": 141,
+    "unexpected_failures": 0,
+    "unfinished": 0,
+    "remaining_slots": 0,
+    "real_inference": false
+  },
+  "production_certified": false,
+  "main_merge_approved": false,
+  "independent_final_review": "PASS_SCOPED_PATCHES; not production approval"
+}
