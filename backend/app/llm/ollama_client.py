@@ -18,7 +18,6 @@ Reglas del proyecto que este cliente hace cumplir:
 
 from __future__ import annotations
 
-import math
 import time
 from collections import OrderedDict
 from dataclasses import dataclass
@@ -31,6 +30,7 @@ import httpx
 from app.common.errors import EmbeddingDimensionMismatchError
 from app.common.inference_errors import CompletionDiagnostics, InferenceFailureError, InferenceFailureKind
 from app.common.logging import get_logger
+from app.common.vectors import valid_cosine_vector
 from app.config import get_settings
 
 if TYPE_CHECKING:
@@ -308,8 +308,8 @@ class OllamaClient:
                         "No se trunca ni se rellena el vector."
                     ),
                 )
-            if any(isinstance(v, bool) or not isinstance(v, int | float) or not math.isfinite(v) for v in vector):
-                raise EmbeddingDimensionMismatchError("El embedding contiene valores no numericos o no finitos.")
+            if not valid_cosine_vector(vector):
+                raise EmbeddingDimensionMismatchError("El embedding no admite similitud coseno en precision float32.")
             vectors.append([float(v) for v in vector])
         return vectors
 

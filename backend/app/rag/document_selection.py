@@ -30,7 +30,7 @@ def _normalize(text: str) -> str:
 
 
 def _title_tokens(text: str) -> tuple[str, ...]:
-    # Diciembre2022 y Diciembre 2022 designan el mismo nombre de archivo.
+    # Diciembre2041 y Diciembre 2041 designan el mismo nombre de archivo.
     spaced = re.sub(r"(?<=[a-z])(?=\d)|(?<=\d)(?=[a-z])", " ", text)
     return tuple(token for token in re.findall(r"[a-z0-9]+", spaced) if token not in _TITLE_JOINERS)
 

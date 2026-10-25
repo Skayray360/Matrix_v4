@@ -18,6 +18,7 @@ CONTROLLER = ROOT / "backend/scripts/windows/MatrixRH.ps1"
     "native_supervisor_identity_synthetic.ps1", "native_supervisor_ollama_synthetic.ps1",
     "native_supervisor_mysql_synthetic.ps1", "native_supervisor_incomplete_synthetic.ps1",
     "native_supervisor_installer_security.ps1", "native_supervisor_frontend_build.ps1",
+    "native_supervisor_runtime_upgrade.ps1",
 ])
 def test_native_controller_pure_powershell_flows(fixture: str):
     powershell = os.environ.get("MATRIX_TEST_POWERSHELL") or shutil.which("pwsh") or shutil.which("powershell")
@@ -42,4 +43,7 @@ def test_four_batch_launchers_have_real_crlf_and_relative_entrypoints():
         assert b"\r\n" in data and b"\\r\\n" not in data
         assert b'%~dp0backend\\scripts\\windows\\MatrixRH.ps1' in data
         assert b'%ERRORLEVEL%' in data
+        assert b'setlocal EnableExtensions DisableDelayedExpansion\r\n' in data
+        assert b'Sysnative\\WindowsPowerShell' in data
+        assert b'cd /d "%~dp0"' in data
         assert b'C:\\' not in data

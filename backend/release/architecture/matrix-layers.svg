@@ -1,0 +1,76 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1320" height="1045" viewBox="0 0 1320 1045" role="img" aria-labelledby="title desc">
+<title id="title">Matrix RH: estructura real por capas</title><desc id="desc">Mapa de directorios y responsabilidades verificado en el codigo. No implica una migracion de framework.</desc>
+<defs><marker id="arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9" fill="#7d94ab"/></marker></defs>
+<rect width="1320" height="1045" rx="24" fill="#080e17"/>
+<text x="52" y="68" fill="#37d7e6" font-family="DejaVu Sans, sans-serif" font-size="36" font-weight="700">MATRIX RH / CÓDIGO POR CAPAS</text>
+<text x="52" y="106" fill="#a6b9cc" font-family="DejaVu Sans, sans-serif" font-size="22" font-weight="400">Una instalación local. Responsabilidades explícitas. Evidencia rastreable.</text>
+<rect x="52" y="148" width="683" height="116" rx="14" fill="#101c2b" stroke="#2b4053" stroke-width="2"/>
+<rect x="52" y="164" width="4" height="84" rx="2" fill="#37d7e6"/>
+<text x="76" y="185" fill="#37d7e6" font-family="DejaVu Sans, sans-serif" font-size="23" font-weight="700">frontend/src/</text>
+<text x="76" y="221" fill="#dce6ef" font-family="DejaVu Sans, sans-serif" font-size="18" font-weight="400">pages/ · components/ · services/ · security/</text>
+<text x="76" y="247" fill="#8096ab" font-family="DejaVu Sans Mono, monospace" font-size="16" font-weight="400">01</text>
+<path d="M746,205 L790,205" stroke="#7d94ab" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+<rect x="806" y="148" width="462" height="116" rx="14" fill="#101c2b" stroke="#2b4053" stroke-width="2"/>
+<rect x="806" y="164" width="4" height="84" rx="2" fill="#37d7e6"/>
+<text x="830" y="185" fill="#37d7e6" font-family="DejaVu Sans, sans-serif" font-size="23" font-weight="700">INTERACCIÓN</text>
+<text x="830" y="221" fill="#dce6ef" font-family="DejaVu Sans, sans-serif" font-size="18" font-weight="400">Chat, adjuntos, historial y referencias.</text>
+<text x="830" y="249" fill="#dce6ef" font-family="DejaVu Sans, sans-serif" font-size="18" font-weight="400">React + TypeScript; mismo origen que la API.</text>
+<rect x="52" y="280" width="683" height="116" rx="14" fill="#101c2b" stroke="#2b4053" stroke-width="2"/>
+<rect x="52" y="296" width="4" height="84" rx="2" fill="#70dba3"/>
+<text x="76" y="317" fill="#70dba3" font-family="DejaVu Sans, sans-serif" font-size="23" font-weight="700">backend/app/api/</text>
+<text x="76" y="353" fill="#dce6ef" font-family="DejaVu Sans, sans-serif" font-size="18" font-weight="400">routes/ · deps.py · middleware.py</text>
+<text x="76" y="379" fill="#8096ab" font-family="DejaVu Sans Mono, monospace" font-size="16" font-weight="400">02</text>
+<path d="M746,337 L790,337" stroke="#7d94ab" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+<rect x="806" y="280" width="462" height="116" rx="14" fill="#101c2b" stroke="#2b4053" stroke-width="2"/>
+<rect x="806" y="296" width="4" height="84" rx="2" fill="#70dba3"/>
+<text x="830" y="317" fill="#70dba3" font-family="DejaVu Sans, sans-serif" font-size="23" font-weight="700">ENTRADA Y CONTROL</text>
+<text x="830" y="353" fill="#dce6ef" font-family="DejaVu Sans, sans-serif" font-size="18" font-weight="400">Rutas HTTP, sesión, CSRF y límites.</text>
+<text x="830" y="381" fill="#dce6ef" font-family="DejaVu Sans, sans-serif" font-size="18" font-weight="400">Identidad y permisos antes de operar.</text>
+<rect x="52" y="412" width="683" height="116" rx="14" fill="#101c2b" stroke="#2b4053" stroke-width="2"/>
+<rect x="52" y="428" width="4" height="84" rx="2" fill="#b18bff"/>
+<text x="76" y="449" fill="#b18bff" font-family="DejaVu Sans, sans-serif" font-size="23" font-weight="700">backend/app/agents/</text>
+<text x="76" y="485" fill="#dce6ef" font-family="DejaVu Sans, sans-serif" font-size="18" font-weight="400">orchestrator.py · chat_queue.py</text>
+<text x="76" y="511" fill="#8096ab" font-family="DejaVu Sans Mono, monospace" font-size="16" font-weight="400">03</text>
+<path d="M746,469 L790,469" stroke="#7d94ab" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+<rect x="806" y="412" width="462" height="116" rx="14" fill="#101c2b" stroke="#2b4053" stroke-width="2"/>
+<rect x="806" y="428" width="4" height="84" rx="2" fill="#b18bff"/>
+<text x="830" y="449" fill="#b18bff" font-family="DejaVu Sans, sans-serif" font-size="23" font-weight="700">ORQUESTACIÓN</text>
+<text x="830" y="485" fill="#dce6ef" font-family="DejaVu Sans, sans-serif" font-size="18" font-weight="400">Cola, contexto y selección del flujo.</text>
+<text x="830" y="513" fill="#dce6ef" font-family="DejaVu Sans, sans-serif" font-size="18" font-weight="400">Respuestas parciales y errores controlados.</text>
+<rect x="52" y="544" width="683" height="116" rx="14" fill="#101c2b" stroke="#2b4053" stroke-width="2"/>
+<rect x="52" y="560" width="4" height="84" rx="2" fill="#efc776"/>
+<text x="76" y="581" fill="#efc776" font-family="DejaVu Sans, sans-serif" font-size="23" font-weight="700">backend/app/rag/ + ingestion/</text>
+<text x="76" y="617" fill="#dce6ef" font-family="DejaVu Sans, sans-serif" font-size="18" font-weight="400">retriever.py · vector_store.py · service.py</text>
+<text x="76" y="643" fill="#8096ab" font-family="DejaVu Sans Mono, monospace" font-size="16" font-weight="400">04</text>
+<path d="M746,601 L790,601" stroke="#7d94ab" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+<rect x="806" y="544" width="462" height="116" rx="14" fill="#101c2b" stroke="#2b4053" stroke-width="2"/>
+<rect x="806" y="560" width="4" height="84" rx="2" fill="#efc776"/>
+<text x="830" y="581" fill="#efc776" font-family="DejaVu Sans, sans-serif" font-size="23" font-weight="700">CONOCIMIENTO</text>
+<text x="830" y="617" fill="#dce6ef" font-family="DejaVu Sans, sans-serif" font-size="18" font-weight="400">Extracción aislada y recuperación autorizada.</text>
+<text x="830" y="645" fill="#dce6ef" font-family="DejaVu Sans, sans-serif" font-size="18" font-weight="400">Evidencia, tablas, citas e índice compatible.</text>
+<rect x="52" y="676" width="683" height="116" rx="14" fill="#101c2b" stroke="#2b4053" stroke-width="2"/>
+<rect x="52" y="692" width="4" height="84" rx="2" fill="#83b9ff"/>
+<text x="76" y="713" fill="#83b9ff" font-family="DejaVu Sans, sans-serif" font-size="23" font-weight="700">backend/app/llm/</text>
+<text x="76" y="749" fill="#dce6ef" font-family="DejaVu Sans, sans-serif" font-size="18" font-weight="400">provider.py · ollama_client.py</text>
+<text x="76" y="775" fill="#8096ab" font-family="DejaVu Sans Mono, monospace" font-size="16" font-weight="400">05</text>
+<path d="M746,733 L790,733" stroke="#7d94ab" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+<rect x="806" y="676" width="462" height="116" rx="14" fill="#101c2b" stroke="#2b4053" stroke-width="2"/>
+<rect x="806" y="692" width="4" height="84" rx="2" fill="#83b9ff"/>
+<text x="830" y="713" fill="#83b9ff" font-family="DejaVu Sans, sans-serif" font-size="23" font-weight="700">INFERENCIA</text>
+<text x="830" y="749" fill="#dce6ef" font-family="DejaVu Sans, sans-serif" font-size="18" font-weight="400">Generador y embeddings independientes.</text>
+<text x="830" y="777" fill="#dce6ef" font-family="DejaVu Sans, sans-serif" font-size="18" font-weight="400">Ollama o API compatible local validada.</text>
+<rect x="52" y="808" width="683" height="116" rx="14" fill="#101c2b" stroke="#2b4053" stroke-width="2"/>
+<rect x="52" y="824" width="4" height="84" rx="2" fill="#ef94be"/>
+<text x="76" y="845" fill="#ef94be" font-family="DejaVu Sans, sans-serif" font-size="23" font-weight="700">backend/app/database/ + memory/</text>
+<text x="76" y="881" fill="#dce6ef" font-family="DejaVu Sans, sans-serif" font-size="18" font-weight="400">models.py · engine.py · service.py</text>
+<text x="76" y="907" fill="#8096ab" font-family="DejaVu Sans Mono, monospace" font-size="16" font-weight="400">06</text>
+<path d="M746,865 L790,865" stroke="#7d94ab" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+<rect x="806" y="808" width="462" height="116" rx="14" fill="#101c2b" stroke="#2b4053" stroke-width="2"/>
+<rect x="806" y="824" width="4" height="84" rx="2" fill="#ef94be"/>
+<text x="830" y="845" fill="#ef94be" font-family="DejaVu Sans, sans-serif" font-size="23" font-weight="700">PERSISTENCIA</text>
+<text x="830" y="881" fill="#dce6ef" font-family="DejaVu Sans, sans-serif" font-size="18" font-weight="400">MySQL: identidad, permisos y conversaciones.</text>
+<text x="830" y="909" fill="#dce6ef" font-family="DejaVu Sans, sans-serif" font-size="18" font-weight="400">Qdrant: vectores; archivos: fuentes y adjuntos.</text>
+<rect x="52" y="958" width="1216" height="59" rx="14" fill="#101c2b" stroke="#2b4053" stroke-width="2"/>
+<rect x="52" y="974" width="4" height="27" rx="2" fill="#37d7e6"/>
+<text x="76" y="995" fill="#37d7e6" font-family="DejaVu Sans, sans-serif" font-size="23" font-weight="700">TRANSVERSAL  ·  auth/  ·  authorization/  ·  security/  ·  audit/  ·  tests/</text>
+</svg>

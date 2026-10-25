@@ -9,6 +9,9 @@
 
 from __future__ import annotations
 
+from threading import Lock
+from time import monotonic
+
 from fastapi import APIRouter, Response
 
 from app import __version__
@@ -20,6 +23,40 @@ logger = get_logger(__name__)
 router = APIRouter(tags=["health"])
 
 
+class ReadinessCache:
+    """Un solo sondeo activo por proceso y resultado con vigencia de dos segundos.
+
+    /ready es publico para supervisores locales. Una rafaga no debe multiplicar
+    conexiones SQL/IdP ni ocupar todos los hilos HTTP esperando dependencias.
+    Los seguidores fallan cerrado durante el sondeo; nunca reciben datos vencidos.
+    """
+
+    def __init__(self) -> None:
+        self._lock = Lock()
+        self._result: ReadyResponse | None = None
+        self._expires_at = 0.0
+
+    def check(self, response: Response) -> ReadyResponse:
+        if not self._lock.acquire(blocking=False):
+            response.status_code = 503
+            response.headers["Retry-After"] = "2"
+            return ReadyResponse(ready=False, components=[ReadyComponent(
+                name="readiness_probe", ok=False, detail="verificacion en curso; reintente en dos segundos",
+            )])
+        try:
+            if self._result is None or monotonic() >= self._expires_at:
+                self._result = _probe_ready(Response())
+                self._expires_at = monotonic() + 2.0
+            result = self._result.model_copy(deep=True)
+            response.status_code = 200 if result.ready else 503
+            return result
+        finally:
+            self._lock.release()
+
+
+_ready_cache = ReadinessCache()
+
+
 @router.get("/health", response_model=HealthResponse)
 def health() -> HealthResponse:
     settings = get_settings()
@@ -28,7 +65,12 @@ def health() -> HealthResponse:
 
 @router.get("/ready", response_model=ReadyResponse)
 def ready(response: Response) -> ReadyResponse:
-    """Comprueba las dependencias obligatorias."""
+    """Comprueba dependencias sin amplificar sondeos concurrentes."""
+    return _ready_cache.check(response)
+
+
+def _probe_ready(response: Response) -> ReadyResponse:
+    """Sondeo real; lo ejecuta exclusivamente el propietario del cupo."""
     components: list[ReadyComponent] = []
 
     # --- base de datos interna ---------------------------------------------

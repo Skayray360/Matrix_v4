@@ -5,7 +5,6 @@ from __future__ import annotations
 
 import io
 from dataclasses import replace
-from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -214,15 +213,23 @@ def test_pipeline_revision_invalidates_old_vectors_for_unchanged_bytes(monkeypat
     assert index_manifest.indexing_fingerprint() != current
 
 
-@pytest.mark.parametrize("pattern", ["PLATICA DE PRESTACIONES*.pdf", "*PENSIONES*.pdf"])
-def test_supplied_pdf_image_tables_are_reported_as_unverified_when_ocr_is_disabled(pattern):
-    root = Path(__file__).resolve().parents[3] / "knowledge-base" / "documents"
-    path = next(root.rglob(pattern))
+@pytest.mark.parametrize("form", [False, True])
+def test_synthetic_pdf_image_tables_are_unverified_without_ocr(tmp_path, form):
+    # El PDF completo se fabrica aquí: siete páginas iniciales y una página
+    # mixta con imagen dibujada, sin archivos de una instalación operativa.
+    writer = PdfWriter()
+    for _ in range(7):
+        writer.add_blank_page(width=400, height=300)
+    writer.add_page(PdfReader(io.BytesIO(mixed_pdf(form=form))).pages[0])
+    path = tmp_path / "tabla_ficticia.pdf"
+    writer.write(path)
     document = PdfReader(path)
+    assert len(document.pages) == 8
     assert has_raster_images(document.pages[7])
     result = loaders.extract_pdf(path.read_bytes())
     assert any("texto e imagenes" in warning and "8" in warning for warning in result.warnings)
     assert any(block.page_or_sheet == "pagina 8" for block in result.blocks)
+    assert result.plain_text() == NATIVE
 
 
 @pytest.mark.parametrize("preserve_layout", [False, True])

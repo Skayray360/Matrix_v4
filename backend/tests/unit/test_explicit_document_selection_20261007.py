@@ -26,39 +26,39 @@ def candidate(filename, score, **overrides):
 
 
 @pytest.mark.parametrize("question", (
-    "Segun la Plática de Pensiones de Diciembre2022.pdf, que condiciones hay?",
-    "Segun la PLATICA DE PENSIONES DE DICIEMBRE 2022, que condiciones hay?",
-    "Explica la plática pensiones diciembre2022; ingrese en marzo de 2016.",
+    "Segun la Guía de Horizonte de Diciembre2041.pdf, que condiciones hay?",
+    "Segun la GUIA DE HORIZONTE DE DICIEMBRE 2041, que condiciones hay?",
+    "Explica la guía horizonte diciembre2041; ingrese en marzo de 2032.",
 ))
 def test_complete_filename_and_title_match_across_accents_and_separators(question):
-    old = candidate("Plática de Pensiones de Diciembre2020.pdf", 0.95)
-    requested = candidate("Plática de Pensiones de Diciembre2022.pdf", 0.7)
+    old = candidate("Guía de Horizonte de Diciembre2039.pdf", 0.95)
+    requested = candidate("Guía de Horizonte de Diciembre2041.pdf", 0.7)
     assert explicit_document_candidates(question, [old, requested]) == [requested]
 
 
 @pytest.mark.parametrize("question", (
-    "Ingrese en diciembre2022, que condiciones tienen las pensiones?",
-    "Mi antiguedad es de 2022, que dice la platica?",
-    "Que dice la platica de pensiones?",
-    "Que documentos de 2022 tienen informacion de pensiones?",
+    "Ingrese en diciembre2041, que condiciones tienen las horizonte?",
+    "Mi antiguedad es de 2041, que dice la guia?",
+    "Que dice la guia de horizonte?",
+    "Que documentos de 2041 tienen informacion de horizonte?",
 ))
 def test_personal_date_and_partial_title_do_not_anchor_an_edition(question):
-    requested = candidate("Plática de Pensiones de Diciembre2022.pdf", 0.7)
+    requested = candidate("Guía de Horizonte de Diciembre2041.pdf", 0.7)
     assert explicit_document_candidates(question, [requested]) == []
 
 
 def test_single_topic_word_or_year_requires_explicit_filename():
     short = candidate("plan.pdf", 0.7)
-    year = candidate("2022.pdf", 0.8)
-    assert explicit_document_candidates("Ingrese al plan en 2022.", [short, year]) == []
-    assert explicit_document_candidates("Consulta plan.pdf y 2022.pdf", [short, year]) == [year, short]
+    year = candidate("2041.pdf", 0.8)
+    assert explicit_document_candidates("Ingrese al plan en 2041.", [short, year]) == []
+    assert explicit_document_candidates("Consulta plan.pdf y 2041.pdf", [short, year]) == [year, short]
     assert explicit_document_candidates("Consulta a PDF", [candidate("a.pdf", 0.7)]) == []
 
 
 def test_imported_latin_accent_escape_matches_title_without_changing_source_identity():
-    filename = "PLATICA DE PLAN DE PENSIONES POR JUBILACI#U00d3N DICIEMBRE 2022.pdf"
+    filename = "GUIA DE PROGRAMA HORIZONTE POR JUBILACI#U00d3N DICIEMBRE 2041.pdf"
     source = candidate(filename, 0.7)
-    question = "Según la plática de plan de pensiones por jubilación diciembre 2022?"
+    question = "Según la guía de programa horizonte por jubilación diciembre 2041?"
     assert explicit_document_candidates(question, [source]) == [source]
     assert source.payload["filename"] == filename and source.payload["document_id"] == filename
 
@@ -104,13 +104,13 @@ def retrieval_setup(monkeypatch, corporate, *, private=(), top_k=1):
 
 
 def test_requested_source_survives_where_unanchored_mmr_discards_it(monkeypatch):
-    old = candidate("Platica Pensiones Diciembre2020.pdf", 0.95)
-    requested = candidate("Platica Pensiones Diciembre2022.pdf", 0.7)
+    old = candidate("Guia Horizonte Diciembre2039.pdf", 0.95)
+    requested = candidate("Guia Horizonte Diciembre2041.pdf", 0.7)
     items = [old, requested]
     assert maximal_marginal_relevance([1.0, 0.0], items, top_k=1, lambda_mult=0.65) == [old]
     retriever, calls, settings = retrieval_setup(monkeypatch, items)
     result = retriever.retrieve(
-        ctx=make_context(), question="Segun Platica Pensiones Diciembre2022, que condiciones hay?",
+        ctx=make_context(), question="Segun Guia Horizonte Diciembre2041, que condiciones hay?",
         authorized_categories=frozenset({"prestaciones"}),
     )
     assert [item.filename for item in result.evidences] == [requested.payload["filename"]]
@@ -123,12 +123,12 @@ def test_requested_source_survives_where_unanchored_mmr_discards_it(monkeypatch)
 
 
 def test_explicit_comparison_keeps_both_named_documents_in_same_category(monkeypatch):
-    named_first = candidate("Reglas de Pensiones 2020.pdf", 0.8)
-    named_second = candidate("Reglas de Pensiones 2022.pdf", 0.6)
+    named_first = candidate("Reglas de Horizonte 2039.pdf", 0.8)
+    named_second = candidate("Reglas de Horizonte 2041.pdf", 0.6)
     other_category = candidate("Otra politica.pdf", 0.95, category="nomina")
     retriever, _, _ = retrieval_setup(monkeypatch, [other_category, named_first, named_second], top_k=2)
     result = retriever.retrieve(
-        ctx=make_context(), question="Compara Reglas de Pensiones 2020 y Reglas de Pensiones 2022",
+        ctx=make_context(), question="Compara Reglas de Horizonte 2039 y Reglas de Horizonte 2041",
         authorized_categories=frozenset({"prestaciones", "nomina"}), comparative=True,
     )
     assert [item.document_id for item in result.evidences] == [

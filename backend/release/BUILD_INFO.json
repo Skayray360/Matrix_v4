@@ -28,11 +28,6 @@
   },
   "operating_profile": "standalone loopback with real local accounts",
   "production_acceptance": "pending_target_environment",
-  "documents_preserved": {
-    "pdf": 6,
-    "acr_unclassified": 10,
-    "synthetic_fixtures": 6
-  },
   "optional_features_not_activated": [
     "LAN/SSO",
     "OCR",
@@ -59,11 +54,25 @@
   },
   "mysql_windows": {
     "provisioning": "official_zip_for_new_installations",
-    "version": "8.4.11",
-    "archive_sha256": "a492371d687d2bab088b0062581144a0044b8964baefdf4faa579292b423d25c",
+    "version": "8.4.13",
+    "archive_sha256": "e9cd98b1d23f122987b1afca26ad942efec5891481103d48ae3cde237fa3ea54",
     "signing_key_fingerprint": "BCA43417C3B485DD128EC6D4B7B3B788A8D3785C",
     "depends_on_wamp_mysql": false,
     "existing_runtime_policy": "preserve_verified_runtime_without_upgrade",
     "windows_binaries_executed_during_qa": false
+  },
+  "current_audit": {
+    "date": "2026-10-25",
+    "base_commit": "dbc6eea2492ae75b428cd2b92e60758b19eb74af",
+    "validation": "backend/release/audit-2026-10-25/validation.json",
+    "status": "PROVISIONAL; production acceptance pending",
+    "detailed_report": "Delivered separately to repository owner; not published"
+  },
+  "corpus_distribution": "No operational documents; synthetic test fixtures only",
+  "current_remediation": {
+    "date": "2026-10-25",
+    "base_commit": "984cf52cf2030224c0b53393423be3eba55ef792",
+    "validation": "backend/release/remediation-2026-10-25.json",
+    "status": "SCOPED_REMEDIATION_VALIDATED; production acceptance pending"
   }
 }

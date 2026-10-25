@@ -13,7 +13,7 @@ from app.rag.claim_context import declared_case
 pytestmark = pytest.mark.unit
 
 BASE = (
-    "Según el documento de prestaciones, si ingresé en mayo de 2016 y tengo "
+    "Según el documento de prestaciones, si ingresé en mayo de 2032 y tengo "
     "7 años y 6 meses de antigüedad antes de jubilarme, ¿qué porcentaje corresponde?"
 )
 
@@ -50,7 +50,7 @@ def test_entry_change_keeps_tenure_and_does_not_keep_two_dates():
     assert case.entry.first.year == 2018
     assert case.entry.first.month == 6
     assert case.tenure == Fraction(15, 2)
-    assert "mayo de 2016" not in result
+    assert "mayo de 2032" not in result
 
 
 @pytest.mark.parametrize("question", [

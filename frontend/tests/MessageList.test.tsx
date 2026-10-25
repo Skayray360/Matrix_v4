@@ -27,6 +27,32 @@ beforeEach(() => {
 });
 
 describe("Origen de las respuestas", () => {
+  it("cada cita navega a la fuente del mismo mensaje mediante un enlace interno", () => {
+    const content = `Consulte la política [[${source.source_id}]]`;
+    render(
+      <MessageList
+        messages={[
+          { ...message, id: "first", content, sources: [source] },
+          { ...message, id: "second", content, sources: [source] },
+        ]}
+        pending={false}
+        displayName="Prueba"
+      />,
+    );
+    const links = screen.getAllByRole("link", { name: "Ver fuente 1" });
+    expect(links).toHaveLength(2);
+    const targets = links.map((link) => {
+      const href = link.getAttribute("href")!;
+      expect(href.startsWith("#")).toBe(true);
+      const target = document.getElementById(decodeURIComponent(href.slice(1)));
+      expect(target).toHaveTextContent(source.label);
+      expect(target).toHaveAttribute("tabindex", "-1");
+      expect(target?.closest("article")).toBe(link.closest("article"));
+      return target?.id;
+    });
+    expect(new Set(targets).size).toBe(2);
+  });
+
   it("conserva la lectura al anteponer historial y desplaza solo al recibir otro turno", () => {
     const { rerender } = render(
       <MessageList messages={[message]} pending={false} displayName="Prueba" />,

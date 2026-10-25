@@ -1,0 +1,206 @@
+{
+  "date": "2026-10-25",
+  "base_commit": "984cf52cf2030224c0b53393423be3eba55ef792",
+  "status": "SCOPED_REMEDIATION_VALIDATED; production acceptance pending",
+  "privacy": {
+    "operational_documents_removed_from_current_tree": 16,
+    "operational_corpus_in_source_packages": false,
+    "tests_use_synthetic_documents": true,
+    "history_purged": false,
+    "user_installation_data_modified": false
+  },
+  "dependency_versions": {
+    "pypdf": {
+      "before": "6.19.0",
+      "after": "6.21.2"
+    },
+    "filelock": {
+      "before": "3.32.2",
+      "after": "4.2.1"
+    },
+    "qdrant-client": {
+      "before": "1.12.2",
+      "after": "1.20.0",
+      "reason": "Align with updated Qdrant server and verify local compatibility separately"
+    },
+    "setuptools": {
+      "before": "84.0.0 runtime; >=69 build",
+      "after": "Removed from runtime transitives; >=84.1.0,<85 build"
+    },
+    "grpcio-tools": {
+      "before": "1.83.0",
+      "after": "Removed transitive dependency"
+    },
+    "vitest": {
+      "before": "4.1.11",
+      "after": "4.1.12"
+    },
+    "zod": {
+      "before": "4.6.5",
+      "after": "4.6.7"
+    }
+  },
+  "windows_runtime_versions": {
+    "node": "24.22.1",
+    "uv": "0.13.5",
+    "python": "3.12.15+20261021",
+    "mysql": "8.4.13",
+    "windows_archives_sha256_verified": true
+  },
+  "docker_pins": {
+    "qdrant": "1.20.0",
+    "qdrant-client": "1.20.0",
+    "ollama": "0.40.11",
+    "mysql": "8.4.13",
+    "nginx": "1.30.6-alpine-slim",
+    "node": "24.22.1-alpine",
+    "python": "3.12.15-slim",
+    "pip": "26.2.2",
+    "uv": "0.13.5"
+  },
+  "validation": {
+    "backend": {
+      "top_level_testcases": 3345,
+      "top_level_passed": 3189,
+      "passed_subtests": 40,
+      "result_count_includes_subtests": true,
+      "total_results": 3385,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 156,
+      "skip_reason": "MySQL/MariaDB unavailable",
+      "duration_seconds": 81.664
+    },
+    "frontend": {
+      "passed": 127,
+      "failures": 0,
+      "build": "PASS",
+      "typecheck": "PASS",
+      "lint": "PASS",
+      "format": "PASS"
+    },
+    "python_known_dependency_advisories": {
+      "before": 15,
+      "after": 0,
+      "locked_packages": 103,
+      "independent_pip_audit_packages": 100,
+      "windows_graph_audited": true
+    },
+    "npm_known_dependency_advisories": {
+      "before": 3,
+      "after": 0,
+      "registry_signatures_verified": 276,
+      "attestations_verified": 81
+    },
+    "ruff": "PASS",
+    "mypy": "PASS; 109 files",
+    "secrets_scan": "PASS; zero real classified findings in scoped current source scan",
+    "bat_and_powershell": "PASS: static BAT and isolated PowerShell 7.6.9 execution on Linux; not Windows CMD/5.1 execution",
+    "release_integrity": "PASS: native ZIP accepted; frontend and backend tampering rejected by their respective validators",
+    "qdrant_embedded_upgrade": "PASS: synthetic index written by SDK1.12.2, read by1.20.0, filtered payload/vector preserved",
+    "qdrant_server": "PASS: official1.20.0 loopback synthetic CRUD/filter/auth checks; not a server datadir migration",
+    "nginx_slim": "PASS: official image layers verified; nginx configuration and HTTPS healthcheck executed outside Docker",
+    "independent_review": "PASS scoped changes; release integrity regression found and fixed",
+    "bandit": {
+      "signals": 37,
+      "low": 29,
+      "medium": 8,
+      "high": 0,
+      "meaning": "Static signals remain; not a clean-scan or vulnerability-free claim"
+    },
+    "source_zip": {
+      "entries": 423,
+      "operational_documents": 0,
+      "archive_integrity": "PASS",
+      "knowledge_base_entries": [
+        "knowledge-base/.gitkeep"
+      ]
+    },
+    "public_fixture_cleanup_followup": {
+      "backend_passed": 156,
+      "backend_skipped": 13,
+      "frontend_passed": 46,
+      "documentation_and_package_cases_passed": 59,
+      "counts_are_rechecks_not_additional_to_full_suite": true,
+      "purpose": "Verify fictional document titles, reserved test domains and reduced public documentation",
+      "new_simulator_scenario_passed": 7
+    }
+  },
+  "vendor_image_scan": {
+    "scanner": "Trivy0.76.1",
+    "platform": "linux/amd64",
+    "scope": "Vendor base images, not a built application image",
+    "images": [
+      {
+        "name": "qdrant",
+        "severity_occurrences": {
+          "CRITICAL": 0,
+          "HIGH": 46,
+          "MEDIUM": 59,
+          "LOW": 62,
+          "UNKNOWN": 1
+        }
+      },
+      {
+        "name": "ollama",
+        "severity_occurrences": {
+          "CRITICAL": 0,
+          "HIGH": 0,
+          "MEDIUM": 23,
+          "LOW": 7,
+          "UNKNOWN": 1
+        }
+      },
+      {
+        "name": "mysql",
+        "severity_occurrences": {
+          "CRITICAL": 2,
+          "HIGH": 33,
+          "MEDIUM": 38,
+          "LOW": 7,
+          "UNKNOWN": 1
+        }
+      },
+      {
+        "name": "nginx-slim",
+        "severity_occurrences": {
+          "CRITICAL": 0,
+          "HIGH": 0,
+          "MEDIUM": 0,
+          "LOW": 0,
+          "UNKNOWN": 0
+        }
+      },
+      {
+        "name": "node",
+        "severity_occurrences": {
+          "CRITICAL": 0,
+          "HIGH": 5,
+          "MEDIUM": 9,
+          "LOW": 1,
+          "UNKNOWN": 0
+        }
+      },
+      {
+        "name": "python",
+        "severity_occurrences": {
+          "CRITICAL": 0,
+          "HIGH": 44,
+          "MEDIUM": 63,
+          "LOW": 62,
+          "UNKNOWN": 1
+        }
+      }
+    ]
+  },
+  "remaining_limits": [
+    "Prior Git commits and existing clones may still contain removed documents; no history rewrite performed.",
+    "Python3.12.16 is source-only today and has no matching Windows build in the pinned uv registry;3.12.15 lacks those security fixes.",
+    "Some current official Docker images retain component advisories; these counts do not establish exploitability and are not a zero-vulnerability certification.",
+    "No Docker daemon build/Compose deployment or real data migration/restore was executed.",
+    "No Windows PowerShell5.1, CMD, WAMP, Authenticode end-to-end or live user Ollama/GPU acceptance was executed.",
+    "Docker storage guard checks the supplied base Compose; custom overrides require separate verification.",
+    "Application quality and capacity on business documents remain to be measured on the target hardware."
+  ],
+  "production_certified": false
+}

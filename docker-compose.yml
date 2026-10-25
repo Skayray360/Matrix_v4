@@ -54,8 +54,42 @@ x-backend: &backend
   logging: *logging
 
 services:
+  # No abre los datadirs. Bloquea una imagen nueva sobre datos de otra version.
+  storage-guard:
+    image: matrix-rh-backend:1.4.2
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    user: "${MATRIX_DOCKER_UID}:${MATRIX_DOCKER_GID}"
+    entrypoint: [python, -m, scripts.docker_prepare]
+    command: [--check-storage, --root, /app]
+    restart: "no"
+    network_mode: none
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 128m
+    cpus: 1
+    pids_limit: 32
+    healthcheck: {disable: true}
+    volumes:
+      - type: bind
+        source: ./knowledge-base/state/docker/images.json
+        target: /app/knowledge-base/state/docker/images.json
+        read_only: true
+        bind: {create_host_path: false}
+      # Usar el Compose de la copia activa, incluso si la imagen backend es anterior.
+      - type: bind
+        source: ./docker-compose.yml
+        target: /app/docker-compose.yml
+        read_only: true
+        bind: {create_host_path: false}
+    logging: *logging
+
   mysql:
-    image: mysql:8.4@sha256:6ea90827b1100f8f2ae306a539f86d2c264a26ed435a2a9f75551dd5c3aeb242
+    image: mysql:8.4.13@sha256:76f0358884cb92d9a086d24e5671c38048d3fef40f2588703d73eb55392d6b69
+    depends_on:
+      storage-guard: {condition: service_completed_successfully}
     restart: unless-stopped
     environment:
       MYSQL_DATABASE: matrix_rh
@@ -86,7 +120,9 @@ services:
     logging: *logging
 
   qdrant:
-    image: qdrant/qdrant:v1.12.4@sha256:241edb9d7778327516ef218f8c74e1bd61b5ea42cd4f193cb8d0896199705636
+    image: qdrant/qdrant:v1.20.0@sha256:9bfc89f9914fc14876a88c05270685921a55b8877b254a98bcc1cc2f0a424cd2
+    depends_on:
+      storage-guard: {condition: service_completed_successfully}
     restart: unless-stopped
     user: "${MATRIX_DOCKER_UID}:${MATRIX_DOCKER_GID}"
     working_dir: /qdrant/storage
@@ -98,6 +134,8 @@ services:
       QDRANT__STORAGE__SNAPSHOTS_PATH: /qdrant/snapshots
       QDRANT__TELEMETRY_DISABLED: "true"
       QDRANT__SERVICE__ENABLE_CORS: "false"
+      QDRANT__CLUSTER__ENABLED: "false"
+      QDRANT__SERVICE__ENFORCE_INTERNAL_AUTH: "true"
     volumes:
       - type: bind
         source: ./knowledge-base/state/docker/qdrant
@@ -129,7 +167,9 @@ services:
     logging: *logging
 
   ollama:
-    image: ollama/ollama:0.34.0@sha256:684d8674b4315fa18f4f0e973a118ec2652ed96f67563277839985175858e0ba
+    image: ollama/ollama:0.40.11@sha256:dea72d1e22270fe095b68fdf756d2b489d615643c5a2eaebbc5f569181e322d8
+    depends_on:
+      storage-guard: {condition: service_completed_successfully}
     restart: unless-stopped
     user: "${MATRIX_DOCKER_UID}:${MATRIX_DOCKER_GID}"
     environment:
@@ -190,7 +230,7 @@ services:
       start_period: 45s
 
   nginx:
-    image: nginx:stable-alpine@sha256:970364228b1e4f932abc22d321932816782cca8a20b85a77552a7cfe9acfb3b5
+    image: nginx:1.30.6-alpine-slim@sha256:dede8895648b461178c3bc604f7eed4423efe5220b2c4d839f5eb3d34ac3f8f7
     restart: unless-stopped
     user: "${MATRIX_DOCKER_UID}:${MATRIX_DOCKER_GID}"
     entrypoint: [nginx]
@@ -233,7 +273,9 @@ services:
   # Solo preparar, despues de "down"; no ejecutar junto a ollama sobre los mismos pesos.
   model-download:
     profiles: [prepare]
-    image: ollama/ollama:0.34.0@sha256:684d8674b4315fa18f4f0e973a118ec2652ed96f67563277839985175858e0ba
+    image: ollama/ollama:0.40.11@sha256:dea72d1e22270fe095b68fdf756d2b489d615643c5a2eaebbc5f569181e322d8
+    depends_on:
+      storage-guard: {condition: service_completed_successfully}
     user: "${MATRIX_DOCKER_UID}:${MATRIX_DOCKER_GID}"
     entrypoint: [/bin/sh, -ec]
     command:

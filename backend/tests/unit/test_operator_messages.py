@@ -128,10 +128,12 @@ class TestScriptsDeWindows:
     def test_la_guardia_de_base_solo_corre_tras_instalar_dependencias(self):
         """Una dependencia faltante detiene uv antes de consultar la base propia."""
         install = _funcion("Install-Stack")
+        python_runtime = _funcion("Install-PythonRuntime")
 
-        assert "Invoke-Checked $uv @('sync'" in install
-        assert "dependencias fijadas por uv.lock" in install
-        assert install.index("Invoke-Checked $uv @('sync'") < install.index("'--guard-install'")
+        assert "Invoke-Checked $uv @('sync'" in python_runtime
+        assert "dependencias fijadas por uv.lock" in python_runtime
+        assert python_runtime.index("Invoke-Checked $uv @('sync'") < python_runtime.index("Assert-PythonRuntime $Pin")
+        assert install.index("Install-PythonRuntime $pins.python") < install.index("'--guard-install'")
 
     def test_base_propia_sin_respuesta_se_distingue_del_puerto_ajeno(self):
         """Los mensajes distinguen un proceso propio caido de una colision ajena."""
@@ -148,7 +150,7 @@ class TestScriptsDeWindows:
     def test_la_comprobacion_de_base_va_despues_de_instalar_dependencias(self):
         """Nunca anunciar instalacion completa antes de la guardia y migraciones."""
         install = _funcion("Install-Stack")
-        dependencies = install.index("Instalando Python propio")
+        dependencies = install.index("Install-PythonRuntime $pins.python")
         guard = install.index("'--guard-install'")
         migrate = install.index("'scripts.bootstrap','migrate'")
         complete = install.index("INSTALACION TERMINADA")
@@ -158,7 +160,8 @@ class TestScriptsDeWindows:
         diagnose = _funcion("Diagnose")
         check = _funcion("Check")
         invoke = _funcion("Invoke-Python")
-        assert "Check 'Python propio' { Invoke-Python" in diagnose
+        assert "Check 'Python propio (version, build y entorno fijados)' { Assert-PythonRuntime }" in diagnose
+        assert "$configured -and (Test-InstalledRuntimes)" in diagnose
         assert "No existe el Python propio. Ejecute instalar.bat." in invoke
         assert "catch" in check and "$script:CheckFailures++" in check
         assert "'[FALLA] ' + $Name + ': ' + $_.Exception.Message" in check
