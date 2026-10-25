@@ -368,7 +368,7 @@ def _metadata_claim(claim: str, evidences: tuple[Evidence, ...]) -> tuple[str, s
     identified_titles: list[re.Pattern] = []
     title_locations: dict[tuple[int, int], set[str]] = {}
     attribution = (
-        r"\b(?:documento|archivo|fuente|presentacion|platica)"
+        r"\b(?:documento|archivo|fuente|presentacion|platica|guia|manual)"
         r"(?:\s+de\s+referencia)?"
         r"(?:\s*:\s*|\s+(?:(?:titulado|llamado|denominado|es|se titula|se denomina)\s+)?)"
     )
@@ -408,7 +408,7 @@ def _metadata_claim(claim: str, evidences: tuple[Evidence, ...]) -> tuple[str, s
                 natural = connector_gap.join(re.escape(token) for token in tokens)
                 natural += r"(?:\.pdf)?"
                 patterns.extend(attributed_titles(natural))
-                if tokens[0] in {"documento", "archivo", "fuente", "presentacion", "platica"}:
+                if tokens[0] in {"documento", "archivo", "fuente", "presentacion", "platica", "guia", "manual"}:
                     # El descriptor es parte del propio nombre. Solo puede
                     # abrir la unidad; buscarlo en cualquier posicion aceptaba
                     # "Documento: Otro PLATICA ..." como el documento original.
@@ -432,7 +432,7 @@ def _metadata_claim(claim: str, evidences: tuple[Evidence, ...]) -> tuple[str, s
         claim = title.sub("documento identificado", claim)
     # Solo una atribucion de fecha a documento, nunca a la vigencia de la regla.
     date_pattern = re.compile(
-        r"\b(?:documento|archivo|platica|presentacion|fuente) "
+        r"\b(?:documento|archivo|platica|presentacion|fuente|guia|manual) "
         r"(?:historico |historica )?(?:de |del |fechado en )"
         r"(?:(?P<month>" + "|".join(_MONTHS) + r") de )?(?P<year>\d{4})\b"
     )

@@ -168,9 +168,9 @@ def corpus(monkeypatch):
 
 
 @pytest.mark.parametrize("question", [
-    "explicame sobre este documento Guia_configuracion_Kerberos_AD_DOMINIO_MX.",
-    "Resume Guía configuración Kerberos AD DOMINIO MX",
-    "Dame un resumen de Guia_configuracion_Kerberos_AD_DOMINIO_MX.docx",
+    "explicame sobre este documento Guia_ficticia_Constelacion_Azul.",
+    "Resume Guía ficticia Constelación Azul",
+    "Dame un resumen de Guia_ficticia_Constelacion_Azul.docx",
 ])
 def test_complete_private_docx_has_85_ordered_citable_paragraphs_without_embedding(corpus, question):
     document = docx.Document()
@@ -179,7 +179,7 @@ def test_complete_private_docx_has_85_ordered_citable_paragraphs_without_embeddi
     buffer = io.BytesIO()
     document.save(buffer)
     blocks = chunk_blocks(extract_docx(buffer.getvalue()).blocks, chunk_size_tokens=900, overlap_tokens=120)
-    requested = corpus.publish("Guia_configuracion_Kerberos_AD_DOMINIO_MX.docx", blocks=blocks)
+    requested = corpus.publish("Guia_ficticia_Constelacion_Azul.docx", blocks=blocks)
     corpus.publish("Manual_No_Relacionado.docx")
     result = corpus.retriever.retrieve_attachment_summary(ctx=corpus.ctx, conversation_id="thread", question=question)
     assert len(result.evidences) == len(blocks) == 85
@@ -423,7 +423,7 @@ def test_incomplete_active_vector_generation_reports_coverage_limit(corpus):
 
 
 def test_title_match_and_unknown_reference_detector_do_not_use_personal_dates():
-    name = "Guía_configuración_AD_Diciembre2022.docx"
-    assert explicit_document_filenames("Explica guia configuracion ad diciembre 2022", [name]) == {name}
-    assert not explicit_document_filenames("Ingrese en diciembre de 2022", [name])
-    assert not has_document_reference("Ingrese en diciembre de 2022")
+    name = "Guía_configuración_AD_Diciembre2041.docx"
+    assert explicit_document_filenames("Explica guia configuracion ad diciembre 2041", [name]) == {name}
+    assert not explicit_document_filenames("Ingrese en diciembre de 2041", [name])
+    assert not has_document_reference("Ingrese en diciembre de 2041")

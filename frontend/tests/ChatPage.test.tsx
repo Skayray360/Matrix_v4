@@ -1,4 +1,5 @@
 /* Creado por Aldo Garcia. */
+// Historias, IDs y documentos de este archivo son objetos de prueba creados en memoria.
 import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -166,8 +167,8 @@ describe("ChatPage origen de respuestas", () => {
 
   it("muestra nombres legibles y mantiene IDs completos de las fuentes privadas del historial", async () => {
     const user = userEvent.setup();
-    const privateId = "__private__/documento-123/curriculum.pdf#0";
-    const pdfId = "configured-knowledge/especializadas/prestaciones/subcarpeta/politica.pdf#2";
+    const privateId = "__private__/synthetic-document/toy.pdf#0";
+    const pdfId = "configured-knowledge/tecnologia/fixtures/ejemplo.pdf#2";
     vi.mocked(api.getConversation).mockResolvedValue({
       ...detail("A"),
       messages: [
@@ -183,8 +184,8 @@ describe("ChatPage origen de respuestas", () => {
     });
     render(<ChatPage me={me} onLogout={vi.fn()} />);
     await user.click(await screen.findByText("Conversacion A"));
-    expect(await screen.findByText("curriculum.pdf#0")).toBeInTheDocument();
-    expect(screen.getByText("politica.pdf#2")).toBeInTheDocument();
+    expect(await screen.findByText("toy.pdf#0")).toBeInTheDocument();
+    expect(screen.getByText("ejemplo.pdf#2")).toBeInTheDocument();
     const citations = screen.getAllByTestId("citation");
     expect(citations[0]).toHaveAttribute("title", privateId);
     expect(citations[1]).toHaveAttribute("title", pdfId);
@@ -223,7 +224,7 @@ describe("ChatPage origen de respuestas", () => {
       label: "Manual sintético",
       page_or_sheet: "p. 3",
       section: "Condiciones",
-      category: "prestaciones",
+      category: "tecnologia",
       scope: "corporate",
     };
     const historical = {
@@ -758,7 +759,7 @@ describe("ChatPage concurrencia", () => {
 describe("ChatPage ciclo de adjuntos", () => {
   const attachment: DocumentStatus = {
     id: "guide-A",
-    filename: "Guia_configuracion_Kerberos_AD_PENOLEST_MX.docx",
+    filename: "Guia_ficticia_Constelacion_Azul.docx",
     status: "indexed",
     chunk_count: 85,
     scope: "conversation",
@@ -767,7 +768,7 @@ describe("ChatPage ciclo de adjuntos", () => {
   };
 
   it.each([
-    "explicame sobre este documento Guia_configuracion_Kerberos_AD_PENOLEST_MX.",
+    "explicame sobre este documento Guia_ficticia_Constelacion_Azul.",
     "Resume este documento",
   ])("mantiene el adjunto de A al enviar la consulta: %s", async (question) => {
     const user = userEvent.setup();

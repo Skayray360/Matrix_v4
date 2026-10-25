@@ -78,7 +78,12 @@ class VectorStore:
         try:
             if settings.qdrant_mode is QdrantMode.SERVER:
                 api_key = settings.qdrant_api_key.get_secret_value() or None
-                return QdrantClient(url=settings.qdrant_url, api_key=api_key, timeout=30)
+                # No heredar proxies del host para documentos ni credenciales.
+                # El SDK 1.20 consulta la version con otro httpx.get que ignora
+                # trust_env; desactivar ese sondeo auxiliar (ambos lados estan
+                # fijados por version). Las operaciones usan el transporte local.
+                return QdrantClient(url=settings.qdrant_url, api_key=api_key, timeout=30,
+                                    trust_env=False, check_compatibility=False)
             path = settings.qdrant_storage_path
             path.mkdir(parents=True, exist_ok=True)
             return QdrantClient(path=str(path))

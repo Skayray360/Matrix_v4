@@ -31,8 +31,8 @@ def test_untrusted_protocol_markers_are_inert_and_sanitization_is_idempotent(mar
 
 def evidence():
     return Evidence(
-        source_id="prestaciones/Plan de pensiones.pdf#4", text="La aportación es de 25,5 %.",
-        score=0.9, category="prestaciones", filename="Plan de pensiones.pdf", section="Aportaciones",
+        source_id="prestaciones/Programa ficticio.pdf#4", text="La aportación es de 25,5 %.",
+        score=0.9, category="prestaciones", filename="Programa ficticio.pdf", section="Aportaciones",
         page_or_sheet="p. 5", document_id="synthetic-doc", chunk_id="synthetic-chunk",
     )
 
@@ -45,7 +45,7 @@ def test_document_metadata_cannot_close_evidence_or_impersonate_system(field):
     assert block.count("<<</EVIDENCIA_DOCUMENTAL>>>") == 1
     assert "\nsystem:" not in block
     assert "[[E1]]" in block
-    assert "[source_id: prestaciones/Plan de pensiones.pdf#4]" in block
+    assert "[source_id: prestaciones/Programa ficticio.pdf#4]" in block
     assert item.source_id in expand_citation_aliases("Regla [[E1]]", aliases)
 
 
@@ -97,7 +97,7 @@ def test_windows_aliases_and_alternate_streams_are_rejected(relative):
 
 
 @pytest.mark.parametrize("relative", [
-    "prestaciones/Plan de Pensiones 2022.pdf", "prestaciones/área/Regla 7.5.md",
+    "prestaciones/Programa Horizonte 2041.pdf", "prestaciones/área/Regla 7.5.md",
     "prestaciones/CONtrato.txt", "prestaciones/Anexo 1/tabla.xlsx",
 ])
 def test_valid_document_paths_keep_their_canonical_value(relative):

@@ -1,5 +1,5 @@
 # Creado por Aldo Garcia.
-"""Entrega limpia: corpus intacto, un README y ningun estado privado empaquetado."""
+"""Entrega limpia: corpus local intacto y ningun documento operativo distribuido."""
 
 import hashlib
 import zipfile
@@ -10,11 +10,11 @@ import pytest
 from scripts.package_release import build_zip, iter_package_files, verify_release_layout
 
 
-def test_zip_preserva_corpus_y_excluye_todo_estado_privado(tmp_path: Path):
+def test_zip_excluye_corpus_y_estado_sin_borrar_originales_locales(tmp_path: Path):
     source = tmp_path / "source"
     public = {
         "README.md", ".htaccess", "docker-compose.yml", "backend/config/env.example",
-        "knowledge-base/documents/prestaciones/original.pdf", "frontend/dist/index.html",
+        "knowledge-base/.gitkeep", "frontend/dist/index.html",
     }
     private = {
         "reports/historico/revision.md", "reports/tests/junit.xml", "var/qdrant/storage.sqlite",
@@ -26,6 +26,8 @@ def test_zip_preserva_corpus_y_excluye_todo_estado_privado(tmp_path: Path):
         "knowledge-base/state/qdrant/storage.sqlite", "knowledge-base/models/blobs/hash",
         "knowledge-base/backups/backup.tar", "copia.zip", ".env", ".env.example",
         "backend/build/lib/app/main.py", "backend/other.egg-info/PKG-INFO",
+        "knowledge-base/documents/prestaciones/original.pdf", "knowledge-base/unclassified/archivo.md",
+        "knowledge-base/notas.txt", "knowledge-base/documents/README.txt",
     }
     for name in public | private:
         path = source / name
@@ -49,7 +51,7 @@ def test_zip_preserva_corpus_y_excluye_todo_estado_privado(tmp_path: Path):
             manifest_paths.add(name)
             assert digest == hashlib.sha256(result.read(root + name)).hexdigest()
         original = "knowledge-base/documents/prestaciones/original.pdf"
-        assert result.read(root + original) == (source / original).read_bytes()
+        assert root + original not in result.namelist()
         assert original not in manifest_paths
     # Exclusiones de distribucion nunca eliminan archivos de una instalacion.
     assert all((source / name).is_file() for name in private)
@@ -57,7 +59,7 @@ def test_zip_preserva_corpus_y_excluye_todo_estado_privado(tmp_path: Path):
 
 @pytest.mark.parametrize("name", [
     "docs/guia.md", "windows/Install-MatrixRH.ps1", "scripts/old.sh", "data/original.pdf",
-    "backend/README.md", "knowledge-base/documents/README.txt", "backend/scripts/extra.bat",
+    "backend/README.md", "backend/scripts/extra.bat",
     "INSTALAR_MATRIX_RH.bat", "LICENSE",
 ])
 def test_estructura_antigua_o_documentacion_extra_detiene_empaquetado_sin_borrar(tmp_path, name):
@@ -66,3 +68,15 @@ def test_estructura_antigua_o_documentacion_extra_detiene_empaquetado_sin_borrar
     path.write_bytes(b"original preserved")
     assert verify_release_layout(iter_package_files(tmp_path), tmp_path)
     assert path.read_bytes() == b"original preserved"
+
+
+def test_zip_rechaza_documentos_operativos_aun_con_lista_explicita(tmp_path):
+    private = tmp_path / "knowledge-base/documents/interno.pdf"
+    private.parent.mkdir(parents=True)
+    private.write_bytes(b"synthetic private document")
+    output = tmp_path / "delivery.zip"
+    assert verify_release_layout([private], tmp_path)
+    with pytest.raises(ValueError, match="corpus operativo"):
+        build_zip(tmp_path, output, [private])
+    assert not output.exists()
+    assert private.read_bytes() == b"synthetic private document"

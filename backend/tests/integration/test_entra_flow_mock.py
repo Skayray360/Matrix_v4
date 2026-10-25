@@ -32,7 +32,7 @@ pytestmark = pytest.mark.integration
 
 TENANT = "tenant-de-prueba"
 CLIENT = "client-de-prueba"
-REDIRECT = "https://matrixrh.local/api/v1/auth/callback"
+REDIRECT = "https://matrix.example.test/api/v1/auth/callback"
 
 
 @pytest.fixture(scope="module")
@@ -60,9 +60,9 @@ def build_id_token(rsa_key, nonce: str, **overrides) -> str:  # noqa: ANN001
         "iat": ahora,
         "exp": ahora + 900,
         "nonce": nonce,
-        "preferred_username": "empleado.demo@corporativo.mx",
+        "preferred_username": "empleado.demo@example.test",
         "name": "Empleado Demo",
-        "email": "empleado.demo@corporativo.mx",
+        "email": "empleado.demo@example.test",
         "groups": ["grupo-prestaciones"],
     }
     claims.update(overrides)
@@ -118,7 +118,7 @@ class TestFlujoCompleto:
 
         assert identity.subject_id == "oid-xyz"
         assert identity.auth_source == "entra"
-        assert identity.username == "empleado.demo@corporativo.mx"
+        assert identity.username == "empleado.demo@example.test"
         assert identity.groups == ("grupo-prestaciones",)
 
         db_session.refresh(record)

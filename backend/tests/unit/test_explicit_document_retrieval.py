@@ -83,11 +83,11 @@ def corpus(monkeypatch, manifest_db):
 def test_named_document_is_resolved_before_unrelated_chunks_exhaust_fetch_k(corpus):
     for number in range(8):
         corpus.publish(f"Manual no solicitado {number}.pdf", vector=(1.0, 0.0, 0.0))
-    requested = corpus.publish("Plan de Pensiones Diciembre2022.pdf")
+    requested = corpus.publish("Plan de Horizonte Diciembre2041.pdf")
     baseline = corpus.ask("¿Cual es el porcentaje de aportacion?")
     assert requested.metadata.document_id not in {item.document_id for item in baseline.evidences}
 
-    result = corpus.ask("Segun el Plan de Pensiones Diciembre2022.pdf, ¿cual es la aportacion?")
+    result = corpus.ask("Segun el Plan de Horizonte Diciembre2041.pdf, ¿cual es la aportacion?")
     assert {item.document_id for item in result.evidences} == {requested.metadata.document_id}
     assert result.evidences[0].score == pytest.approx(0.6)
     query = corpus.search_calls[-1]["query_filter"].model_dump_json()
@@ -96,10 +96,10 @@ def test_named_document_is_resolved_before_unrelated_chunks_exhaust_fetch_k(corp
 
 
 def test_full_title_without_extension_resolves_imported_accent_escape(corpus):
-    requested = corpus.publish("PLATICA DE PLAN DE PENSIONES POR JUBILACI#U00d3N DICIEMBRE 2022.pdf")
+    requested = corpus.publish("GUIA DE PROGRAMA HORIZONTE POR JUBILACI#U00d3N DICIEMBRE 2041.pdf")
     corpus.publish("Platica Prestaciones Generales.pdf", vector=(1.0, 0.0, 0.0))
     result = corpus.ask(
-        "Segun la Plática del Plan de Pensiones por Jubilación de diciembre de 2022, "
+        "Segun la Guía del Programa Horizonte por Jubilación de diciembre de 2041, "
         "¿que establece la portabilidad?"
     )
     assert {item.document_id for item in result.evidences} == {requested.metadata.document_id}
@@ -161,7 +161,7 @@ def test_deleted_pending_and_incompatible_documents_are_not_resolved(corpus, sta
 
 
 def test_unpublished_generation_cannot_replace_the_catalogued_generation(corpus):
-    active = corpus.publish("Plan de Pensiones.pdf")
+    active = corpus.publish("Plan de Horizonte.pdf")
     stale = replace(active, text="Regla sin publicar del 99%.", metadata=replace(
         active.metadata, chunk_id=new_id(), generation=new_id(),
     ))
@@ -170,13 +170,13 @@ def test_unpublished_generation_cannot_replace_the_catalogued_generation(corpus)
     with corpus.db() as db:
         db.get(Document, active.metadata.document_id).active_generation = active.metadata.generation
         db.commit()
-    result = corpus.ask("Segun Plan de Pensiones.pdf, ¿cual es la regla?")
+    result = corpus.ask("Segun Plan de Horizonte.pdf, ¿cual es la regla?")
     assert [item.chunk_id for item in result.evidences] == [active.metadata.chunk_id]
     assert "99%" not in result.evidences[0].text
 
 
 def test_catalog_snapshot_does_not_restore_a_revoked_generation(corpus, monkeypatch):
-    active = corpus.publish("Plan de Pensiones.pdf")
+    active = corpus.publish("Plan de Horizonte.pdf")
     original_search = corpus.store.search
 
     def revoke_before_search(**kwargs):
@@ -186,14 +186,14 @@ def test_catalog_snapshot_does_not_restore_a_revoked_generation(corpus, monkeypa
         return original_search(**kwargs)
 
     monkeypatch.setattr(corpus.store, "search", revoke_before_search)
-    assert not corpus.ask("Segun Plan de Pensiones.pdf, ¿cual es la regla?").has_evidence
+    assert not corpus.ask("Segun Plan de Horizonte.pdf, ¿cual es la regla?").has_evidence
 
 
 def test_explicit_comparison_searches_each_document_before_global_ranking(corpus):
-    first = corpus.publish("Plan Pensiones 2020.pdf", vector=(1.0, 0.0, 0.0))
-    second = corpus.publish("Plan Pensiones 2022.pdf", vector=(0.5, 0.866, 0.0))
+    first = corpus.publish("Plan Horizonte 2039.pdf", vector=(1.0, 0.0, 0.0))
+    second = corpus.publish("Plan Horizonte 2041.pdf", vector=(0.5, 0.866, 0.0))
     corpus.publish("Otro plan.pdf", vector=(1.0, 0.0, 0.0))
-    result = corpus.ask("Compara Plan Pensiones 2020.pdf y Plan Pensiones 2022.pdf", comparative=True)
+    result = corpus.ask("Compara Plan Horizonte 2039.pdf y Plan Horizonte 2041.pdf", comparative=True)
     assert {item.document_id for item in result.evidences} == {
         first.metadata.document_id, second.metadata.document_id,
     }
@@ -202,15 +202,15 @@ def test_explicit_comparison_searches_each_document_before_global_ranking(corpus
 
 
 def test_explicit_document_does_not_bypass_semantic_relevance_threshold(corpus):
-    corpus.publish("Plan de Pensiones.pdf", vector=(0.0, 1.0, 0.0))
-    result = corpus.ask("Segun Plan de Pensiones.pdf, ¿como reparo un motor?")
+    corpus.publish("Plan de Horizonte.pdf", vector=(0.0, 1.0, 0.0))
+    result = corpus.ask("Segun Plan de Horizonte.pdf, ¿como reparo un motor?")
     assert not result.has_evidence
     assert corpus.search_calls[0]["score_threshold"] == corpus.settings.rag_min_similarity
 
 
 def test_empty_category_permissions_do_not_reveal_matching_document(corpus):
-    corpus.publish("Plan de Pensiones.pdf")
-    result = corpus.ask("Segun Plan de Pensiones.pdf, ¿cual es la regla?", categories=frozenset())
+    corpus.publish("Plan de Horizonte.pdf")
+    result = corpus.ask("Segun Plan de Horizonte.pdf, ¿cual es la regla?", categories=frozenset())
     assert not result.has_evidence and result.clarification
-    assert "Plan de Pensiones" not in result.clarification
+    assert "Plan de Horizonte" not in result.clarification
     assert not corpus.search_calls

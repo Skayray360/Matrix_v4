@@ -23,7 +23,7 @@ REFERENCE = f"Explícame sobre este documento {TITLE}."
 
 @pytest.mark.parametrize("question", [
     REFERENCE,
-    "explicame sobre este documento Guia_configuracion_Kerberos_AD_PENOLEST_MX.",
+    "explicame sobre este documento Guia_ficticia_Constelacion_Azul.",
     "Explica el documento Procedimiento de altas.pdf",
     "¿Puedes explicarme este archivo?",
     "¿De qué trata este documento?",

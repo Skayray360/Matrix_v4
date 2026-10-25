@@ -1,12 +1,13 @@
 # Creado por Aldo Garcia.
 """Empaquetado del ZIP autocontenido de entrega.
 
-Incluye fuente, lockfiles, build del frontend, migraciones, corpus original,
+Incluye fuente, lockfiles, build del frontend, migraciones,
 fixtures sinteticos, cuatro BAT, controlador PowerShell, un README y pruebas.
 
 Excluye, de forma verificable: ``.env`` real, ``.venv``, ``node_modules``, caches,
 logs con datos, tokens, API keys, certificados privados, bases reales y los
-volumenes runtime de Qdrant.
+volumenes runtime de Qdrant. Nunca incluye el corpus operativo, aunque exista
+en la instalacion desde la que se genera el ZIP.
 
 Antes de escribir el ZIP se ejecuta el escaner de secretos sobre el contenido
 seleccionado. Si aparece un secreto real, **no se genera el paquete**.
@@ -26,7 +27,14 @@ import zipfile
 from dataclasses import dataclass
 from pathlib import Path
 
-from scripts.preflight import OPERATOR_BATCH_FILES, PROJECT_ROOT, PreflightReport, check_integrity, project_version
+from scripts.preflight import (
+    OPERATOR_BATCH_FILES,
+    PROJECT_ROOT,
+    PreflightReport,
+    check_integrity,
+    project_version,
+    release_integrity_file,
+)
 
 #: Directorios que nunca entran al paquete.
 EXCLUDED_DIRS = frozenset(
@@ -122,10 +130,16 @@ def _is_excluded_file(path: Path) -> bool:
     return any(fnmatch.fnmatch(name.casefold(), pattern.casefold()) for pattern in EXCLUDED_PATTERNS)
 
 
+def _is_operational_data(relative: Path) -> bool:
+    return relative.parts[0].casefold() == "knowledge-base" and relative.as_posix() != "knowledge-base/.gitkeep"
+
+
 def iter_package_files(root: Path) -> list[Path]:
     """Selecciona los archivos que entran al paquete."""
     seleccionados: list[Path] = []
     for path in sorted(root.rglob("*")):
+        if _is_operational_data(path.relative_to(root)):
+            continue
         if not path.is_file() or path.is_symlink() or not path.resolve().is_relative_to(root.resolve()):
             continue
         if path.relative_to(root).as_posix() in GENERATED_CONFIGURATION:
@@ -148,6 +162,8 @@ def verify_release_layout(files: list[Path], root: Path) -> list[str]:
     for path in files:
         relative = path.relative_to(root)
         name = relative.as_posix()
+        if _is_operational_data(relative):
+            errors.append("El corpus operativo no forma parte de una entrega de codigo")
         if ((len(relative.parts) == 1 and name not in PACKAGE_ROOT_FILES)
                 or (len(relative.parts) > 1 and relative.parts[0] not in PACKAGE_ROOT_DIRS)):
             errors.append(f"Ruta fuera de la estructura de entrega: {name}")
@@ -172,6 +188,8 @@ def verify_no_secrets(files: list[Path], root: Path) -> list[str]:
 
 
 def build_zip(root: Path, destino: Path, files: list[Path]) -> PackageStats:
+    if any(_is_operational_data(path.relative_to(root)) for path in files):
+        raise ValueError("El corpus operativo no se puede incluir en el ZIP de codigo")
     stats = PackageStats()
     destino.parent.mkdir(parents=True, exist_ok=True)
     # La carpeta instalada es estable aunque cambie la revision interna del codigo.
@@ -186,9 +204,8 @@ def build_zip(root: Path, destino: Path, files: list[Path]) -> PackageStats:
             contenido = path.read_bytes()
             info = zipfile.ZipInfo.from_file(path, arcname=f"{raiz_interna}/{relativa.as_posix()}")
             archivo.writestr(info, contenido, compress_type=zipfile.ZIP_DEFLATED, compresslevel=9)
-            # El corpus viaja en el ZIP, pero sus nombres y hashes no forman
-            # parte del manifiesto publico de integridad del codigo.
-            if relativa.parts[0] != "knowledge-base":
+            # Incluye la fuente que validan preflight y el supervisor nativo.
+            if release_integrity_file(relativa.as_posix()):
                 checksums.append(f"{hashlib.sha256(contenido).hexdigest()}  {relativa.as_posix()}")
             stats.files += 1
             stats.bytes_uncompressed += len(contenido)

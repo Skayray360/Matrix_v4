@@ -1,6 +1,6 @@
 @echo off
 REM Creado por Aldo Garcia.
-setlocal
+setlocal EnableExtensions DisableDelayedExpansion
 cd /d "%~dp0"
 if errorlevel 1 exit /b 1
 title Matrix RH - instalar
