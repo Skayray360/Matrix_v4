@@ -10,7 +10,7 @@ from qdrant_client import QdrantClient
 from sqlalchemy import create_engine, func, select
 from sqlalchemy.orm import sessionmaker
 
-from app.common.errors import IngestionFailedError
+from app.common.errors import IndexUpdateRequiredError, IngestionFailedError
 from app.common.ids import sha256_bytes
 from app.config.settings import Settings
 from app.database.models import Base, Conversation, Document, DocumentVersion, IngestionJob, User
@@ -125,12 +125,14 @@ def test_private_migration_requires_commit_and_preserves_identity(environment):
     env = environment
     document, stored = legacy_attachment(env)
     legacy_generation = document.active_generation
-    assert not summary(env).evidences  # El scroll tampoco acepta la huella antigua.
+    with pytest.raises(IndexUpdateRequiredError):
+        summary(env)  # La huella antigua se informa; no parece ausencia de documentos.
 
     result = env.service.reindex_conversation_attachment(env.db, document=document)
     assert result.document_id == document.id and result.status == "indexed"
     assert document.active_generation != legacy_generation
-    assert not summary(env).evidences  # El upsert aun no publica la nueva generacion.
+    with pytest.raises(IndexUpdateRequiredError):
+        summary(env)  # El upsert aun no publica la nueva generacion.
     env.db.commit()
 
     recovered = summary(env)
@@ -185,7 +187,9 @@ def test_private_reconcile_records_failures_without_replacing_original(environme
     assert result.failures[0]["path"] == f"private:{document.id}"
     assert (document.active_generation, document.sha256, document.index_fingerprint) == previous
     assert document.error_message and document.status == "indexed"
-    assert not env.llm.calls and not summary(env).evidences
+    assert not env.llm.calls
+    with pytest.raises(IndexUpdateRequiredError):
+        summary(env)
     job = env.db.scalar(select(IngestionJob))
     assert job.status == "failed" and job.stats["failure_count"] == 1
 
@@ -222,7 +226,8 @@ def test_partial_private_generation_stays_hidden_and_retry_keeps_document(enviro
     failed = reconcile_knowledge(env.db, service=env.service)
     env.db.refresh(document)
     assert failed.failures and document.active_generation == previous_generation
-    assert not summary(env).evidences
+    with pytest.raises(IndexUpdateRequiredError):
+        summary(env)
 
     monkeypatch.setattr(env.store, "upsert_chunks", upsert)
     retried = reconcile_knowledge(env.db, service=env.service)

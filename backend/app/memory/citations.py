@@ -6,6 +6,8 @@ from __future__ import annotations
 from math import isfinite
 from typing import Any
 
+from app.common.provenance import source_provenance
+
 # Solo estos campos forman parte del contrato publico SourceRef. No persistir
 # texto recuperado, filas SQL, URLs arbitrarias ni propiedades del modelo.
 _TEXT_FIELDS = {
@@ -36,6 +38,9 @@ def citation_metadata(source_ids: Any, details: Any) -> list[dict[str, Any]]:
             if isinstance(value, str) and len(value) <= limit:
                 item[key] = value
         score = detail.get("score")
+        provenance = source_provenance(detail.get("provenance"))
+        if provenance:
+            item["provenance"] = provenance
         if (isinstance(score, int | float) and not isinstance(score, bool)
                 and -1e308 <= score <= 1e308 and isfinite(score)):
             item["score"] = score

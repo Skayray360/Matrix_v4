@@ -26,7 +26,7 @@ from sqlalchemy import (
     String,
     Text,
 )
-from sqlalchemy.dialects.mysql import MEDIUMTEXT
+from sqlalchemy.dialects.mysql import DATETIME, MEDIUMTEXT
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 from app.common.answers import AnswerBasis
@@ -279,7 +279,10 @@ class ChatOperation(Base):
     """Resultado idempotente por usuario/clave; no se reenvia trabajo ambiguo."""
 
     __tablename__ = "chat_operations"
-    __table_args__ = (Index("ix_chat_operations_status_created", "status", "created_at"),)
+    __table_args__ = (
+        Index("ix_chat_operations_status_created", "status", "created_at"),
+        Index("ix_chat_operations_finished", "finished_at"),
+    )
 
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
     user_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
@@ -293,8 +296,20 @@ class ChatOperation(Base):
     message: Mapped[str | None] = mapped_column(Text, nullable=True)
     session_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
     request_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
-    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=False), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=False), default=utcnow, nullable=False)
+    started_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=False).with_variant(DATETIME(fsp=6), "mysql"), nullable=True,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=False).with_variant(DATETIME(fsp=6), "mysql"), default=utcnow, nullable=False,
+    )
+
+    # NULL en historicos o cuando no se conoce el final real de la ejecucion.
+    finished_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=False).with_variant(DATETIME(fsp=6), "mysql"), nullable=True,
+    )
+    queue_ms: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    execution_ms: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    total_ms: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
 
 
 class Document(Base):

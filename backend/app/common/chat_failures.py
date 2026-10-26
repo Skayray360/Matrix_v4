@@ -1,7 +1,7 @@
 # Creado por Aldo Garcia.
 """Clasificacion publica de fallos; nunca conserva un mensaje del proveedor."""
 
-from app.common.errors import AnswerValidationError, ForbiddenError, OllamaUnavailableError
+from app.common.errors import AnswerValidationError, ForbiddenError, IndexUpdateRequiredError, OllamaUnavailableError
 
 
 def chat_failure_code(error: Exception) -> str:
@@ -9,6 +9,8 @@ def chat_failure_code(error: Exception) -> str:
         return "answer_unverified"
     if isinstance(error, ForbiddenError):
         return "forbidden"
+    if isinstance(error, IndexUpdateRequiredError):
+        return "index_update_required"
     if isinstance(error, OllamaUnavailableError):
         kind = str(getattr(error, "failure_kind", ""))
         if kind in {"timeout", "deadline"} or error.detail in {"ReadTimeout", "ConnectTimeout"}:

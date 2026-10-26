@@ -241,7 +241,7 @@ class TestCargaDeArchivos:
         )
         assert response.status_code == 413
 
-    def test_nombre_de_archivo_malicioso_no_escapa_del_almacen(self, client: TestClient, tmp_path):
+    def test_nombre_de_archivo_malicioso_no_escapa_del_almacen(self, client: TestClient):
         csrf = login(client, "Matrix")
         conversacion = self._conversacion(client, csrf)
         response = client.post(
@@ -249,10 +249,12 @@ class TestCargaDeArchivos:
             headers={"X-CSRF-Token": csrf},
             files={"files": ("../../../../evil.md", b"# contenido", "text/markdown")},
         )
-        if response.status_code == 200:
-            nombre = response.json()["documents"][0]["filename"]
-            assert ".." not in nombre
-            assert "/" not in nombre and "\\" not in nombre
+        # The documented contract accepts this Markdown and sanitizes its name.
+        # A 401/500/503 must fail this test, not silently skip its only assertions.
+        assert response.status_code == 200, response.text
+        documents = response.json()["documents"]
+        assert len(documents) == 1
+        assert documents[0]["filename"] == "evil.md"
 
     def test_zip_bomb_ooxml(self, client: TestClient):
         csrf = login(client, "Matrix")

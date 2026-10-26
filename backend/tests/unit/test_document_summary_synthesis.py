@@ -6,9 +6,10 @@ import json
 
 import pytest
 
-from app.agents.documentary_output import DOCUMENTARY_GENERATION_SCHEMA, SCHEMA_BUDGET_CHARS
+from app.agents.documentary_output import DOCUMENTARY_GENERATION_SCHEMA
 from app.agents.knowledge_agent import KnowledgeAgent
 from app.agents.prompts import build_answer_messages
+from app.common.text_budget import CHARS_PER_TOKEN_LIMIT, estimate_tokens
 from app.config import get_settings
 from app.llm.model_policy import Intent, ModelPolicy
 from app.llm.ollama_client import ChatResult
@@ -94,7 +95,9 @@ def test_summary_reserves_schema_context_before_packing(monkeypatch):
     with_schema = agent._input_budget_chars(policy.fast_model, Intent.DOCUMENT_SUMMARY)
     monkeypatch.setattr(get_settings(), "answer_structured_output", False)
     without = agent._input_budget_chars(policy.fast_model, Intent.DOCUMENT_SUMMARY)
-    assert without - with_schema == SCHEMA_BUDGET_CHARS
+    assert without - with_schema == CHARS_PER_TOKEN_LIMIT * estimate_tokens(
+        json.dumps(DOCUMENTARY_GENERATION_SCHEMA, ensure_ascii=False),
+    )
 
 
 def test_summary_prompt_does_not_confuse_technical_document_with_personal_benefit_case():

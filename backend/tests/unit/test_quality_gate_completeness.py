@@ -2,6 +2,10 @@
 """El gate no aprueba pasos obligatorios omitidos ni usa evidencia obsoleta."""
 
 import json
+import os
+import subprocess
+import sys
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -99,3 +103,180 @@ def test_invalid_or_empty_audit_inventory_fails_closed(tmp_path, monkeypatch, di
     result = gate._audit_dependencies("python")
     assert result.status == gate.FAIL
     assert result.blocking
+
+
+def test_backend_gate_collects_from_tests_root_and_validates_fresh_junit(tmp_path, monkeypatch):
+    captured = []
+    monkeypatch.setattr(gate, "TEST_REPORTS", tmp_path)
+
+    def run(command, **kwargs):
+        captured.append((command, kwargs))
+        return gate.GateResult(kwargs["name"], gate.FAIL)
+
+    monkeypatch.setattr(gate, "_run", run)
+    for group in ("standalone", "integration_services"):
+        gate._backend_tests("python", group)
+    for command, options in captured:
+        assert command[command.index("pytest") + 1] == "tests"
+        assert "scripts.quality_gate_pytest" in command
+        assert options["require_complete_junit"] == Path(command[command.index("--junitxml") + 1])
+
+
+def test_root_collection_partition_includes_queue_and_dependency_closure(tmp_path):
+    """Execute the real plugin against a miniature suite; no production services."""
+    tests = tmp_path / "tests"
+    (tests / "security").mkdir(parents=True)
+    (tmp_path / "pytest.ini").write_text("[pytest]\nmarkers =\n    integration: service contract\n")
+    (tests / "conftest.py").write_text(
+        "import pytest\nfrom pathlib import Path\n"
+        "@pytest.fixture\ndef require_database():\n    Path('database-called').write_text('yes')\n"
+        "@pytest.fixture\ndef indirect_service(require_database):\n    return 'synthetic'\n"
+    )
+    (tests / "test_chat_queue.py").write_text(
+        "from pathlib import Path\ndef test_root_queue():\n    Path('queue-executed').write_text('yes')\n"
+    )
+    (tests / "security/test_partition.py").write_text(
+        "import pytest\n"
+        "def test_plain():\n    pass\n"
+        "def test_dependency(indirect_service):\n    assert indirect_service == 'synthetic'\n"
+        "@pytest.mark.integration\ndef test_marked():\n    pass\n"
+    )
+    environment = os.environ.copy()
+    environment["PYTHONPATH"] = str(gate.BACKEND_ROOT)
+    environment.pop("PYTEST_ADDOPTS", None)
+    inventories = []
+    for group in ("standalone", "integration_services"):
+        output = tmp_path / (group + ".json")
+        result = subprocess.run(
+            [sys.executable, "-m", "pytest", "tests", "-q", "-p", "scripts.quality_gate_pytest",
+             "--matrix-test-group", group, "--matrix-collection-report", str(output)],
+            cwd=tmp_path, env=environment, capture_output=True, text=True, timeout=30, check=False,
+        )
+        assert result.returncode == 0, result.stdout + result.stderr
+        inventories.append(json.loads(output.read_text()))
+        if group == "standalone":
+            assert (tmp_path / "queue-executed").read_text() == "yes"
+            assert not (tmp_path / "database-called").exists()
+    assert (tmp_path / "database-called").read_text() == "yes"
+    assert inventories[0]["nodeids_sha256"] == inventories[1]["nodeids_sha256"]
+    assert all(item["groups"] == {"standalone": 2, "integration_services": 2} for item in inventories)
+    assert sum(item["selected"] for item in inventories) == inventories[0]["collected_total"] == 4
+
+
+def test_zero_exit_with_failed_junit_cannot_pass(tmp_path, monkeypatch):
+    report = tmp_path / "junit.xml"
+
+    def run(*_args, **_kwargs):
+        report.write_text('<testsuites><testsuite tests="2" failures="1" errors="0"/></testsuites>')
+        return SimpleNamespace(returncode=0)
+
+    monkeypatch.setattr(gate.subprocess, "run", run)
+    assert gate._run(["synthetic"], cwd=tmp_path, name="test", require_complete_junit=report).status == gate.FAIL
+
+
+def test_caller_pytest_filters_do_not_hide_root_cases(tmp_path, monkeypatch):
+    monkeypatch.setenv("PYTEST_ADDOPTS", "--ignore=tests/test_chat_queue.py")
+    environments = []
+
+    def run(*_args, **kwargs):
+        environments.append(kwargs["env"])
+        return SimpleNamespace(returncode=0)
+
+    monkeypatch.setattr(gate.subprocess, "run", run)
+    gate._run(["python", "-m", "pytest", "tests"], cwd=tmp_path, name="backend")
+    assert "PYTEST_ADDOPTS" not in environments[0]
+
+
+def test_standalone_scope_leaves_real_services_and_models_explicitly_incomplete(tmp_path, monkeypatch):
+    monkeypatch.setattr(gate, "TEST_REPORTS", tmp_path / "tests")
+    monkeypatch.setattr(gate, "SECURITY_REPORTS", tmp_path / "security")
+    monkeypatch.setattr(gate, "FRONTEND_ROOT", tmp_path / "frontend")
+    monkeypatch.setattr(gate, "_launcher", lambda _name: None)
+    commands = []
+
+    def run(command, *, name, **_kwargs):
+        commands.append(command)
+        return gate.GateResult(name, gate.PASS)
+
+    monkeypatch.setattr(gate, "_run", run)
+    results = gate.build_gates(SimpleNamespace(standalone=True, with_e2e=False, fast=False))
+    assert not any("integration_services" in command or "scripts.rag_eval" in command for command in commands)
+    for name in ("pruebas backend (integration_services)", "evaluacion RAG (modelos reales, holdout)"):
+        result = next(item for item in results if item.name == name)
+        assert result.status == gate.SKIPPED and result.blocking
+
+
+@pytest.mark.parametrize("payload,expected", [
+    ({}, gate.INCOMPLETE),
+    ({"quality_gate": {"passed": False}, "metrics": {}}, gate.FAIL),
+    ({"quality_gate": {"passed": True}, "metrics": {
+        "external_coverage_pct": 100, "external_accuracy_measured_cases": 10, "external_accuracy_pct": 100,
+        "product_contract_pass_rate_pct": 100, "acl_leakage_count": 0,
+    }}, gate.PASS),
+    ({"quality_gate": {"passed": True}, "metrics": {
+        "external_coverage_pct": 50, "external_accuracy_measured_cases": 10, "external_accuracy_pct": 100,
+        "product_contract_pass_rate_pct": 100, "acl_leakage_count": 0,
+    }}, gate.INCOMPLETE),
+    ({"quality_gate": {"passed": True}, "metrics": {
+        "external_coverage_pct": 100, "external_accuracy_measured_cases": 0, "external_accuracy_pct": None,
+        "product_contract_pass_rate_pct": 100, "acl_leakage_count": 0,
+    }}, gate.INCOMPLETE),
+])
+def test_full_model_gate_requires_fresh_external_evidence(tmp_path, monkeypatch, payload, expected):
+    monkeypatch.setattr(gate, "TEST_REPORTS", tmp_path)
+
+    def run(command, **kwargs):
+        assert command[-1] == "--full" and command[command.index("--split") + 1] == "holdout"
+        (tmp_path / "rag_eval.json").write_text(json.dumps(payload))
+        return gate.GateResult(kwargs["name"], gate.PASS)
+
+    monkeypatch.setattr(gate, "_run", run)
+    assert gate._rag_gate("python", fast=False).status == expected
+
+
+def test_provenance_has_no_dotenv_content_or_arbitrary_environment(tmp_path, monkeypatch):
+    monkeypatch.setattr(gate, "PROJECT_ROOT", tmp_path)
+    monkeypatch.setenv("PRIVATE_TEST_TOKEN", "do-not-record")
+    config = tmp_path / "backend/config"
+    config.mkdir(parents=True)
+    (config / ".env").write_text("DATABASE_URL=private-do-not-record")
+    (config / "runtime-manifest.json").write_text('{"version":"synthetic"}')
+    report = gate.provenance()
+    serialized = json.dumps(report)
+    assert "do-not-record" not in serialized and ".env" not in serialized
+    assert set(report["configuration_sha256"]) == {"backend/config/runtime-manifest.json"}
+    assert report["source"]["commit"] is None
+
+
+def test_previous_model_evidence_cannot_make_a_new_run_pass(tmp_path, monkeypatch):
+    monkeypatch.setattr(gate, "TEST_REPORTS", tmp_path)
+    report = tmp_path / "rag_eval.json"
+    report.write_text('{"quality_gate":{"passed":true}}')
+    monkeypatch.setattr(gate, "_run", lambda *_args, **kwargs: gate.GateResult(kwargs["name"], gate.PASS))
+    assert gate._rag_gate("python", fast=False).status == gate.INCOMPLETE
+    assert not report.exists()
+
+
+def test_backend_success_without_root_collection_evidence_fails(tmp_path, monkeypatch):
+    monkeypatch.setattr(gate, "TEST_REPORTS", tmp_path)
+    monkeypatch.setattr(gate, "_run", lambda *_args, **kwargs: gate.GateResult(kwargs["name"], gate.PASS))
+    assert gate._backend_tests("python", "standalone").status == gate.FAIL
+
+
+@pytest.mark.parametrize("external,expected", [(True, gate.PASS), (False, gate.FAIL), (None, gate.FAIL)])
+def test_gate_consumes_the_actual_evaluation_report_contract(tmp_path, monkeypatch, external, expected):
+    """Cross-script shape check only; no inference or claim of measured model quality."""
+    from scripts.rag_eval import CaseResult, EvaluationReport
+
+    report = EvaluationReport(mode="full", metadata={"selection_verified": True}, results=[
+        CaseResult("synthetic-case", "synthetic-user", "grounded", passed=True,
+                   external_accuracy_pass=external, evaluation_group="synthetic-group", evaluation_split="holdout"),
+    ])
+    monkeypatch.setattr(gate, "TEST_REPORTS", tmp_path)
+
+    def run(_command, **kwargs):
+        (tmp_path / "rag_eval.json").write_text(json.dumps(report.as_dict()))
+        return gate.GateResult(kwargs["name"], gate.PASS)
+
+    monkeypatch.setattr(gate, "_run", run)
+    assert gate._rag_gate("python", fast=False).status == expected

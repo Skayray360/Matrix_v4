@@ -86,6 +86,24 @@ class IngestionOutcome:
     warnings: tuple[str, ...] = ()
 
 
+@dataclass(frozen=True, slots=True)
+class PreparedAttachment:
+    """Resultado efimero de CPU/inferencia; no reserva cuota ni publica datos."""
+
+    filename: str
+    sha256: str
+    index_fingerprint: str
+    drafts: tuple[ChunkDraft, ...]
+    vectors: tuple[tuple[float, ...], ...]
+    warnings: tuple[str, ...]
+
+    @property
+    def estimated_memory_bytes(self) -> int:
+        # Cota conservadora de texto Python, listas/tuplas y floats; no mide RSS.
+        return (4096 + sum(len(draft.text.encode("utf-8")) * 4 + 512 for draft in self.drafts)
+                + sum(len(vector) * 32 + 64 for vector in self.vectors))
+
+
 class IngestionService:
     """Ingesta de documentos corporativos y de adjuntos privados."""
 
@@ -245,6 +263,7 @@ class IngestionService:
         mime_type: str,
         owner_user_id: str,
         conversation_id: str,
+        prepared: PreparedAttachment | None = None,
     ) -> IngestionOutcome:
         """Ingiere un adjunto en el namespace privado ``user + conversation``.
 
@@ -252,6 +271,13 @@ class IngestionService:
         recuperarse desde otra conversacion ni por otro usuario: su ACL es la
         pareja (owner_user_id, conversation_id), aplicada como filtro en Qdrant.
         """
+        # El endpoint prepara el lote antes de abrir la transaccion final.
+        # Los llamadores internos conservan su contrato transaccional anterior.
+        if prepared is not None:
+            if prepared.filename != display_name or prepared.sha256 != sha256_bytes(data):
+                raise IngestionFailedError("La preparacion no corresponde a este adjunto.")
+            if prepared.index_fingerprint != indexing_fingerprint(self._llm):
+                raise IngestionFailedError("La configuracion cambio despues de preparar el adjunto; repita la carga.")
         storage_path, portable_path = self._attachment_storage_path(
             owner_user_id=owner_user_id,
             conversation_id=conversation_id,
@@ -284,7 +310,52 @@ class IngestionService:
         )
         db.add(document)
         db.flush()
-        return self._index_document(db, document=document, data=data, category=None)
+        return self._index_document(db, document=document, data=data, category=None, prepared=prepared)
+
+    def prepare_attachment(
+        self, *, data: bytes, filename: str, max_memory_bytes: int = 256 * 1024 * 1024
+    ) -> PreparedAttachment:
+        """Extrae y embebe sin Session ni acceso a SQL, archivos finales o Qdrant."""
+        if max_memory_bytes <= 0:
+            raise ValidationFailedError("El lote excede el presupuesto de procesamiento; divida la carga.")
+        fingerprint = indexing_fingerprint(self._llm)
+        extracted = extract_document(data, filename=filename)
+        drafts = chunk_blocks(
+            extracted.blocks, chunk_size_tokens=self._settings.rag_chunk_size_tokens,
+            overlap_tokens=self._settings.rag_chunk_overlap_tokens,
+        ) if not extracted.is_empty else []
+        warnings = tuple(extracted.warnings)
+        del extracted
+        estimated = (4096 + sum(len(draft.text.encode("utf-8")) * 4 + 512 for draft in drafts)
+                     + len(drafts) * (self._settings.rag_embedding_dimension * 32 + 64))
+        if estimated > max_memory_bytes:
+            raise ValidationFailedError("El lote excede el presupuesto de procesamiento; divida la carga.")
+        vectors: list[list[float]] = []
+        for start in range(0, len(drafts), EMBED_BATCH_SIZE):
+            batch = drafts[start:start + EMBED_BATCH_SIZE]
+            vectors.extend(self._llm.embed([
+                format_document(draft.text, title=document_embedding_title(filename=filename, section=draft.section))
+                for draft in batch
+            ]))
+        if len(vectors) != len(drafts):
+            raise IngestionFailedError("La preparacion no produjo todos los embeddings del adjunto.")
+        if indexing_fingerprint(self._llm) != fingerprint:
+            raise IngestionFailedError("La configuracion cambio durante la preparacion del adjunto; repita la carga.")
+        prepared = PreparedAttachment(filename, sha256_bytes(data), fingerprint, tuple(drafts),
+                                      tuple(tuple(vector) for vector in vectors), warnings)
+        if prepared.estimated_memory_bytes > max_memory_bytes:
+            raise ValidationFailedError("El lote excede el presupuesto de procesamiento; divida la carga.")
+        return prepared
+
+    def check_attachment_batch_quota(
+        self, db: Session, *, owner_user_id: str, conversation_id: str, incoming_bytes: int, incoming_documents: int
+    ) -> None:
+        """Comprobacion breve previa; el publicador vuelve a validar bajo lock."""
+        conversation = MemoryService._lock_conversation(db, conversation_id)
+        if conversation.user_id != owner_user_id:
+            raise IngestionFailedError("El adjunto no pertenece a esta conversacion.")
+        self._reserve_upload_quota(db, owner_user_id=owner_user_id, incoming_bytes=incoming_bytes,
+                                   incoming_documents=incoming_documents)
 
     def _attachment_storage_path(
         self, *, owner_user_id: str, conversation_id: str, internal_filename: str
@@ -311,7 +382,9 @@ class IngestionService:
             raise IngestionFailedError("El adjunto esta fuera de su directorio privado.")
         return resolved, Path(*parts).as_posix()
 
-    def _reserve_upload_quota(self, db: Session, *, owner_user_id: str, incoming_bytes: int) -> None:
+    def _reserve_upload_quota(
+        self, db: Session, *, owner_user_id: str, incoming_bytes: int, incoming_documents: int = 1
+    ) -> None:
         """Serializa la cuota por usuario y cuenta tambien bytes pendientes/huerfanos.
 
         Un rollback puede dejar un archivo sin manifest. Ese archivo no libera
@@ -319,8 +392,8 @@ class IngestionService:
         namespace. Los archivos conocidos se cuentan una sola vez.
         """
         user = db.get(User, owner_user_id, with_for_update=True, populate_existing=True)
-        if user is None:
-            raise IngestionFailedError("El propietario del adjunto no existe.")
+        if user is None or not user.is_active:
+            raise IngestionFailedError("El propietario del adjunto no esta activo.")
         rows = db.execute(select(Document.storage_path, Document.size_bytes).where(
             Document.owner_user_id == owner_user_id,
             Document.scope == SCOPE_CONVERSATION,
@@ -345,11 +418,11 @@ class IngestionService:
                     if portable not in known_paths and path.as_posix() not in known_paths:
                         stored_bytes += path.stat().st_size
                         stored_count += 1
-                    if stored_count >= self._settings.upload_max_documents_per_user:
+                    if stored_count + incoming_documents > self._settings.upload_max_documents_per_user:
                         raise ValidationFailedError("La carga excede su cuota de documentos.")
                     if stored_bytes + incoming_bytes > self._settings.upload_max_total_bytes:
                         raise ValidationFailedError("La carga excede su cuota de almacenamiento.")
-        if stored_count + 1 > self._settings.upload_max_documents_per_user:
+        if stored_count + incoming_documents > self._settings.upload_max_documents_per_user:
             raise ValidationFailedError("La carga excede su cuota de documentos.")
         if stored_bytes + incoming_bytes > self._settings.upload_max_total_bytes:
             raise ValidationFailedError("La carga excede su cuota de almacenamiento.")
@@ -427,11 +500,18 @@ class IngestionService:
     def _index_document(
         self, db: Session, *, document: Document, data: bytes, category: str | None,
         verify_source: Callable[[], None] | None = None,
+        prepared: PreparedAttachment | None = None,
     ) -> IngestionOutcome:
         """Extrae, chunkea, embebe e indexa. Actualiza el manifest."""
         settings = self._settings
         try:
-            extracted = extract_document(data, filename=document.filename)
+            if prepared is None:
+                extracted = extract_document(data, filename=document.filename)
+                warnings = tuple(extracted.warnings)
+                empty = extracted.is_empty
+            else:
+                warnings = prepared.warnings
+                empty = not prepared.drafts
         except Exception as exc:
             document.status = "failed"
             document.error_message = str(getattr(exc, "message", exc))[:500]
@@ -441,24 +521,26 @@ class IngestionService:
         if verify_source is not None:
             verify_source()
 
-        if extracted.is_empty:
+        if empty:
             document.status = "empty"
             document.chunk_count = 0
-            document.error_message = "; ".join(extracted.warnings)[:500] or "sin texto extraible"
+            document.error_message = "; ".join(warnings)[:500] or "sin texto extraible"
             db.flush()
             # El commit SQL retira la evidencia; un rollback conserva la anterior.
             document.active_generation = None
-            document.index_fingerprint = indexing_fingerprint(self._llm)
+            document.index_fingerprint = (
+                prepared.index_fingerprint if prepared is not None else indexing_fingerprint(self._llm)
+            )
             document.index_cleanup_pending = True
             self._record_version(db, document, chunk_count=0)
             return IngestionOutcome(
                 document_id=document.id,
                 chunk_count=0,
                 status="empty",
-                warnings=tuple(extracted.warnings),
+                warnings=warnings,
             )
 
-        drafts = chunk_blocks(
+        drafts = list(prepared.drafts) if prepared is not None else chunk_blocks(
             extracted.blocks,
             chunk_size_tokens=settings.rag_chunk_size_tokens,
             overlap_tokens=settings.rag_chunk_overlap_tokens,
@@ -467,7 +549,9 @@ class IngestionService:
             document.status = "empty"
             document.chunk_count = 0
             document.active_generation = None
-            document.index_fingerprint = indexing_fingerprint(self._llm)
+            document.index_fingerprint = (
+                prepared.index_fingerprint if prepared is not None else indexing_fingerprint(self._llm)
+            )
             document.index_cleanup_pending = True
             self._record_version(db, document, chunk_count=0)
             db.flush()
@@ -484,12 +568,14 @@ class IngestionService:
             subpath=subpath,
         )
         generation = new_id()
-        fingerprint = indexing_fingerprint(self._llm)
+        fingerprint = prepared.index_fingerprint if prepared is not None else indexing_fingerprint(self._llm)
+        if prepared is not None and indexing_fingerprint(self._llm) != fingerprint:
+            raise IngestionFailedError("La configuracion cambio antes de publicar el adjunto; repita la carga.")
         chunks = [
             replace(chunk, metadata=replace(chunk.metadata, generation=generation, index_fingerprint=fingerprint))
             for chunk in chunks
         ]
-        vectors = self._embed_chunks(chunks)
+        vectors = [list(vector) for vector in prepared.vectors] if prepared is not None else self._embed_chunks(chunks)
         if verify_source is not None:
             # Evitar incluso el upsert de una fuente modificada durante la IA.
             verify_source()
@@ -522,7 +608,7 @@ class IngestionService:
         document.index_cleanup_pending = True
         document.status = "indexed"
         document.chunk_count = len(chunks)
-        document.error_message = "; ".join(extracted.warnings)[:500] or None
+        document.error_message = "; ".join(warnings)[:500] or None
         document.updated_at = utcnow_naive()
         self._record_version(db, document, chunk_count=len(chunks))
         db.flush()
@@ -546,7 +632,7 @@ class IngestionService:
             document_id=document.id,
             chunk_count=len(chunks),
             status="indexed",
-            warnings=tuple(extracted.warnings),
+            warnings=warnings,
         )
 
     def _build_chunks(

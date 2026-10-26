@@ -14,7 +14,6 @@ from threading import Event
 from typing import Any
 
 from pydantic import BaseModel, Field
-from sqlalchemy import update
 from sqlalchemy.orm import Session
 
 from app.agents.orchestrator import Orchestrator
@@ -23,6 +22,7 @@ from app.authorization.policy import get_policy_engine
 from app.common.answers import AnswerBasis
 from app.common.chat_failures import chat_failure_code
 from app.common.errors import ForbiddenError, ValidationFailedError
+from app.common.operation_lifecycle import finalize_operations
 from app.database.engine import get_sessionmaker
 from app.database.models import ChatOperation, Conversation
 from app.llm.provider import inference_deadline
@@ -102,15 +102,11 @@ def execute_chat(
                 )
             check_inference_control()
             if operation_id:
-                changed = db.execute(
-                    update(ChatOperation)
-                    .where(ChatOperation.id == operation_id, ChatOperation.status == "running")
-                    .values(
-                        status="completed", response=response.model_dump(), error_code=None,
-                        message=None, session_id=None,
-                    )
+                changed = finalize_operations(
+                    db, ChatOperation.id == operation_id, ChatOperation.status == "running",
+                    status="completed", response=response.model_dump(), error_code=None,
                 )
-                if changed.rowcount != 1:
+                if changed != 1:
                     raise ValidationFailedError("Solicitud cancelada o expirada.")
             # SQL tambien consume plazo; una escritura tardia sigue pendiente
             # y puede revertirse antes de confirmar el asistente y la operacion.
@@ -121,10 +117,9 @@ def execute_chat(
         db.rollback()
         if operation_id:
             with suppress(Exception), get_sessionmaker()() as failure_db:
-                failure_db.execute(
-                    update(ChatOperation)
-                    .where(ChatOperation.id == operation_id, ChatOperation.status == "running")
-                    .values(status="failed", error_code=chat_failure_code(exc), message=None, session_id=None)
+                finalize_operations(
+                    failure_db, ChatOperation.id == operation_id, ChatOperation.status == "running",
+                    status="failed", error_code=chat_failure_code(exc),
                 )
                 failure_db.commit()
         raise

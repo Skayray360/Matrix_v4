@@ -1,0 +1,224 @@
+# Creado por Aldo Garcia.
+# Referencias externas al validador del producto; solo corpus sintetico.
+# Variantes completas conservadoras, no un juez semantico universal.
+# No completar desde salidas del modelo. Preservar grupos para no contaminar holdout.
+version: 1
+reference_status: synthetic_not_domain_expert_validated
+coverage: partial; missing annotations must remain NOT_ANNOTATED
+split_policy:
+  seed: matrix-rh-golden-v1
+  holdout_percent: 50
+groups:
+  prest-01: prestaciones
+  prest-02: prestaciones
+  prest-03: prestaciones
+  prest-04: prestaciones
+  prest-05: prestaciones
+  prest-06: prestaciones
+  prest-07: prestaciones
+  prest-08: prestaciones
+  nom-01: nomina-relaciones
+  nom-02: nomina-relaciones
+  nom-03: nomina-relaciones
+  nom-04: nomina-relaciones
+  nom-05: nomina-relaciones
+  rec-01: reclutamiento
+  rec-02: reclutamiento
+  rec-03: reclutamiento
+  rec-04: reclutamiento
+  rec-05: reclutamiento
+  rel-01: nomina-relaciones
+  rel-02: nomina-relaciones
+  rel-03: nomina-relaciones
+  rel-04: nomina-relaciones
+  rel-05: nomina-relaciones
+  sal-01: salud-ambiental
+  sal-02: salud-ambiental
+  sal-03: salud-ambiental
+  sal-04: salud-ambiental
+  sal-05: salud-ambiental
+  comp-01: nomina-relaciones
+  comp-02: prestaciones
+  unsup-01: sin-respaldo
+  unsup-02: sin-respaldo
+  unsup-03: sin-respaldo
+  leak-01: nomina-relaciones
+  leak-02: nomina-relaciones
+  leak-03: salud-ambiental
+  route-01: sin-respaldo
+  route-02: nomina-relaciones
+  route-03: nomina-relaciones
+  route-04: sin-respaldo
+  route-05: sin-respaldo
+  route-06: sin-respaldo
+  route-07: sin-respaldo
+rubrics:
+  prest-01:
+    version: 1
+    kind: facts
+    forbidden_terms:
+    - no corresponden
+    - sin requisito de antigüedad
+    required_facts:
+    - id: vacaciones-5-anos
+      concept: vacaciones
+      value: '20'
+      unit: días
+      conditions:
+      - 5 años de antigüedad
+      source_ids:
+      - prestaciones/politica-vacaciones.md#1
+      accepted_statements:
+      - Con 5 años de antigüedad corresponden 20 días de vacaciones.
+  prest-02:
+    version: 1
+    kind: facts
+    forbidden_terms:
+    - no corresponden
+    - sin requisito de antigüedad
+    required_facts:
+    - id: vacaciones-5-anos
+      concept: vacaciones
+      value: '20'
+      unit: días
+      conditions:
+      - 5 años de antigüedad
+      source_ids:
+      - prestaciones/politica-vacaciones.md#1
+      accepted_statements:
+      - Con 5 años de antigüedad corresponden 20 días de vacaciones.
+  prest-04:
+    version: 1
+    kind: facts
+    forbidden_terms:
+    - no corresponden
+    - sin requisito de antigüedad
+    required_facts:
+    - id: fecha-aguinaldo
+      concept: aguinaldo
+      value: '15'
+      unit: diciembre
+      conditions:
+      - a más tardar
+      source_ids:
+      - prestaciones/fondo-de-ahorro-y-aguinaldo.md#3
+      accepted_statements:
+      - El aguinaldo se paga a más tardar el 15 de diciembre.
+  rec-01:
+    version: 1
+    kind: facts
+    forbidden_terms:
+    - no corresponden
+    - sin requisito de antigüedad
+    required_facts:
+    - id: etapas-reclutamiento
+      concept: reclutamiento
+      value: '9'
+      unit: etapas
+      conditions: []
+      source_ids:
+      - reclutamiento/proceso-de-reclutamiento.md#2
+      accepted_statements:
+      - El proceso de reclutamiento tiene 9 etapas.
+  sal-02:
+    version: 1
+    kind: facts
+    forbidden_terms:
+    - no corresponden
+    - sin requisito de antigüedad
+    required_facts:
+    - id: equipo-laboratorio
+      concept: laboratorio
+      value: bata, lentes y guantes de nitrilo
+      unit: null
+      conditions: []
+      source_ids:
+      - salud_ambiental/seguridad-higiene-y-ambiente.md#1
+      accepted_statements:
+      - En laboratorio se usa bata, lentes y guantes de nitrilo.
+  comp-01:
+    version: 1
+    kind: facts
+    forbidden_terms:
+    - no corresponden
+    - sin requisito de antigüedad
+    required_facts:
+    - id: plazo-nomina
+      concept: aclaración de nómina
+      value: '5'
+      unit: días hábiles
+      conditions:
+      - máximo
+      source_ids:
+      - nomina/politica-de-nomina.md#4
+      accepted_statements:
+      - La aclaración de nómina se resuelve en un máximo de 5 días hábiles.
+    - id: plazo-queja
+      concept: queja laboral
+      value: '20'
+      unit: días hábiles
+      conditions:
+      - máximo
+      source_ids:
+      - relaciones_laborales/reglamento-interior.md#5
+      accepted_statements:
+      - La investigación por queja laboral concluye en un máximo de 20 días hábiles.
+  comp-02:
+    version: 1
+    kind: facts
+    forbidden_terms:
+    - no corresponden
+    - sin requisito de antigüedad
+    required_facts:
+    - id: vacaciones-5-anos
+      concept: vacaciones
+      value: '20'
+      unit: días
+      conditions:
+      - 5 años de antigüedad
+      source_ids:
+      - prestaciones/politica-vacaciones.md#1
+      accepted_statements:
+      - Con 5 años de antigüedad corresponden 20 días de vacaciones.
+    - id: aguinaldo-anual
+      concept: aguinaldo
+      value: '30'
+      unit: días de salario
+      conditions:
+      - un año o más de antigüedad
+      source_ids:
+      - prestaciones/fondo-de-ahorro-y-aguinaldo.md#2
+      accepted_statements:
+      - El aguinaldo es de 30 días de salario con un año o más de antigüedad.
+  unsup-01:
+    version: 1
+    kind: abstention
+    forbidden_terms: []
+    accepted_answers:
+    - No dispongo de evidencia suficiente.
+    - No hay información suficiente en las fuentes autorizadas para responder.
+  unsup-02:
+    version: 1
+    kind: abstention
+    forbidden_terms: []
+    accepted_answers:
+    - No dispongo de evidencia suficiente.
+    - No hay información suficiente en las fuentes autorizadas para responder.
+  nom-04:
+    version: 1
+    kind: abstention
+    forbidden_terms: []
+    accepted_answers:
+    - No tiene acceso a esa información.
+    - No dispone de permisos para consultar esa información.
+  route-03:
+    version: 1
+    kind: abstention
+    forbidden_terms: []
+    accepted_answers:
+    - No tiene acceso a esa información.
+    - No dispone de permisos para consultar esa información.
+source_revision:
+  corpus_sha256: f431d100fb3a41a48dfed411b55b3bf1b934a48fd78665b98f34d8b4fff9bebd
+  pipeline_version: 11
+  text_budget_version: utf8-structural-v1

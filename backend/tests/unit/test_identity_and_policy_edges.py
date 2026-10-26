@@ -381,13 +381,12 @@ class TestExtractoresLimites:
 # Chunking: caminos de bloque sobredimensionado
 # ---------------------------------------------------------------------------
 class TestChunkingBloquesGrandes:
-    def test_una_frase_gigante_se_parte_por_palabras(self):
-        from app.rag.chunking import chunk_text, estimate_tokens
+    def test_una_frase_indivisible_gigante_requiere_revision(self):
+        from app.rag.chunking import ChunkBudgetExceededError, chunk_text
 
         texto = "palabra " * 2000  # una sola "frase" sin puntuacion
-        chunks = chunk_text(texto, chunk_size_tokens=100, overlap_tokens=10)
-        assert len(chunks) > 5
-        assert all(estimate_tokens(c.text) <= 130 for c in chunks)
+        with pytest.raises(ChunkBudgetExceededError):
+            chunk_text(texto, chunk_size_tokens=100, overlap_tokens=10)
 
     def test_varias_frases_largas_se_agrupan_por_frase(self):
         from app.rag.chunking import chunk_text

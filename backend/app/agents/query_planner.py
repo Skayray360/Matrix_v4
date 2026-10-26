@@ -18,6 +18,7 @@ from typing import Any
 from pydantic import ValidationError
 
 from app.common.logging import get_logger
+from app.common.text_budget import TextBudget
 from app.config import get_settings
 from app.llm.provider import InferenceClient
 from app.structured_data.schemas import StructuredQueryPlan
@@ -28,7 +29,6 @@ _JSON_BLOCK_RE = re.compile(r"\{.*\}", re.S)
 # Misma estimacion conservadora del agente: incluye envoltura y reserva salida.
 # No reemplaza el tokenizer real del runtime.
 _PROMPT_OVERHEAD_TOKENS = 1400
-_CHARS_PER_TOKEN_BUDGET = 3
 _ADDITIONAL_SYSTEM_OVERHEAD_TOKENS = 32
 
 _PLANNER_SYSTEM = """\
@@ -109,16 +109,14 @@ def build_query_plan(
         response_schema = StructuredQueryPlan.model_json_schema()
         prefix = settings.llm_system_prefix
         extra_overhead = _ADDITIONAL_SYSTEM_OVERHEAD_TOKENS if prefix else 0
-        input_budget = max(
-            0, settings.ollama_fast_num_ctx - settings.llm_planner_max_tokens
+        input_budget = TextBudget.from_tokens(
+            settings.ollama_fast_num_ctx - settings.llm_planner_max_tokens
             - _PROMPT_OVERHEAD_TOKENS - extra_overhead,
-        ) * _CHARS_PER_TOKEN_BUDGET
-        input_chars = (
-            sum(len(message["content"]) for message in messages)
-            + len(prefix)
-            + len(json.dumps(response_schema, ensure_ascii=False, separators=(",", ":")))
         )
-        if input_chars > input_budget:
+        input_parts = [message["content"] for message in messages] + [
+            prefix, json.dumps(response_schema, ensure_ascii=False, separators=(",", ":")),
+        ]
+        if not input_budget.fits_parts(input_parts):
             # Un catalogo/schema parcial puede inducir un plan distinto. Sin
             # truncarlos, se omite SQL y permanece la ruta RAG ya autorizada.
             logger.warning("planner.prompt_budget_exceeded")
