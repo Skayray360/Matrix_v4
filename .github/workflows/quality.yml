@@ -151,10 +151,8 @@ jobs:
       UPLOAD_STORAGE_ROOT: ./var/tests/vector-recovery/uploads
       QDRANT_PATH: ./var/tests/vector-recovery/qdrant
       QDRANT_MODE: server
-      QDRANT_URL: http://127.0.0.1:${{ job.services.qdrant.ports['6333'] }}
       RAG_COLLECTION_CORPORATE: matrix_rh_test_corporate
       RAG_COLLECTION_PRIVATE: matrix_rh_test_private
-      MYSQL_TEST_PORT: ${{ job.services.mysql.ports['3306'] }}
       MYSQL_TEST_PASSWORD: ${{ github.run_id }}-${{ github.run_attempt }}-fixture
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -168,6 +166,9 @@ jobs:
           python -m pip install --only-binary=:all: uv==0.13.6
           uv sync --locked --extra dev --no-install-project --no-build
       - name: Migraciones y pruebas de recuperacion sin omisiones
+        env:
+          QDRANT_URL: http://127.0.0.1:${{ job.services.qdrant.ports['6333'] }}
+          MYSQL_TEST_PORT: ${{ job.services.mysql.ports['3306'] }}
         run: |
           .venv/bin/python - <<'PY'
           import json
