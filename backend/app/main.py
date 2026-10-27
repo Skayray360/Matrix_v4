@@ -25,6 +25,7 @@ from app.api.middleware import (
     matrix_error_handler,
     unhandled_error_handler,
 )
+from app.api.private_paths import PrivatePathsMiddleware
 from app.api.routes import admin, auth, chat, conversations, health
 from app.common.errors import ErrorCode, MatrixError
 from app.common.logging import configure_logging, get_logger
@@ -125,6 +126,8 @@ def create_app() -> FastAPI:
     from app.api.body_limit import UploadBodyLimitMiddleware
 
     app.add_middleware(UploadBodyLimitMiddleware)
+    # Cubre tambien los mounts de StaticFiles, antes de buscar cualquier archivo.
+    app.add_middleware(PrivatePathsMiddleware)
     from app.api.request_boundary import RequestBoundaryMiddleware
 
     app.add_middleware(RequestBoundaryMiddleware, settings=settings)

@@ -1,5 +1,4 @@
 # Creado por Aldo Garcia.
-# OPCIONAL: otra copia en Linux (ext4/XFS/Btrfs/ZFS), nunca la carpeta viva de WAMP.
 # Preparar primero con scripts.docker_prepare; ver el unico README.md.
 # APP_ENV=development es un perfil LOCAL. No acredita cifrado ni despliegue corporativo.
 name: "matrixrh-${MATRIX_DOCKER_PROJECT_ID:?ejecute docker_prepare}"

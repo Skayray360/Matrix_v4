@@ -302,6 +302,13 @@ class Document(Base):
     (``scope='conversation'``)."""
 
     __tablename__ = "documents"
+    __table_args__ = (
+        Index("ix_documents_corporate_rag", "scope", "category", "status", "deleted_at", "index_fingerprint"),
+        Index(
+            "ix_documents_private_rag", "scope", "owner_user_id", "conversation_id",
+            "status", "deleted_at", "index_fingerprint",
+        ),
+    )
 
     id: Mapped[str] = _uuid_pk()
     scope: Mapped[str] = mapped_column(String(16), nullable=False)

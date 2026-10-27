@@ -1,6 +1,7 @@
 # Creado por Aldo Garcia.
 # El contexto de build nunca incluye conocimiento, estado o credenciales.
 .git
+**/.git
 **/.env
 **/.env.*
 **/*.env

@@ -12,9 +12,9 @@ from app.config import get_settings
 from app.database.engine import session_scope
 from app.database.models import Document
 
-# v9: OCR de paginas mixtas, secciones PDF explicitas y titulo documento/seccion
-# en embeddings. Reextraer los mismos bytes sin mezclar vectores de v8 y v9.
-PIPELINE_VERSION = 9
+# v10: filas de Excel y estructura Markdown conservadas durante el chunking.
+# La nueva huella evita mezclar extracciones de distintas versiones.
+PIPELINE_VERSION = 10
 
 
 def indexing_fingerprint(llm=None) -> str:
@@ -30,7 +30,7 @@ def indexing_fingerprint(llm=None) -> str:
         # v4 aplica el limite de filas/columnas durante la lectura de XLSX.
         # La huella obliga a reextraer documentos con bytes identicos para que
         # un indice anterior no conserve filas ahora fuera del limite.
-        "extractor": 6,
+        "extractor": 7,
         "ocr_enabled": settings.extraction_ocr_enabled,
         "ocr_language": settings.extraction_ocr_language,
         "ocr_dpi": settings.extraction_ocr_dpi,
@@ -80,6 +80,8 @@ def active_filter(query_filter):
     for condition in query_filter.must or []:
         field = getattr(condition, "key", "")
         column = {
+            "document_id": Document.id,
+            "generation": Document.active_generation,
             "scope": Document.scope,
             "category": Document.category,
             "owner_user_id": Document.owner_user_id,

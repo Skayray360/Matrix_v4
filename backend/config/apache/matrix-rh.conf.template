@@ -22,6 +22,11 @@ Listen 127.0.0.1:{{WEB_PORT}}
     LimitRequestLine 8190
     LimitRequestBody 30000000
     ProxyTimeout 600
+    # Directory protege el disco; LocationMatch protege tambien las URLs proxy.
+    # Sin excepciones para segmentos ocultos: Matrix RH no publica .well-known.
+    <LocationMatch "(^|/|\x5c)[.]">
+        Require all denied
+    </LocationMatch>
     ProxyPass / http://127.0.0.1:{{BACKEND_PORT}}/ retry=0 timeout=600 connectiontimeout=10
     ProxyPassReverse / http://127.0.0.1:{{BACKEND_PORT}}/
     <Proxy "http://127.0.0.1:{{BACKEND_PORT}}/">
