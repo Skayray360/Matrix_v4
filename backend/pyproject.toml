@@ -67,8 +67,8 @@ where = ["."]
 include = ["app*", "scripts*", "seeds*"]
 
 [tool.uv]
-# Minimo seguro para la cache opcional de desarrollo usada por pip-audit.
-constraint-dependencies = ["filelock>=4.2.1,<5"]
+# Minimos seguros para la cache opcional de desarrollo usada por pip-audit.
+constraint-dependencies = ["filelock>=4.2.1,<5", "msgpack>=1.2.3,<2"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

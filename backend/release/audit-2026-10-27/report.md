@@ -51,6 +51,7 @@ Todos los defectos de esta tabla están confirmados por código y pruebas o comp
 | QA-01 | Media | Un hook de pytest podía retirar casos después de generar el inventario y el gate aprobar una ejecución parcial. | Compara casos padre JUnit con selección real; admite subtests legítimos. Mini suites adversarias reales en `test_quality_gate_completeness.py`. |
 | QA-02 | Baja | Benchmark aceptaba SLO infinito/NaN o porcentajes imposibles. | Rechaza umbrales antes de abrir sesiones o clientes. `test_load_test_contracts.py`. |
 | RUNTIME-01 | Alta, componente | Python 3.12.15 no incorporaba las correcciones de seguridad de 3.12.16 y el manifiesto aún decía que faltaba el binario Windows. | Python 3.12.16/build 20261026 y uv 0.13.6 con bytes/hash oficiales verificados; Docker usa digest oficial de 3.12.16-slim. Sin actualización de una instalación productiva. |
+| DEP-01 | Alta, componente de desarrollo | CI detectó `msgpack 1.2.1` mediante `pip-audit -> cachecontrol`; el aviso GHSA-j586-36cw-2gc2 describe fallos de memoria al decodificar entradas inválidas. | Lock y restricción mínima actualizados a 1.2.3; doce hashes contrastados con PyPI, 133 pruebas dirigidas y auditoría de 100 paquetes sin avisos conocidos. No se demostró explotación de Matrix. [Evidencia del seguimiento](vectors-followup.md). |
 
 ## Estructura, limpieza y entrega
 

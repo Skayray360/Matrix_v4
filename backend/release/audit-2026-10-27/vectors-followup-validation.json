@@ -61,7 +61,7 @@
   },
   "release_integrity": {
     "source_files": 204,
-    "manifest_sha256": "19817c47710d6ea1f8704d0cfeb95bce154c597962d9a3c1b0ac1e919067a008"
+    "manifest_sha256": "bd1166266681b478d7c67264100a61aa989ea23233bc68312e301f91453d3184"
   },
   "not_executed": [
     "Operational SQL/Qdrant vector cleanup",
@@ -98,6 +98,32 @@
     "files": 463,
     "manifest_entries_verified_against_archive_bytes": 204,
     "operational_data_included": false,
-    "note": "Intermediate package validation of source integrity; release documents may subsequently gain validation metadata."
+    "note": "Package regenerated after the msgpack lock change; all 204 source hashes verified against archive bytes."
+  },
+  "first_published_head_ci": {
+    "head_sha": "37ba58b770f552d287d673451abbf2184fa4f54c",
+    "url": "https://github.com/Skayray360/Matrix_v4/actions/runs/40534278130",
+    "backend_tests": "PASS: 3565 selected, 3565 JUnit cases; no skips",
+    "frontend_tests": "PASS: 252 tests; build and npm audits passed",
+    "blocking_step": "pip-audit: msgpack 1.2.1, GHSA-j586-36cw-2gc2; fixed in subsequent lock revision"
+  },
+  "dependency_remediation": {
+    "package": "msgpack",
+    "previous": "1.2.1",
+    "fixed": "1.2.3",
+    "advisory": "GHSA-j586-36cw-2gc2",
+    "url": "https://github.com/advisories/GHSA-j586-36cw-2gc2",
+    "github_advisory_published_at": "2026-10-27T15:04:07Z",
+    "dependency_path": "pip-audit -> cachecontrol -> msgpack (development tooling)",
+    "other_package_versions_changed": false,
+    "pypi_artifact_hashes_verified": 12,
+    "windows_cpython_312_amd64_wheel_available": true,
+    "build_scripts_executed": false,
+    "fixed_lock_packages_audited": 100,
+    "known_vulnerabilities_after_update": 0,
+    "audit_skipped": 0,
+    "focused_tests_after_update": 133,
+    "focused_failures": 0,
+    "focused_skips": 0
   }
 }
