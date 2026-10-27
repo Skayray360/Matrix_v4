@@ -14,6 +14,7 @@ from types import SimpleNamespace
 
 import psutil
 import pytest
+from qdrant_client import QdrantClient, models
 
 from scripts import installation_backup as backup
 
@@ -153,6 +154,38 @@ def test_explicit_new_local_destination_is_supported(installation, tmp_path):
     destination = tmp_path / "backup"
     assert backup.create_backup(installation, destination)["backup_path"] == str(destination)
     assert backup.verify_backup(destination)["state"] == "complete"
+
+
+def test_native_backup_keeps_pending_generation_journal_with_its_candidate(installation, tmp_path):
+    source_vectors = installation / "knowledge-base/state/qdrant"
+    client = QdrantClient(path=str(source_vectors))
+    collection = "corporate_fixture"
+    journal = f"{collection}__generation_intents"
+    intent = {"document_id": "document-a", "generation": "candidate", "scope": "corporate",
+              "collection": collection}
+    try:
+        client.create_collection(collection, vectors_config=models.VectorParams(size=2, distance=models.Distance.COSINE))
+        client.create_collection(journal, vectors_config={})
+        client.upsert(journal, [models.PointStruct(id=1, vector={}, payload=intent)], wait=True)
+        client.upsert(collection, [models.PointStruct(id=1, vector=[1.0, 0.0], payload=intent)], wait=True)
+    finally:
+        client.close()
+
+    destination = tmp_path / "backup"
+    backup.create_backup(installation, destination)
+    backup.verify_backup(destination)
+    copied = QdrantClient(path=str(destination / backup.PAYLOAD / "knowledge-base/state/qdrant"))
+    try:
+        journal_rows = copied.retrieve(journal, ids=[1], with_vectors=True)
+        assert len(journal_rows) == 1
+        assert journal_rows[0].payload == intent
+        assert journal_rows[0].vector == {}
+        candidates = copied.retrieve(collection, ids=[1], with_vectors=True)
+        assert len(candidates) == 1
+        assert candidates[0].payload == intent
+        assert candidates[0].vector == [1.0, 0.0]
+    finally:
+        copied.close()
 
 
 def test_existing_destination_and_origin_are_never_overwritten(installation, tmp_path):

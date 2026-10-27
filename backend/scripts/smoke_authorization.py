@@ -21,10 +21,13 @@ from app.common.ids import new_id
 from app.database.engine import session_scope
 from app.database.models import User
 from app.memory.service import MemoryService
+from scripts.test_environment import require_disposable_database
 
 
 def _context(db, username: str):  # noqa: ANN001, ANN202
     user = db.execute(select(User).where(User.username == username)).scalar_one()
+    if not user.is_active or not user.is_synthetic_test or user.auth_source != "local_test":
+        raise ValueError("El smoke test exige cuentas sinteticas activas de local_test.")
     return get_policy_engine().build_context(
         db, user=user, session_id=new_id(), request_id=new_id()
     )
@@ -40,6 +43,9 @@ PROBES: tuple[tuple[str, str], ...] = (
 
 
 def main() -> int:
+    # handle_chat persiste conversaciones y mensajes: nunca ejecutar este smoke
+    # contra una instalacion operativa aunque existan usuarios con esos nombres.
+    require_disposable_database()
     orchestrator = Orchestrator()
     memory = MemoryService()
     failures: list[str] = []
@@ -56,7 +62,7 @@ def main() -> int:
                 outcome = orchestrator.handle_chat(
                     db, ctx=ctx, conversation=conversation, message=question
                 )
-                leaked = [s for s in outcome.evidences if s.category != category]
+                unauthorized_categories = sorted({s.category for s in outcome.evidences} - set(categories))
                 allowed_expected = username == "Matrix" or category == "prestaciones"
                 got_evidence = any(e.category == category for e in outcome.evidences)
 
@@ -72,8 +78,8 @@ def main() -> int:
                     f"  [{mark}] {category:22s} evidencia={len(outcome.evidences)} "
                     f"modelo={outcome.model or '-'} categorias={categorias}"
                 )
-                if leaked and not allowed_expected:
-                    failures.append(f"{username}/{category}: categorias ajenas {leaked}")
+                if unauthorized_categories:
+                    failures.append(f"{username}/{category}: categorias ajenas {unauthorized_categories}")
 
     print("\n--- RESULTADO ---")
     if failures:

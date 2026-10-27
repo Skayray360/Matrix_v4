@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 import pytest
-from sqlalchemy import inspect, select
+from sqlalchemy import UniqueConstraint, inspect, select
 
 from app.auth.passwords import is_argon2id, verify_password
 from app.authorization.context import ROLE_BUSINESS_ADMIN, ROLE_PRESTACIONES_READER
@@ -42,6 +42,15 @@ class TestMigraciones:
             columnas_orm = set(modelo.columns.keys())
             faltantes = columnas_orm - columnas_reales
             assert not faltantes, f"{tabla}: columnas del ORM ausentes en la BD: {faltantes}"
+            unicas_reales = {
+                tuple(constraint["column_names"])
+                for constraint in inspector.get_unique_constraints(tabla)
+            }
+            unicas_orm = {
+                tuple(column.name for column in constraint.columns)
+                for constraint in modelo.constraints if isinstance(constraint, UniqueConstraint)
+            }
+            assert unicas_orm == unicas_reales, f"{tabla}: unicidad distinta entre ORM y migraciones"
 
 
 class TestSeedDeIdentidad:

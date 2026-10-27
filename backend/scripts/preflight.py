@@ -35,6 +35,7 @@ import tomllib
 from contextlib import ExitStack
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
+from tempfile import NamedTemporaryFile
 from types import SimpleNamespace
 from urllib.parse import urlsplit
 
@@ -543,6 +544,10 @@ def check_qdrant(report: PreflightReport, settings, *, read_only: bool = False) 
                 url=settings.qdrant_url,
                 api_key=settings.qdrant_api_key.get_secret_value() or None,
                 timeout=10,
+                trust_env=False,
+                # La sonda auxiliar de version usa su propio cliente HTTP y
+                # no hereda trust_env; tampoco debe salir por proxies del host.
+                check_compatibility=False,
             )
             try:
                 client.get_collections()
@@ -601,9 +606,10 @@ def check_paths(report: PreflightReport, settings, *, read_only: bool) -> None: 
         return
     try:
         storage.mkdir(parents=True, exist_ok=True)
-        probe = storage / ".preflight_write_test"
-        probe.write_text("ok", encoding="utf-8")
-        probe.unlink()
+        # Creacion exclusiva y nombre aleatorio: nunca truncar un archivo
+        # preexistente ni seguir un enlace del directorio de almacenamiento.
+        with NamedTemporaryFile(mode="w", encoding="utf-8", prefix=".preflight-", dir=storage) as probe:
+            probe.write("ok")
         report.add("almacenamiento_runtime", OK, f"escritura verificada en {storage}")
     except Exception as exc:  # noqa: BLE001
         report.add("almacenamiento_runtime", FAIL, f"{type(exc).__name__}: {storage}")

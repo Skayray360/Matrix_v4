@@ -166,7 +166,9 @@ async function noOverflow(page: Page) {
   ).toBe(0);
 }
 
-test("recuperación de un fallo de render mediante recarga", async ({ page }, testInfo) => {
+test("un perfil malformado se rechaza antes de renderizar y permite reintentar", async ({
+  page,
+}, testInfo) => {
   await page.setViewportSize({ width: 320, height: 667 });
   let profileReads = 0;
   const errors: string[] = [];
@@ -183,11 +185,11 @@ test("recuperación de un fallo de render mediante recarga", async ({ page }, te
     });
   });
   await page.goto("/");
-  await expect(page.getByRole("alert")).toContainText("No se pudo mostrar Matrix RH");
+  await expect(page.getByRole("alert")).toContainText("No se pudo verificar su sesión");
   await expect(page.locator(".recovery-card")).not.toContainText("TypeError");
   await noOverflow(page);
   await page.screenshot({ path: testInfo.outputPath("recovery-mobile.png"), fullPage: true });
-  await page.getByRole("button", { name: "Recargar Matrix RH" }).click();
+  await page.getByRole("button", { name: "Reintentar conexión" }).click();
   await expect(
     page.getByRole("heading", { name: "Consulta conocimiento interno con contexto" }),
   ).toBeVisible();
@@ -264,6 +266,49 @@ test("consulta, fuentes, trazabilidad y cierre de sesión con CSRF", async ({ pa
   expect(api.unexpected).toEqual([]);
 });
 
+test("acceso y consulta con teclado conservan el salto de línea y las fuentes", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const api = await mockApi(page);
+  await page.goto("/");
+  await expect(page.getByRole("button", { name: "Entrar", exact: true })).toBeVisible();
+  await page.keyboard.press("Tab");
+  await expect(page.getByRole("link", { name: "Continuar con acceso corporativo" })).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(page.getByLabel("Usuario", { exact: true })).toBeFocused();
+  await page.keyboard.type("usuario-ui");
+  await page.keyboard.press("Tab");
+  await expect(page.getByRole("button", { name: "Mostrar", exact: true })).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(page.getByLabel("Contrasena", { exact: true })).toBeFocused();
+  await page.keyboard.type("dato-sintetico");
+  await page.keyboard.press("Enter");
+  await expect(page.getByTestId("identity-user")).toHaveText("MatrixR1");
+
+  // Llega al compositor mediante el orden real de tabulación, sin focus() ni click().
+  const composer = page.getByTestId("composer-input");
+  for (let step = 0; step < 30; step += 1) {
+    if (await composer.evaluate((node) => node === document.activeElement)) break;
+    await page.keyboard.press("Tab");
+    expect(
+      await page.locator(".sidebar").evaluate((node) => node.contains(document.activeElement)),
+    ).toBe(false);
+  }
+  await expect(composer).toBeFocused();
+  await page.keyboard.type("Primera línea");
+  await page.keyboard.press("Shift+Enter");
+  await page.keyboard.type("Segunda línea");
+  await expect(composer).toHaveValue("Primera línea\nSegunda línea");
+  expect(api.mutations.filter((mutation) => mutation.path === "/chat/submit")).toHaveLength(0);
+  await page.keyboard.press("Enter");
+  await expect(page.getByTestId("message-assistant")).toContainText("respuesta sintética");
+  await expect(page.getByTestId("sources")).toContainText("Manual de prueba");
+  expect(api.mutations.filter((mutation) => mutation.path === "/chat/submit")).toHaveLength(1);
+  expect(api.errors).toEqual([]);
+  expect(api.unexpected).toEqual([]);
+});
+
 test("aviso general visible y persistente en móvil", async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 320, height: 667 });
   const api = await mockApi(page, false, true);
@@ -319,8 +364,22 @@ test("menú móvil, tema oscuro y adjunto privado", async ({ page }, testInfo) =
   await login(page);
   await page.getByRole("button", { name: "Conversaciones", exact: true }).click();
   await expect(page.locator(".sidebar")).toHaveAttribute("data-open", "true");
+  await expect(page.locator(".sidebar")).toBeVisible();
   await page.locator(".sidebar-close").click();
   await expect(page.locator(".sidebar")).toHaveAttribute("data-open", "false");
+  await expect(page.locator(".sidebar")).toBeHidden();
+  // El menu cerrado tampoco debe capturar el foco fuera de la pantalla.
+  await page.getByRole("button", { name: "Conversaciones", exact: true }).focus();
+  await page.keyboard.press("Shift+Tab");
+  expect(
+    await page.locator(".sidebar").evaluate((node) => node.contains(document.activeElement)),
+  ).toBe(false);
+  for (let step = 0; step < 30; step += 1) {
+    await page.keyboard.press("Tab");
+    expect(
+      await page.locator(".sidebar").evaluate((node) => node.contains(document.activeElement)),
+    ).toBe(false);
+  }
   await page.getByTestId("theme-toggle").click();
   await page.getByTestId("theme-toggle").click();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");

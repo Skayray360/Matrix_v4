@@ -29,13 +29,15 @@ import threading
 from contextlib import suppress
 from dataclasses import dataclass
 from typing import Any
+from uuid import UUID
 
-from qdrant_client import QdrantClient, models
+from qdrant_client import QdrantClient, grpc, models
 
 from app.common.errors import QdrantUnavailableError
 from app.common.logging import get_logger
 from app.common.vectors import valid_cosine_vector
 from app.config import QdrantMode, get_settings
+from app.rag.generation_journal import GenerationJournal
 from app.rag.schemas import SCOPE_CONVERSATION, SCOPE_CORPORATE, Chunk, Evidence, document_source_id
 
 logger = get_logger(__name__)
@@ -72,6 +74,10 @@ class VectorStore:
         self._lock = threading.Lock()
         self._client = client or self._build_client()
         self._ensured: set[str] = set()
+        journal_collection = f"{self._corporate}__generation_intents"
+        if journal_collection in {self._corporate, self._private}:
+            raise ValueError("El journal vectorial requiere su propia coleccion.")
+        self.generation_journal = GenerationJournal(client=self._client, collection=journal_collection)
 
     def _build_client(self) -> QdrantClient:
         settings = self._settings
@@ -152,6 +158,34 @@ class VectorStore:
     def collection_for(self, scope: str) -> str:
         return self._private if scope == SCOPE_CONVERSATION else self._corporate
 
+    def scan_generation_metadata(
+        self, *, scope: str, limit: int = 128, offset: str | int | None = None,
+    ) -> tuple[list[dict[str, Any]], str | int | None]:
+        """Inventario de mantenimiento explicito; nunca lee texto ni embeddings."""
+        if scope not in {SCOPE_CORPORATE, SCOPE_CONVERSATION} or not 1 <= limit <= 128:
+            raise ValueError("Scope o lote de inventario vectorial invalido.")
+        collection = self.collection_for(scope)
+        try:
+            if not self._client.collection_exists(collection):
+                return [], None
+            points, following = self._client.scroll(
+                collection_name=collection, limit=limit, offset=offset, with_vectors=False,
+                with_payload=models.PayloadSelectorInclude(include=["document_id", "generation", "scope"]),
+            )
+            if isinstance(following, UUID):
+                following = str(following)
+            elif isinstance(following, grpc.PointId):
+                kind = following.WhichOneof("point_id_options")
+                if kind == "num":
+                    following = int(following.num)
+                elif kind == "uuid":
+                    following = str(UUID(following.uuid))
+                else:
+                    raise ValueError("Qdrant devolvio un cursor sin identidad.")
+            return [point.payload or {} for point in points], following
+        except Exception as exc:  # noqa: BLE001 - ausencia de lectura no acredita ausencia de datos
+            raise QdrantUnavailableError("No se pudo inventariar la metadata vectorial.") from exc
+
     def has_complete_generation(
         self,
         *,
@@ -203,7 +237,7 @@ class VectorStore:
             "sensitivity": sensitivity,
         }
         fields = [*expected_metadata, "chunk_id", "chunk_index", "allowed_roles", "allowed_groups",
-                  "filename", "relative_path", "source_id", "text"]
+                  "filename", "relative_path", "source_id", "text", "extraction_incomplete"]
         seen: set[int] = set()
         offset: Any | None = None
         try:
@@ -230,6 +264,7 @@ class VectorStore:
                     payload = point.payload or {}
                     index = payload.get("chunk_index")
                     if (type(index) is not int or not 0 <= index < expected_chunks or index in seen
+                            or type(payload.get("extraction_incomplete")) is not bool
                             or any(payload.get(key) != value for key, value in expected_metadata.items())
                             or payload.get("chunk_id") != str(point.id)
                             or payload.get("allowed_roles") != []
@@ -303,7 +338,10 @@ class VectorStore:
                         )
                         for index in indices[start:start + 64]
                     ]
-                    self._client.upsert(collection_name=collection, points=points, wait=True)
+                    result = self._client.upsert(collection_name=collection, points=points, wait=True,
+                                                 ordering=models.WriteOrdering.STRONG)
+                    if result.status != models.UpdateStatus.COMPLETED:
+                        raise ValueError("La escritura vectorial no quedo completada.")
             except Exception as exc:  # noqa: BLE001
                 raise QdrantUnavailableError(
                     "Fallo la escritura en el almacen vectorial.", detail=str(exc)
@@ -319,14 +357,16 @@ class VectorStore:
         collection = self.collection_for(scope)
         self.ensure_collection(collection)
         try:
-            self._client.delete(
-                collection_name=collection, wait=True,
+            result = self._client.delete(
+                collection_name=collection, wait=True, ordering=models.WriteOrdering.STRONG,
                 points_selector=models.FilterSelector(filter=models.Filter(must=[
                     models.FieldCondition(key="document_id", match=models.MatchValue(value=document_id)),
                     models.FieldCondition(key="generation", match=models.MatchValue(value=generation)),
                     models.FieldCondition(key="scope", match=models.MatchValue(value=scope)),
                 ])),
             )
+            if result.status != models.UpdateStatus.COMPLETED:
+                raise ValueError("La limpieza vectorial no quedo completada.")
         except Exception as exc:  # noqa: BLE001
             raise QdrantUnavailableError("Fallo la limpieza de una generacion no publicada.") from exc
 
@@ -335,7 +375,7 @@ class VectorStore:
         collection = self.collection_for(scope)
         self.ensure_collection(collection)
         try:
-            self._client.delete(
+            result = self._client.delete(
                 collection_name=collection,
                 points_selector=models.FilterSelector(
                     filter=models.Filter(
@@ -347,7 +387,10 @@ class VectorStore:
                     )
                 ),
                 wait=True,
+                ordering=models.WriteOrdering.STRONG,
             )
+            if result.status != models.UpdateStatus.COMPLETED:
+                raise ValueError("El borrado vectorial no quedo completado.")
         except Exception as exc:  # noqa: BLE001
             raise QdrantUnavailableError(
                 "Fallo el borrado de vectores.", detail=str(exc)
@@ -356,25 +399,29 @@ class VectorStore:
     def cleanup_generations(self) -> int:
         from sqlalchemy import select
 
+        from app.database.document_locks import lock_document
         from app.database.engine import session_scope
         from app.database.models import Document
 
         cleaned = 0
         with session_scope() as db:
-            documents = (
-                db.execute(select(Document).where(Document.index_cleanup_pending.is_(True)).with_for_update())
-                .scalars()
-                .all()
-            )
-            for document in documents:
+            document_ids = list(db.scalars(select(Document.id).where(
+                Document.index_cleanup_pending.is_(True),
+            ).order_by(Document.id)))
+            for document_id in document_ids:
+                # Current read bajo el mismo lock que el escritor. SQLite no
+                # implementa FOR UPDATE; el helper adquiere su lock de escritura.
+                document = lock_document(db, document_id, wait=False)
+                if document is None or not document.index_cleanup_pending:
+                    continue
                 collection = self.collection_for(document.scope)
                 try:
                     # Nada obsoleto puede borrarse de una coleccion inexistente.
                     # No crearla ni confundir esto con una generacion integra:
                     # la ingesta comprobara los vectores antes de omitirla.
                     if self._client.collection_exists(collection):
-                        self._client.delete(
-                            collection_name=collection, wait=True,
+                        result = self._client.delete(
+                            collection_name=collection, wait=True, ordering=models.WriteOrdering.STRONG,
                             points_selector=models.FilterSelector(filter=models.Filter(
                                 must=[
                                     models.FieldCondition(
@@ -387,6 +434,8 @@ class VectorStore:
                                 )] if document.active_generation else None),
                             )),
                         )
+                        if result.status != models.UpdateStatus.COMPLETED:
+                            raise ValueError("La limpieza de generaciones no quedo completada.")
                     else:
                         self._ensured.discard(collection)
                 except Exception as exc:  # noqa: BLE001 - conservar el pendiente si no se pudo comprobar/borrar
@@ -401,7 +450,7 @@ class VectorStore:
         """Al borrar una conversacion se borran sus vectores temporales."""
         self.ensure_collection(self._private)
         try:
-            self._client.delete(
+            result = self._client.delete(
                 collection_name=self._private,
                 points_selector=models.FilterSelector(
                     filter=models.Filter(
@@ -414,7 +463,10 @@ class VectorStore:
                     )
                 ),
                 wait=True,
+                ordering=models.WriteOrdering.STRONG,
             )
+            if result.status != models.UpdateStatus.COMPLETED:
+                raise ValueError("El borrado de conversacion no quedo completado.")
         except Exception as exc:  # noqa: BLE001
             raise QdrantUnavailableError(detail=str(exc)) from exc
 
@@ -560,7 +612,9 @@ class VectorStore:
                 int(item.payload.get("chunk_index", 0)),
             )
         )
-        return collected[:limit], len(collected) > limit
+        # Los payloads anteriores a este metadato no acreditan completitud.
+        incomplete = any(item.payload.get("extraction_incomplete") is not False for item in collected[:limit])
+        return collected[:limit], len(collected) > limit or incomplete
 
     def list_authorized_documents(
         self,
@@ -704,7 +758,8 @@ class VectorStore:
         # Una sola consulta SQL final, tambien para detectar una eliminacion o
         # reindexacion ocurrida mientras se leian los documentos anteriores.
         visible = visible_candidates(collected)
-        return visible, truncated or len(visible) < len(collected)
+        incomplete = any(item.payload.get("extraction_incomplete") is not False for item in visible)
+        return visible, truncated or len(visible) < len(collected) or incomplete
 
     # ------------------------------------------------------------- utilidades
     def count(self, collection: str) -> int:

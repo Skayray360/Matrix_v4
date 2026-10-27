@@ -39,6 +39,7 @@ def npm_tree(tmp_path, monkeypatch):
     (package / "package.json").write_text(json.dumps({"name": "normal", "version": "1.0.0"}))
     deny = tmp_path / "deny.yaml"
     deny.write_text(yaml.safe_dump({
+        "version": 1,
         "incidents": [{"id": "synthetic", "packages": [{"name": "blocked", "versions": ["1.2.3"]}]}],
         "indicators": {"content_patterns": [r"webhook\.site"], "filenames": ["shai-hulud*"]},
     }))
@@ -86,7 +87,8 @@ def test_lock_only_explicitly_does_not_claim_installed_tree(npm_tree):
                                         # secrets-scan: allow (credenciales ficticias para probar rechazo de URL)
                                         ("resolved", "https://user:secret@registry.npmjs.org/pkg.tgz"),
                                         ("resolved", "https://registry.npmjs.org:444/pkg.tgz"),
-                                        ("integrity", ""), ("link", True)])
+                                        ("integrity", ""), ("link", True)],
+                         ids=["http", "untrusted-host", "credentials", "custom-port", "no-integrity", "local-link"])
 def test_lock_rejects_non_reproducible_download(npm_tree, field, value):
     change_lock(npm_tree, lambda d: d["packages"]["node_modules/normal"].update({field: value}))
     assert "lock_sin_integridad" in kinds(vsc.run(lock_only=True))

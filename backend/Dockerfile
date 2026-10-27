@@ -17,14 +17,14 @@ COPY frontend/ ./
 RUN python3 /checks/backend/scripts/verify_supply_chain.py --frontend /build/frontend
 RUN corepack npm run build
 
-FROM python:3.12.15-slim@sha256:a0f57064cbdcd6285fa45f51237ab0b35ea8ebaed06a1f5973e89e19dfb86704 AS runtime
+FROM python:3.12.16-slim@sha256:962f801b08c870ac2a51b72bf02dae38c9a4162319e5e882ec244e198188d54e AS runtime
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1 \
     PYTHONPATH=/app/backend PATH="/app/backend/.venv/bin:$PATH"
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates openssl \
     && rm -rf /var/lib/apt/lists/* \
     && python -m pip install --no-cache-dir --upgrade pip==26.2.2 \
-    && python -m pip install --no-cache-dir uv==0.13.5
+    && python -m pip install --no-cache-dir uv==0.13.6
 RUN groupadd --gid 10001 matrixrh \
     && useradd --uid 10001 --gid 10001 --no-create-home --home-dir /tmp matrixrh
 WORKDIR /app

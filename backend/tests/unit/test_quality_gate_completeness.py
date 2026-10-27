@@ -263,6 +263,49 @@ def test_backend_success_without_root_collection_evidence_fails(tmp_path, monkey
     assert gate._backend_tests("python", "standalone").status == gate.FAIL
 
 
+def test_backend_gate_rejects_tests_removed_after_partition(tmp_path, monkeypatch):
+    """A later pytest hook must not make a shortened execution look complete."""
+    tests = tmp_path / "tests"
+    tests.mkdir()
+    (tmp_path / "pytest.ini").write_text("[pytest]\n")
+    (tests / "test_cases.py").write_text("def test_first(): pass\ndef test_second(): pass\n")
+    (tests / "conftest.py").write_text(
+        "import pytest\n"
+        "@pytest.hookimpl(trylast=True)\n"
+        "def pytest_collection_modifyitems(items):\n"
+        "    del items[1:]\n"
+    )
+    monkeypatch.setenv("PYTHONPATH", str(gate.BACKEND_ROOT))
+    monkeypatch.setattr(gate, "BACKEND_ROOT", tmp_path)
+    monkeypatch.setattr(gate, "TEST_REPORTS", tmp_path)
+    result = gate._backend_tests(sys.executable, "standalone")
+    inventory = json.loads((tmp_path / "standalone-collection.json").read_text())
+    assert inventory["selected"] == 2
+    assert result.status == gate.FAIL
+    assert "seleccionados" in result.detail
+
+
+def test_backend_gate_counts_parent_testcases_without_double_counting_subtests(tmp_path, monkeypatch):
+    tests = tmp_path / "tests"
+    tests.mkdir()
+    (tmp_path / "pytest.ini").write_text("[pytest]\n")
+    (tests / "test_cases.py").write_text(
+        "import unittest\n"
+        "class Example(unittest.TestCase):\n"
+        "    def test_subcases(self):\n"
+        "        for value in (1, 2):\n"
+        "            with self.subTest(value=value):\n"
+        "                self.assertGreater(value, 0)\n"
+        "def test_second(): pass\n"
+    )
+    monkeypatch.setenv("PYTHONPATH", str(gate.BACKEND_ROOT))
+    monkeypatch.setattr(gate, "BACKEND_ROOT", tmp_path)
+    monkeypatch.setattr(gate, "TEST_REPORTS", tmp_path)
+    result = gate._backend_tests(sys.executable, "standalone")
+    assert result.status == gate.PASS
+    assert result.junit_testcases == result.collection["selected"] == 2
+
+
 @pytest.mark.parametrize("external,expected", [(True, gate.PASS), (False, gate.FAIL), (None, gate.FAIL)])
 def test_gate_consumes_the_actual_evaluation_report_contract(tmp_path, monkeypatch, external, expected):
     """Cross-script shape check only; no inference or claim of measured model quality."""

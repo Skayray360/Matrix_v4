@@ -4,11 +4,11 @@
  *
  * Los E2E se ejecutan contra el backend real sirviendo el build del frontend
  * same-origin (http://127.0.0.1:8000). Es la misma topologia que ve el usuario
- * al arrancar con INICIAR_MATRIX_RH.bat, de modo que la prueba valida el
+ * al arrancar con iniciar.bat, de modo que la prueba valida el
  * despliegue real y no una maqueta.
  *
- * El servidor NO se levanta desde aqui: el flujo operativo lo arranca
- * VALIDAR_MATRIX_RH.bat antes de invocar Playwright. Asi la evidencia E2E
+ * El servidor NO se levanta desde aqui: debe estar iniciado en el entorno
+ * de pruebas antes de invocar Playwright. Asi la evidencia E2E
  * corresponde a la pila que realmente se entrega.
  */
 import { defineConfig, devices } from "@playwright/test";

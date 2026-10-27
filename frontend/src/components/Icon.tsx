@@ -252,32 +252,3 @@ export function Icon({ name, size = 18, className }: Props): JSX.Element {
     </svg>
   );
 }
-
-/** Monograma de Matrix RH. Antes era la letra `M` suelta dentro de un cuadro. */
-export function BrandMark({
-  size = 20,
-  className,
-}: {
-  size?: number;
-  className?: string;
-}): JSX.Element {
-  return (
-    <svg
-      className={className}
-      width={size}
-      height={size}
-      viewBox="0 0 20 20"
-      fill="none"
-      aria-hidden="true"
-      focusable="false"
-    >
-      <path
-        d="M3.5 15V5l6.5 6.2L16.5 5v10"
-        stroke="currentColor"
-        strokeWidth="2.1"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}

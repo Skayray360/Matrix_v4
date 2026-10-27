@@ -40,6 +40,7 @@ from scripts.preflight import (
 EXCLUDED_DIRS = frozenset(
     {
         ".git",
+        ".github",  # automatizacion del repositorio; no participa en la instalacion local
         ".venv",
         "venv",
         "node_modules",
@@ -315,7 +316,8 @@ def main(argv: list[str] | None = None) -> int:
         print("  Obtenga el hash oficial verificado y ejecute el gestor mediante corepack npm.")
         return 1
 
-    # El frontend compilado es obligatorio; la instalacion nativa no necesita Node/Corepack.
+    # El frontend compilado se distribuye; instalar.bat verifica y recompila
+    # con el Node/npm fijado antes de publicar su recibo local.
 
     stats = build_zip(root, destino, files)
     tamano = destino.stat().st_size

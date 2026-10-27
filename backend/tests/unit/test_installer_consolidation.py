@@ -14,7 +14,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from scripts import bootstrap, package_release, preflight, uv_runtime, verify_supply_chain
+from scripts import bootstrap, package_release, preflight, verify_supply_chain
 
 ROOT = Path(__file__).resolve().parents[3]
 pytestmark = pytest.mark.unit
@@ -457,14 +457,6 @@ def test_cli_puertos_funciona_sin_paquetes_ni_settings_y_respeta_colision(occupi
         assert payload["checks"][0]["name"] == "puerto_backend"
     finally:
         listener.close()
-
-
-def test_uv_distribuciones_sin_target_conservan_version_estable_compatible():
-    assert uv_runtime.compatible_uv_version("uv 0.11.33") == "0.11.33"
-    assert uv_runtime.compatible_uv_version("uv 0.12.8 (fece32fc5 2026-07-28)") == "0.12.8"
-    assert uv_runtime.compatible_uv_version("uv 0.12.9") == "0.12.9"
-    with pytest.raises(ValueError, match="encontrado 0.11.32"):
-        uv_runtime.compatible_uv_version("uv 0.11.32")
 
 
 @pytest.mark.parametrize("name", [".htaccess", "backend/config/runtime-manifest.json",

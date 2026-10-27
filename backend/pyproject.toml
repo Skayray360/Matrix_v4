@@ -45,7 +45,6 @@ dependencies = [
 [project.optional-dependencies]
 # Suites de calidad y seguridad. Se instalan por separado para que un equipo
 # de produccion no arrastre herramientas de auditoria.
-vertex = ["google-auth>=2.40,<3", "requests>=2.32.4,<3"]
 dev = [
     "pytest>=9.0.3,<10",
     "pytest-asyncio>=1.3,<2",
@@ -68,8 +67,8 @@ where = ["."]
 include = ["app*", "scripts*", "seeds*"]
 
 [tool.uv]
-# Minimo seguro para la cache opcional de desarrollo usada por pip-audit.
-constraint-dependencies = ["filelock>=4.2.1,<5"]
+# Minimos seguros para la cache opcional de desarrollo usada por pip-audit.
+constraint-dependencies = ["filelock>=4.2.1,<5", "msgpack>=1.2.3,<2"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

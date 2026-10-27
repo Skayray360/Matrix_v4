@@ -15,9 +15,10 @@ from __future__ import annotations
 
 import re
 from enum import StrEnum
-from typing import Any
+from math import isfinite
+from typing import Any, Self
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 #: Identificador SQL seguro. Se aplica a fuente, entidad y columnas.
 IDENTIFIER_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]{0,63}$")
@@ -55,7 +56,7 @@ class SortDirection(StrEnum):
 
 
 def _validate_identifier(value: str) -> str:
-    if not IDENTIFIER_RE.match(value):
+    if not IDENTIFIER_RE.fullmatch(value):
         raise ValueError(f"Identificador no permitido: {value!r}")
     return value
 
@@ -108,17 +109,29 @@ class QueryFilter(BaseModel):
         la puerta habitual para intentos de inyeccion por deserializacion.
         """
         allowed = (str, int, float, bool, type(None))
-        if isinstance(value, list):
-            if len(value) > 100:
-                raise ValueError("Lista de valores demasiado larga.")
-            if not all(isinstance(v, allowed) for v in value):
-                raise ValueError("La lista solo admite valores escalares.")
-            return value
-        if not isinstance(value, allowed):
-            raise ValueError("El valor del filtro debe ser escalar o lista de escalares.")
-        if isinstance(value, str) and len(value) > 512:
-            raise ValueError("Valor de filtro demasiado largo.")
+        if isinstance(value, list) and len(value) > 100:
+            raise ValueError("Lista de valores demasiado larga.")
+        values = value if isinstance(value, list) else [value]
+        for item in values:
+            if not isinstance(item, allowed):
+                raise ValueError("El valor del filtro debe ser escalar o lista de escalares.")
+            if isinstance(item, str) and len(item) > 512:
+                raise ValueError("Valor de filtro demasiado largo.")
+            if isinstance(item, float) and not isfinite(item):
+                raise ValueError("El valor del filtro debe ser un numero finito.")
         return value
+
+    @model_validator(mode="after")
+    def _check_operator_value(self) -> Self:
+        if self.operator is ComparisonOperator.IN:
+            if not isinstance(self.value, list):
+                raise ValueError("IN requiere una lista.")
+        elif self.operator in (ComparisonOperator.IS_NULL, ComparisonOperator.IS_NOT_NULL):
+            if self.value is not None:
+                raise ValueError("El operador de nulidad no admite valor.")
+        elif self.value is None or isinstance(self.value, list):
+            raise ValueError("El operador requiere un valor escalar no nulo.")
+        return self
 
 
 class QueryAggregation(BaseModel):
@@ -137,6 +150,12 @@ class QueryAggregation(BaseModel):
     @classmethod
     def _check_alias(cls, value: str) -> str:
         return _validate_identifier(value)
+
+    @model_validator(mode="after")
+    def _check_wildcard(self) -> Self:
+        if self.field == "*" and self.function is not AggregationFunction.COUNT:
+            raise ValueError("Solo COUNT admite el comodin de agregacion.")
+        return self
 
 
 class QuerySort(BaseModel):
@@ -165,9 +184,9 @@ class StructuredQueryPlan(BaseModel):
     entity: str
     fields: list[str] = Field(default_factory=list)
     filters: list[QueryFilter] = Field(default_factory=list)
-    aggregations: list[QueryAggregation] = Field(default_factory=list)
+    aggregations: list[QueryAggregation] = Field(default_factory=list, max_length=MAX_FIELDS)
     group_by: list[str] = Field(default_factory=list)
-    sort: list[QuerySort] = Field(default_factory=list)
+    sort: list[QuerySort] = Field(default_factory=list, max_length=MAX_FIELDS)
     limit: int = Field(default=50, ge=1, le=10000)
 
     @field_validator("source", "entity")
@@ -188,6 +207,15 @@ class StructuredQueryPlan(BaseModel):
         if len(value) > MAX_FILTERS:
             raise ValueError("Demasiados filtros en el plan.")
         return value
+
+    @model_validator(mode="after")
+    def _check_projection(self) -> Self:
+        names = [*self.fields, *(aggregation.alias for aggregation in self.aggregations)]
+        if len(names) > MAX_FIELDS:
+            raise ValueError("Demasiados campos en la proyeccion.")
+        if len(names) != len(set(names)):
+            raise ValueError("Los campos y alias proyectados deben ser unicos.")
+        return self
 
     def referenced_columns(self) -> set[str]:
         """Todas las columnas que el plan toca. Base de la validacion de permisos."""

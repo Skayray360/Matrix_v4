@@ -399,14 +399,19 @@ def test_batch_rotates_past_failed_files_so_later_files_are_not_starved(env, mon
     assert env.db.scalar(select(Document.filename)) == "b.md"
 
 
-def test_no_candidates_does_not_initialize_provider_or_vector_store(env, monkeypatch):
+def test_no_candidates_only_checks_vector_journal_without_initializing_ingestion(env, monkeypatch):
     def forbidden():
         pytest.fail("No se deben abrir servicios sin candidatos")
 
     monkeypatch.setattr("app.ingestion.service.get_vector_store", forbidden)
     monkeypatch.setattr("app.ingestion.service.get_ollama_client", forbidden)
-    monkeypatch.setattr("app.rag.vector_store.get_vector_store", forbidden)
+    # Un reinicio puede dejar intenciones de adjuntos aunque no haya archivos
+    # corporativos nuevos. Su inspeccion no requiere abrir el modelo/ingestor.
+    journal_read = Mock(wraps=env.store.generation_journal.pending)
+    monkeypatch.setattr(env.store.generation_journal, "pending", journal_read)
+    monkeypatch.setattr("app.rag.vector_store.get_vector_store", lambda: env.store)
     assert reconcile_with_lock(env.db, new_only=True).new_documents == 0
+    journal_read.assert_called_once_with(limit=8)
 
 
 def test_new_only_rejects_force(env):

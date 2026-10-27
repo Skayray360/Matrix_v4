@@ -156,9 +156,12 @@ class StructuredDataTool:
             },
         )
 
-        outcome: QueryOutcome = self._adapter(validated.source.name).execute(
-            compiled, entity_name=validated.entity.name
-        )
+        adapter = self._adapter(validated.source.name)
+        # La seleccion del adapter vuelve a leer el catalogo. Una recarga en
+        # esa ventana no debe ejecutar SQL autorizado contra otra fuente/DSN.
+        if adapter.source.model_dump() != validated.source.model_dump():
+            raise StructuredQueryRejectedError("La politica de la fuente cambio; repita la consulta.")
+        outcome: QueryOutcome = adapter.execute(compiled, entity_name=validated.entity.name)
         return StructuredEvidence(
             source_id=f"db:{outcome.source}/{outcome.entity}",
             source=outcome.source,

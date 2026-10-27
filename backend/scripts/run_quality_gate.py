@@ -69,6 +69,7 @@ class GateResult:
     detail: str = ""
     blocking: bool = True
     collection: dict[str, object] | None = None
+    junit_testcases: int | None = None
 
 
 def _run(
@@ -92,11 +93,15 @@ def _run(
     duration = round(time.perf_counter() - started, 2)
     status = PASS if completed.returncode == 0 else FAIL
     detail = ""
+    junit_testcases = None
     if status == PASS and require_complete_junit is not None:
         try:
             root = ET.parse(require_complete_junit).getroot()  # noqa: S314 - reporte local de pytest
             suites = [root] if root.tag == "testsuite" else list(root.iter("testsuite"))
             count = sum(int(suite.get("tests", "0")) for suite in suites)
+            # Pytest can add successful unittest subtests to the aggregate
+            # tests counter without adding collected parent testcases.
+            junit_testcases = sum(1 for _ in root.iter("testcase"))
             skipped = sum(int(suite.get("skipped", "0")) for suite in suites)
             failures = sum(int(suite.get("failures", "0")) + int(suite.get("errors", "0")) for suite in suites)
             if failures or min(count, skipped, failures) < 0 or skipped > count:
@@ -115,6 +120,7 @@ def _run(
         duration_s=duration,
         detail=detail,
         blocking=blocking,
+        junit_testcases=junit_testcases,
     )
 
 
@@ -182,6 +188,14 @@ def _backend_tests(py: str, group: str) -> GateResult:
                 or not re.fullmatch(r"[0-9a-f]{64}", inventory["nodeids_sha256"])):
             raise ValueError("Invalid collection evidence")
         result.collection = inventory
+        # Collection runs before other pytest hooks. A plugin can deselect more
+        # cases afterwards and still return exit code zero with valid JUnit.
+        if result.junit_testcases != inventory["selected"]:
+            result.status = FAIL
+            result.detail = (
+                f"JUnit informa {result.junit_testcases} casos para {inventory['selected']} seleccionados; "
+                "la ejecucion no cubre la particion completa"
+            )
     except (OSError, ValueError, KeyError, TypeError):
         result.status = FAIL
         result.detail = "falta inventario valido de la coleccion raiz de esta ejecucion"
