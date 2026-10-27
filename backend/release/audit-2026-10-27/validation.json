@@ -1262,7 +1262,7 @@
     "release_integrity": "PASS: 200 files",
     "git_diff_check": "PASS",
     "ci_workflow_syntax": "PASS: YAML, bash and embedded Python",
-    "github_actions_execution": "NOT_EXECUTED_AT_REPORT_TIME"
+    "github_actions_execution": "INITIAL_RUN_INCOMPLETE; workflow prerequisite corrected; subsequent run tracked in PR checks"
   },
   "dependency_security": {
     "python_lock": {
@@ -1312,5 +1312,11 @@
     "Caller SQL commit failure or abrupt crash can leave invisible candidate vectors without durable cleanup intent",
     "Extraction metadata in previous indexes needs full reconciliation",
     "Only 11 of 43 synthetic RAG cases have independent complete rubrics; not expert validated"
-  ]
+  ],
+  "ci_initial_run": {
+    "url": "https://github.com/Skayray360/Matrix_v4/actions/runs/40523084276",
+    "frontend": "PASS",
+    "backend": "INCOMPLETE: one supply-chain test skipped because node_modules was absent in the separate backend job",
+    "correction": "Install the pinned frontend tree without lifecycle scripts in the backend job; preserve strict no-skip gate; update action pins to Node24-native releases"
+  }
 }

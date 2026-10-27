@@ -36,8 +36,8 @@
       "path": ".github/workflows/quality.yml",
       "method": "configuration_or_document_review",
       "reviewer": "root",
-      "bytes": 3739,
-      "lines": 101
+      "bytes": 4122,
+      "lines": 109
     },
     {
       "path": ".gitignore",
