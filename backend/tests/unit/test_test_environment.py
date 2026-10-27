@@ -38,6 +38,7 @@ def test_accepts_explicit_disposable_storage(disposable):
         ("upload_storage_root", "var/uploads", "UPLOAD_STORAGE_ROOT"),
         ("qdrant_path", "var/tests/../qdrant", "QDRANT_PATH"),
     ],
+    ids=["environment", "operational-db", "wrong-test-db", "qdrant-path", "uploads-path", "path-traversal"],
 )
 def test_blocks_operational_environment_even_with_opt_in(disposable, monkeypatch, field, value, reason):
     changed = Settings(_env_file=None, **(disposable.model_dump() | {field: value}))

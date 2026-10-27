@@ -87,7 +87,8 @@ def test_lock_only_explicitly_does_not_claim_installed_tree(npm_tree):
                                         # secrets-scan: allow (credenciales ficticias para probar rechazo de URL)
                                         ("resolved", "https://user:secret@registry.npmjs.org/pkg.tgz"),
                                         ("resolved", "https://registry.npmjs.org:444/pkg.tgz"),
-                                        ("integrity", ""), ("link", True)])
+                                        ("integrity", ""), ("link", True)],
+                         ids=["http", "untrusted-host", "credentials", "custom-port", "no-integrity", "local-link"])
 def test_lock_rejects_non_reproducible_download(npm_tree, field, value):
     change_lock(npm_tree, lambda d: d["packages"]["node_modules/normal"].update({field: value}))
     assert "lock_sin_integridad" in kinds(vsc.run(lock_only=True))

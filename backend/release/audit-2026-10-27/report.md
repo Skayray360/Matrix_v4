@@ -70,7 +70,7 @@ Todos los defectos de esta tabla están confirmados por código y pruebas o comp
 - Python: 100 paquetes fijados auditados, incluidos opcionales/plataformas; cero avisos conocidos y cero paquetes omitidos. npm: 301 entradas en lock, cero avisos conocidos; 276 firmas y 81 atestaciones verificadas.
 - Ruff, Mypy, encabezados, enlaces e integridad: aprobados. Los 37 candidatos de Bandit se clasificaron por contexto; no son 37 vulnerabilidades confirmadas.
 - Entorno final: Python 3.12.16, PowerShell 7.6.9 sobre Linux, Node 24.22.1 y npm 11.19.1 para pruebas/build final. Las funciones PowerShell se probaron con fixtures sintéticos; esto no acredita instalación nativa Windows.
-- Aviso no bloqueante observado: deprecación upstream de TestClient/HTTPX. El primer CI aprobó frontend y bloqueó backend por una prueba de suministro omitida: faltaba `node_modules` en ese job separado. Se añadió su instalación fijada sin scripts y se conserva el bloqueo ante cualquier omisión; las ejecuciones posteriores se consultan en los checks del PR.
+- Aviso no bloqueante observado: deprecación upstream de TestClient/HTTPX. El primer CI aprobó frontend y bloqueó backend por una prueba de suministro omitida: faltaba `node_modules` en ese job separado. Se añadió su instalación fijada sin scripts y se conserva el bloqueo ante cualquier omisión; las ejecuciones posteriores se consultan en los checks del PR. El segundo CI aprobó todos los casos y detectó después cuatro DSN sintéticos en nombres JUnit. Se sustituyeron por IDs descriptivos en tres módulos: 99 pruebas focalizadas aprobadas y cero matches en su nuevo JUnit, sin excluir reportes del scanner.
 
 ## Riesgos pendientes y condiciones de aceptación
 

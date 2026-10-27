@@ -1583,8 +1583,8 @@
       "path": "backend/tests/security/test_supply_chain_123.py",
       "method": "automated_collection_and_execution_with_targeted_manual_review",
       "reviewer": "quality_evals_and_domain_reviewers",
-      "bytes": 8330,
-      "lines": 193
+      "bytes": 8447,
+      "lines": 194
     },
     {
       "path": "backend/tests/security/test_supply_chain_policy.py",
@@ -2584,7 +2584,7 @@
       "path": "backend/tests/unit/test_security_runtime_config.py",
       "method": "automated_collection_and_execution_with_targeted_manual_review",
       "reviewer": "quality_evals_and_domain_reviewers",
-      "bytes": 19173,
+      "bytes": 19254,
       "lines": 402
     },
     {
@@ -2675,8 +2675,8 @@
       "path": "backend/tests/unit/test_test_environment.py",
       "method": "automated_collection_and_execution_with_targeted_manual_review",
       "reviewer": "quality_evals_and_domain_reviewers",
-      "bytes": 3704,
-      "lines": 81
+      "bytes": 3813,
+      "lines": 82
     },
     {
       "path": "backend/tests/unit/test_text_budget_contract.py",

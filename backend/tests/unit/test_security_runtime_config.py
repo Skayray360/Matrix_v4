@@ -114,7 +114,7 @@ def test_both_corporate_environments_block_test_identity(environment):
     "mysql+pymysql://matrixrh:@127.0.0.1/matrix_rh",
     # secrets-scan: allow (fixture sintetico aislado; sin credenciales de un servicio real)
     "mysql+pymysql://matrixrh:%20%20@127.0.0.1/matrix_rh",
-])
+], ids=["root-user", "encoded-root-user", "empty-password", "whitespace-password"])
 def test_exposed_corporate_configuration_requires_dedicated_database_password(dsn):
     with pytest.raises(ValidationError, match="usuario dedicado"):
         corporate(app_host="0.0.0.0", database_url=dsn)
