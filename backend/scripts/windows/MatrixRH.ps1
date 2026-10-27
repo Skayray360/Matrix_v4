@@ -516,7 +516,7 @@ function Configure-Apache([string]$Wamp) {
     $original=[IO.File]::ReadAllBytes($apache.config)
     $body=[IO.File]::ReadAllText($apache.config)
     $updated=$body
-    foreach ($module in @('proxy','proxy_http')) {
+    foreach ($module in @('proxy','proxy_http','headers','reqtimeout')) {
         if ($updated -notmatch ('(?m)^\s*LoadModule\s+' + $module + '_module\s')) {
             if (-not (Test-Path -LiteralPath (Join-Path $apache.base ('modules\mod_' + $module + '.so')))) { throw ('Apache no contiene mod_' + $module + '.so.') }
             $updated += [Environment]::NewLine + 'LoadModule ' + $module + '_module modules/mod_' + $module + '.so'

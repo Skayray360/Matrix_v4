@@ -9,6 +9,7 @@ rate limiting y ausencia de secretos en las respuestas.
 from __future__ import annotations
 
 import io
+import json
 import zipfile
 
 import pytest
@@ -41,9 +42,21 @@ def client():  # noqa: ANN201
 
 
 @pytest.fixture(autouse=True)
-def _reset_rate_limiter():  # noqa: ANN202
-    from app.security.rate_limit import get_rate_limiter
+def _reset_rate_limiter(require_database):  # noqa: ANN202, ARG001
+    from sqlalchemy import select, update
 
+    from app.database.engine import session_scope
+    from app.database.models import LocalCredential, User
+    from app.security.rate_limit import get_rate_limiter
+    from scripts.test_environment import require_disposable_database
+
+    require_disposable_database()
+    # La fuerza bruta debe persistir su bloqueo, pero no contaminar otro caso.
+    # Solo se restablecen cuentas sinteticas dentro de la base desechable.
+    with session_scope() as db:
+        synthetic_users = select(User.id).where(User.is_synthetic_test.is_(True), User.auth_source == "local_test")
+        db.execute(update(LocalCredential).where(LocalCredential.user_id.in_(synthetic_users))
+                   .values(failed_attempts=0, locked_until=None))
     get_rate_limiter().reset()
     yield
     get_rate_limiter().reset()
@@ -60,6 +73,16 @@ def login(client: TestClient, username: str):  # noqa: ANN201
 
 
 class TestAuthBypass:
+    def test_login_cross_origin_sin_content_type_no_crea_sesion(self, client: TestClient):
+        client.cookies.clear()
+        response = client.post(
+            "/api/v1/auth/local/login", headers={"Origin": "https://attacker.invalid"},
+            content=json.dumps({"username": "Matrix", "password": SYNTHETIC_TEST_PASSWORD}),
+        )
+        assert response.status_code == 403
+        assert "set-cookie" not in response.headers
+        assert client.get("/api/v1/me").status_code == 401
+
     @pytest.mark.parametrize(
         "path",
         [

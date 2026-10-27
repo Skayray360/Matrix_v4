@@ -98,6 +98,7 @@ services:
       QDRANT__STORAGE__STORAGE_PATH: /qdrant/storage
       QDRANT__STORAGE__SNAPSHOTS_PATH: /qdrant/snapshots
       QDRANT__TELEMETRY_DISABLED: "true"
+      QDRANT__SERVICE__ENABLE_CORS: "false"
     volumes:
       - type: bind
         source: ./knowledge-base/state/docker/qdrant
@@ -190,7 +191,7 @@ services:
       start_period: 45s
 
   nginx:
-    image: nginx:stable-alpine@sha256:0985e772fb9f729e6fa0980da05fca5d9c468e870eed43071545afa9d2e27d94
+    image: nginx:stable-alpine@sha256:970364228b1e4f932abc22d321932816782cca8a20b85a77552a7cfe9acfb3b5
     restart: unless-stopped
     user: "${MATRIX_DOCKER_UID}:${MATRIX_DOCKER_GID}"
     entrypoint: [nginx]

@@ -1,6 +1,6 @@
 # Creado por Aldo Garcia.
 # Docker es una alternativa Linux; instalar.bat no usa esta imagen.
-FROM node:22-alpine@sha256:0a7108bf6c7bf5de370ffb1a3ed6be93d405b43ff159f681a8d18c0e2bc2e402 AS frontend
+FROM node:24.22.0-alpine@sha256:44fce696f38ba8c987c4db89954051000bbd05ffd8d8659ba15ed4a8602e937f AS frontend
 WORKDIR /build/frontend
 RUN apk add --no-cache python3 py3-yaml
 COPY backend/scripts/verify_supply_chain.py /checks/backend/scripts/verify_supply_chain.py
@@ -12,6 +12,7 @@ COPY frontend/package.json frontend/package-lock.json frontend/.npmrc ./
 RUN python3 /checks/backend/scripts/verify_supply_chain.py --frontend /build/frontend --lock-only
 RUN corepack npm audit --audit-level=low --include=dev --include=optional --include=peer
 RUN corepack npm ci --ignore-scripts --no-audit --no-fund --include=dev --include=optional --include=peer
+RUN corepack npm audit signatures
 COPY frontend/ ./
 RUN python3 /checks/backend/scripts/verify_supply_chain.py --frontend /build/frontend
 RUN corepack npm run build
@@ -31,7 +32,8 @@ COPY backend/app ./backend/app
 COPY backend/scripts ./backend/scripts
 COPY backend/seeds ./backend/seeds
 COPY backend/migrations ./backend/migrations
-RUN uv sync --project /app/backend --frozen --no-dev --no-editable
+RUN uv audit --project /app/backend --locked --no-dev
+RUN uv sync --project /app/backend --locked --no-dev --no-install-project --no-build
 COPY backend/config ./backend/config
 COPY backend/release ./backend/release
 COPY instalar.bat iniciar.bat detener.bat diagnosticar.bat docker-compose.yml .htaccess ./

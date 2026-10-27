@@ -39,8 +39,9 @@ def inference_control(
 ):
     """El anidamiento solo reduce el plazo; ninguna etapa renueva el turno."""
     limits = [time.monotonic() + seconds]
-    if _deadline.get() is not None:
-        limits.append(_deadline.get())
+    parent_deadline = _deadline.get()
+    if parent_deadline is not None:
+        limits.append(parent_deadline)
     if absolute_deadline is not None:
         limits.append(absolute_deadline)
     deadline_token = _deadline.set(min(limits))

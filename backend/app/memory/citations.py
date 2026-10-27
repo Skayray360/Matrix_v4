@@ -36,7 +36,8 @@ def citation_metadata(source_ids: Any, details: Any) -> list[dict[str, Any]]:
             if isinstance(value, str) and len(value) <= limit:
                 item[key] = value
         score = detail.get("score")
-        if type(score) in (int, float) and -1e308 <= score <= 1e308 and isfinite(score):
+        if (isinstance(score, int | float) and not isinstance(score, bool)
+                and -1e308 <= score <= 1e308 and isfinite(score)):
             item["score"] = score
         if sid in matched and matched[sid] != item:
             ambiguous.add(sid)

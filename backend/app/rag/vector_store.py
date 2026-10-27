@@ -228,7 +228,8 @@ class VectorStore:
                         return False
                     vector = point.vector
                     if (not isinstance(vector, list) or len(vector) != self._dimension
-                            or not all(type(value) in (int, float) and math.isfinite(value) for value in vector)
+                            or not all(isinstance(value, int | float) and not isinstance(value, bool)
+                                       and math.isfinite(value) for value in vector)
                             or not any(vector)):
                         return False
                     text = payload.get("text")
@@ -351,9 +352,6 @@ class VectorStore:
                     # No crearla ni confundir esto con una generacion integra:
                     # la ingesta comprobara los vectores antes de omitirla.
                     if self._client.collection_exists(collection):
-                        active = ([models.FieldCondition(
-                            key="generation", match=models.MatchValue(value=document.active_generation),
-                        )] if document.active_generation else None)
                         self._client.delete(
                             collection_name=collection, wait=True,
                             points_selector=models.FilterSelector(filter=models.Filter(
@@ -363,7 +361,9 @@ class VectorStore:
                                     ),
                                     models.FieldCondition(key="scope", match=models.MatchValue(value=document.scope)),
                                 ],
-                                must_not=active,
+                                must_not=([models.FieldCondition(
+                                    key="generation", match=models.MatchValue(value=document.active_generation),
+                                )] if document.active_generation else None),
                             )),
                         )
                     else:

@@ -9,7 +9,7 @@ from __future__ import annotations
 import json
 import re
 from copy import deepcopy
-from typing import Literal
+from typing import Any, Literal
 
 from jsonschema import Draft202012Validator
 from jsonschema.exceptions import ValidationError
@@ -119,7 +119,7 @@ class DocumentaryOutputError(ValueError):
         self.code = code
         self.invalid_aliases = invalid_aliases
 
-DOCUMENTARY_SCHEMA = {
+DOCUMENTARY_SCHEMA: dict[str, Any] = {
     "type": "object", "additionalProperties": False,
     "required": ["status", "claims", "clarification"],
     "properties": {

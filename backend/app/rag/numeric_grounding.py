@@ -322,7 +322,7 @@ def tenure_tables(text: str) -> tuple[TenureTable, ...]:
         header = " ".join(cell.strip() for cell in raw.strip().strip("|").split("|"))
         if not _TENURE_HEADER.fullmatch(header):
             continue
-        rows = []
+        rows: list[IntervalRow] = []
         invalid = False
         end = index + 1
         for position, original in enumerate(lines[index + 1:], index + 1):

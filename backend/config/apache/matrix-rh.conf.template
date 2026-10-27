@@ -10,6 +10,17 @@ Listen 127.0.0.1:{{WEB_PORT}}
     ServerName 127.0.0.1
     ProxyRequests Off
     ProxyPreserveHost On
+    # No confiar en cabeceras suministradas por el navegador; mod_proxy agrega la IP real.
+    RequestHeader unset X-Forwarded-For
+    RequestHeader unset X-Forwarded-Host
+    RequestHeader unset X-Forwarded-Proto
+    RequestHeader unset Forwarded
+    # Limites antes del parser ASGI, incluido un cliente que no termina cabeceras.
+    RequestReadTimeout header=10-20,MinRate=500 body=20,MinRate=500
+    LimitRequestFields 50
+    LimitRequestFieldSize 8190
+    LimitRequestLine 8190
+    LimitRequestBody 30000000
     ProxyTimeout 600
     ProxyPass / http://127.0.0.1:{{BACKEND_PORT}}/ retry=0 timeout=600 connectiontimeout=10
     ProxyPassReverse / http://127.0.0.1:{{BACKEND_PORT}}/

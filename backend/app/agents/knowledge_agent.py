@@ -446,7 +446,7 @@ class KnowledgeAgent:
         retry_result, retry_report = self._decode_and_verify(
             retry_result, evidences, structured, question=question, use_schema=use_schema,
             aliases={alias: source for alias, source in source_aliases.items()
-                     if source in {e.source_id for e in (*evidences, *structured)}},
+                     if source in ({e.source_id for e in evidences} | {item.source_id for item in structured})},
         )
         if summary_mode:
             retry_report = self._summary_coverage_report(retry_report, evidences)
@@ -969,7 +969,7 @@ class KnowledgeAgent:
             # No cortar frases ni inventar puntos para completar la cuota.
             blocks = lines[1:]
             count = min(points, len(blocks))
-            groups = [blocks[index * len(blocks) // count:(index + 1) * len(blocks) // count]
+            point_groups = [blocks[index * len(blocks) // count:(index + 1) * len(blocks) // count]
                       for index in range(count)]
             lines = ["Extractos verificados del contenido solicitado:"]
             if count < points:
@@ -977,7 +977,7 @@ class KnowledgeAgent:
                     f"No pude validar una sintesis en {points} puntos. Presento {count} extractos completos "
                     "para conservar las condiciones del documento."
                 )
-            for index, group in enumerate(groups, start=1):
+            for index, group in enumerate(point_groups, start=1):
                 lines.append(f"{index}. " + "\n\n   ".join(block.replace("\n", "\n   ") for block in group))
         if len(cited) < len(units):
             lines.append(

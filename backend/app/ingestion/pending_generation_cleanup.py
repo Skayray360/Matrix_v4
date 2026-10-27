@@ -57,6 +57,8 @@ def retry_pending_generation_cleanup(db: Session, *, limit: int = 8) -> dict[str
     for job_id in job_ids:
         try:
             job = db.get(IngestionJob, job_id)
+            if job is None or job.status != "pending":
+                continue
             payload = _payload(job.stats or {})
             active = db.scalar(select(Document.active_generation).where(
                 Document.id == payload["document_id"], Document.scope == payload["scope"],

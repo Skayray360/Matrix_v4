@@ -15,6 +15,7 @@ import re
 import threading
 from datetime import UTC, datetime
 from functools import wraps
+from typing import Any
 
 from app.common.logging import get_logger
 from app.common.redaction import redact_value
@@ -165,7 +166,7 @@ def payload_ready(payload: dict) -> None:
 
     messages = payload["messages"]
     systems = [m["content"] for m in messages if m["role"] == "system"]
-    sources = []
+    sources: list[dict[str, Any]] = []
     for message in messages:
         for block in re.findall(r"<<<EVIDENCIA_DOCUMENTAL>>>\n(.*?)<<</EVIDENCIA_DOCUMENTAL>>>",
                                 message["content"], re.DOTALL):
@@ -204,7 +205,7 @@ def validated(answer: str, report, *, retry: bool) -> None:
         # Ni el borrador, ni las citas inventadas por el modelo, ni el detalle
         # libre del validador estan cubiertos por la allowlist de documentos.
         # Mantener solo estados, recuentos y huellas; nunca serializar asdict.
-        summary = {key: bool(getattr(report, key, False)) for key in (
+        summary: dict[str, Any] = {key: bool(getattr(report, key, False)) for key in (
             "grounded", "declares_insufficiency", "citations_valid",
             "factual_verified", "extractive_verified",
         )}

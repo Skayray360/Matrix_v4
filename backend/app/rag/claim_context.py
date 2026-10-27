@@ -205,7 +205,7 @@ def _binding(prefix: str, case: DeclaredCase) -> tuple[RuleBinding | None, str]:
     if target is None:
         return None, "no se identifica la relacion conceptos y tabla"
     subjects = _subjects(target[1])
-    fixed = ()
+    fixed: tuple[tuple[str, Decimal], ...] = ()
     if "%" in target[1]:
         # Regla mixta: tasa fija para un concepto, tabla para los restantes.
         target = re.search(
@@ -289,7 +289,7 @@ def claim_context(question: str, evidences: tuple[Evidence, ...]) -> ClaimContex
         document = documents[application.source_id]
         if document:
             grouped.setdefault((document, subjects), []).append(application)
-    conflicts = set()
+    conflicts: set[str] = set()
     for group in grouped.values():
         mappings = {
             tuple(sorted((*a.rule.fixed, *((s, a.percent) for s in a.rule.table_subjects))))
@@ -431,7 +431,7 @@ def _metadata_claim(claim: str, evidences: tuple[Evidence, ...]) -> tuple[str, s
     for title in identified_titles:
         claim = title.sub("documento identificado", claim)
     # Solo una atribucion de fecha a documento, nunca a la vigencia de la regla.
-    pattern = re.compile(
+    date_pattern = re.compile(
         r"\b(?:documento|archivo|platica|presentacion|fuente) "
         r"(?:historico |historica )?(?:de |del |fechado en )"
         r"(?:(?P<month>" + "|".join(_MONTHS) + r") de )?(?P<year>\d{4})\b"
@@ -447,7 +447,7 @@ def _metadata_claim(claim: str, evidences: tuple[Evidence, ...]) -> tuple[str, s
         identified_sources.update(e.source_id for e in valid)
         return "documento con fecha identificada" if valid else match.group()
 
-    claim = pattern.sub(replace, claim)
+    claim = date_pattern.sub(replace, claim)
     page_pattern = re.compile(r"\b(?:pagina|pag\.?|p\.)\s+(\d+)\b(?![.,]\d)")
     located_sources = (
         tuple(e for e in evidences if e.source_id in identified_sources) if identified_sources else evidences
@@ -456,8 +456,8 @@ def _metadata_claim(claim: str, evidences: tuple[Evidence, ...]) -> tuple[str, s
             and len({e.document_id or e.filename for e in located_sources}) > 1):
         return claim, "atribucion documento y pagina ambigua; cite cada localizador por separado"
     pages = {
-        int(match[1]) for e in located_sources
-        if (match := page_pattern.fullmatch(_plain(e.page_or_sheet).strip()))
+        int(page_match[1]) for e in located_sources
+        if (page_match := page_pattern.fullmatch(_plain(e.page_or_sheet).strip()))
     }
     if any(int(match[1]) not in pages for match in page_pattern.finditer(claim)):
         return claim, "pagina no corresponde a la metadata de sus fuentes citadas"

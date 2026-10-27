@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import threading
 import time
-from collections import defaultdict, deque
+from collections import OrderedDict, deque
 from dataclasses import dataclass
 
 
@@ -29,23 +29,43 @@ class RateLimitResult:
 class RateLimiter:
     """Ventana deslizante de 60 segundos por clave."""
 
-    def __init__(self, *, window_seconds: int = 60) -> None:
+    def __init__(self, *, window_seconds: int = 60, max_keys: int = 10_000) -> None:
+        if window_seconds <= 0 or max_keys <= 0:
+            raise ValueError("La ventana y la capacidad deben ser positivas.")
         self._window = window_seconds
-        self._events: dict[str, deque[float]] = defaultdict(deque)
+        self._max_keys = max_keys
+        self._events: OrderedDict[str, deque[float]] = OrderedDict()
         self._lock = threading.Lock()
 
     def check(self, key: str, *, limit: int) -> RateLimitResult:
         """Registra un intento y decide si se permite."""
+        if limit <= 0:
+            raise ValueError("El limite debe ser positivo.")
         now = time.monotonic()
         cutoff = now - self._window
         with self._lock:
+            # El orden sigue el ultimo intento admitido. Eliminar solo claves
+            # vencidas evita tanto memoria sin limite como evadir un bloqueo
+            # desplazando claves activas con nombres de usuario distintos.
+            while self._events:
+                oldest = next(iter(self._events.values()))
+                if oldest[-1] > cutoff:
+                    break
+                self._events.popitem(last=False)
+            if key not in self._events:
+                if len(self._events) >= self._max_keys:
+                    oldest = next(iter(self._events.values()))
+                    retry_after = max(1, int(oldest[-1] + self._window - now) + 1)
+                    return RateLimitResult(allowed=False, remaining=0, retry_after_seconds=retry_after)
+                self._events[key] = deque()
             bucket = self._events[key]
-            while bucket and bucket[0] < cutoff:
+            while bucket and bucket[0] <= cutoff:
                 bucket.popleft()
             if len(bucket) >= limit:
                 retry_after = int(self._window - (now - bucket[0])) + 1
                 return RateLimitResult(allowed=False, remaining=0, retry_after_seconds=retry_after)
             bucket.append(now)
+            self._events.move_to_end(key)
             return RateLimitResult(
                 allowed=True, remaining=max(0, limit - len(bucket)), retry_after_seconds=0
             )

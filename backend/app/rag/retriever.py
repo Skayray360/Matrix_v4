@@ -24,6 +24,7 @@ completo dentro de un presupuesto, sin usar top-k semantico para sus fragmentos.
 from __future__ import annotations
 
 import math
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 
 from qdrant_client import models
@@ -278,7 +279,8 @@ class Retriever:
         if include_private and conversation_id:
             scopes.append(SCOPE_CONVERSATION)
         for scope in scopes:
-            documents = targets.get(scope, []) if targets is not None else [None]
+            documents: Sequence[AuthorizedDocument | None]
+            documents = (None,) if targets is None else targets.get(scope, [])
             for document in documents:
                 # Resolver antes de fetch_k evita que cientos de fragmentos de
                 # otros archivos desplacen al solicitado. Cada documento de una
