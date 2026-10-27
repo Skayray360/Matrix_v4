@@ -3,6 +3,8 @@
 
 Fecha: 2026-10-27. Base de código tras limpiar el historial: `99c7c575c7de8259ecdc86a8d4113cedc3a19a28`.
 
+Continuación: [pruebas dirigidas con MySQL/Qdrant y navegador](services-browser-followup.md). La evidencia aislada de esta página se conserva como registro de la primera corrección.
+
 ## Resultado
 
 Los seis PDF se retiraron del historial de las cuatro ramas. Una clonación nueva confirmó cero PDF alcanzables y ausencia de los seis objetos. Los archivos actuales de cada rama no cambiaron por esta operación. La purga de referencias internas de PR/cachés de GitHub no está acreditada y requiere intervención del proveedor: [evidencia y solicitud preparada](history-cleanup.md).

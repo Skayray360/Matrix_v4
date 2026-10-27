@@ -266,6 +266,49 @@ test("consulta, fuentes, trazabilidad y cierre de sesión con CSRF", async ({ pa
   expect(api.unexpected).toEqual([]);
 });
 
+test("acceso y consulta con teclado conservan el salto de línea y las fuentes", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const api = await mockApi(page);
+  await page.goto("/");
+  await expect(page.getByRole("button", { name: "Entrar", exact: true })).toBeVisible();
+  await page.keyboard.press("Tab");
+  await expect(page.getByRole("link", { name: "Continuar con acceso corporativo" })).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(page.getByLabel("Usuario", { exact: true })).toBeFocused();
+  await page.keyboard.type("usuario-ui");
+  await page.keyboard.press("Tab");
+  await expect(page.getByRole("button", { name: "Mostrar", exact: true })).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(page.getByLabel("Contrasena", { exact: true })).toBeFocused();
+  await page.keyboard.type("dato-sintetico");
+  await page.keyboard.press("Enter");
+  await expect(page.getByTestId("identity-user")).toHaveText("MatrixR1");
+
+  // Llega al compositor mediante el orden real de tabulación, sin focus() ni click().
+  const composer = page.getByTestId("composer-input");
+  for (let step = 0; step < 30; step += 1) {
+    if (await composer.evaluate((node) => node === document.activeElement)) break;
+    await page.keyboard.press("Tab");
+    expect(
+      await page.locator(".sidebar").evaluate((node) => node.contains(document.activeElement)),
+    ).toBe(false);
+  }
+  await expect(composer).toBeFocused();
+  await page.keyboard.type("Primera línea");
+  await page.keyboard.press("Shift+Enter");
+  await page.keyboard.type("Segunda línea");
+  await expect(composer).toHaveValue("Primera línea\nSegunda línea");
+  expect(api.mutations.filter((mutation) => mutation.path === "/chat/submit")).toHaveLength(0);
+  await page.keyboard.press("Enter");
+  await expect(page.getByTestId("message-assistant")).toContainText("respuesta sintética");
+  await expect(page.getByTestId("sources")).toContainText("Manual de prueba");
+  expect(api.mutations.filter((mutation) => mutation.path === "/chat/submit")).toHaveLength(1);
+  expect(api.errors).toEqual([]);
+  expect(api.unexpected).toEqual([]);
+});
+
 test("aviso general visible y persistente en móvil", async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 320, height: 667 });
   const api = await mockApi(page, false, true);
@@ -331,6 +374,12 @@ test("menú móvil, tema oscuro y adjunto privado", async ({ page }, testInfo) =
   expect(
     await page.locator(".sidebar").evaluate((node) => node.contains(document.activeElement)),
   ).toBe(false);
+  for (let step = 0; step < 30; step += 1) {
+    await page.keyboard.press("Tab");
+    expect(
+      await page.locator(".sidebar").evaluate((node) => node.contains(document.activeElement)),
+    ).toBe(false);
+  }
   await page.getByTestId("theme-toggle").click();
   await page.getByTestId("theme-toggle").click();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");

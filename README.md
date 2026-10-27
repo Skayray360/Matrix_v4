@@ -121,13 +121,15 @@ corepack npm run build
 Desde `backend`, en Linux/macOS:
 
 ```bash
-APP_ENV=test .venv/bin/python -m pytest tests -q -p scripts.quality_gate_pytest --matrix-test-group standalone
+APP_ENV=test .venv/bin/python -m pytest tests -q -p scripts.quality_gate_pytest --matrix-test-group standalone --matrix-collection-report /tmp/matrix-collection.json
 .venv/bin/python -m ruff check app scripts seeds tests
 .venv/bin/python -m scripts.verify_documentation
 .venv/bin/python -m scripts.secrets_scan
 ```
 
 En PowerShell use `$env:APP_ENV='test'` y `.venv\Scripts\python.exe`. El grupo `standalone` recopila toda la suite y selecciona únicamente casos aislados. Las pruebas que requieren MySQL/Ollama, la evaluación de respuestas reales y la instalación Windows se validan por separado. El gate completo (`python -m scripts.run_quality_gate`) exige un entorno desechable y conserva el estado `INCOMPLETE` si falta evidencia; no es un comando de diagnóstico para producción.
+
+La CI también ejecuta una suite dirigida de recuperación vectorial con MySQL 8.4 y Qdrant 1.20.0 como servicios efímeros fijados por digest; repite los mismos escenarios con Qdrant embedded. Aplica las migraciones reales en una base de pruebas, utiliza embeddings deterministas y rechaza pruebas omitidas o una ejecución parcial. Esta comprobación acredita los escenarios de transacciones seleccionados, no toda la integración ni los modelos de una instalación. El job de interfaz ejecuta Chromium sobre el build con respuestas API sintéticas; el E2E contra backend real sigue siendo una comprobación separada.
 
 La automatización de GitHub ejecuta lint, contratos, pruebas aisladas, build y auditoría de dependencias en cada pull request. Las acciones están fijadas por commit y el token tiene permiso de lectura. Los casos omitidos bloquean esa comprobación: el runner necesita PowerShell para las pruebas sintéticas del controlador. Una prueba aislada aprobada no certifica capacidad ni calidad documental con el hardware y corpus de una instalación.
 

@@ -13,6 +13,8 @@ La evidencia final y sus límites se registran en [validation.json](validation.j
 
 La petición posterior de retirar los seis PDF y cerrar la recuperación de vectores está implementada y documentada en [vectors-followup.md](vectors-followup.md). Ese seguimiento contiene la validación del nuevo protocolo; las cifras de la batería inicial de esta página se conservan como evidencia histórica.
 
+La continuación incorpora [pruebas de MySQL/Qdrant y navegador](services-browser-followup.md): diez escenarios dirigidos de transacciones en CI y diez comprobaciones de navegador con API sintética. Sus resultados y límites complementan las validaciones históricas de este informe.
+
 ## Alcance y método
 
 Se inventarió el repositorio completo y se distribuyó la lectura de código propio entre seis revisores especializados y un coordinador. Se leyó íntegramente la fuente textual de `backend/app`, los scripts operativos, migraciones y la fuente/configuración frontend. Las pruebas backend se inspeccionaron por contratos, regresiones y patrones transversales; no se afirma lectura manual de cada línea de todas las pruebas históricas. Las pruebas frontend sí se leyeron completas. Dependencias, archivos generados y binarios se verificaron con sus controles específicos, no mediante una falsa afirmación de lectura línea por línea.
@@ -42,7 +44,7 @@ Todos los defectos de esta tabla están confirmados por código y pruebas o comp
 | LLM-01 | Media | Código residual Vertex podía intentar resolver ADC aun con inferencia local bajo una configuración legacy. | Retiradas ramas cloud y dependencias sin uso; proveedor no soportado se rechaza. La variable legacy queda inerte por compatibilidad. No se demostró envío real a cloud. |
 | LLM-02 | Media | Embeddings permitían overrides cloud internos y podían reutilizar/cachear resultados sin verificar el pin correcto. | Valida proveedor/modelo y pin por lote, antes de cache hit y después de generar. `test_local_provider_boundaries.py`. |
 | UI-01 | Media | Endpoints sin validador aceptaban JSON incompleto o confirmaciones `{ok:false}` como éxito. | Contrato obligatorio en cada request y validadores compartidos en `services/contracts.ts`; CSRF solo cambia tras respuesta válida. 46 casos nuevos de contratos. |
-| UI-02 | Baja | Menú móvil cerrado conservaba controles enfocables fuera de pantalla. | Visibilidad coherente con apertura; regresión de navegador preparada. Ejecución visual pendiente. |
+| UI-02 | Baja | Menú móvil cerrado conservaba controles enfocables fuera de pantalla. | Visibilidad coherente con apertura; regresión ejecutada con navegador real, incluida tabulación del menú cerrado. [Seguimiento](services-browser-followup.md). |
 | UI-03 | Media, validación | E2E de adjuntos esperaba un texto de estado que la interfaz no muestra. | Comprueba `data-status` del adjunto exacto; conserva comprobación de error de perfil. E2E con servicios pendiente. |
 | OPS-01 | Media | Preflight truncaba un nombre fijo o el destino de un symlink al comprobar escritura. | Archivo temporal exclusivo y limpieza de su propio archivo, incluso con error. `test_preflight_boundaries.py`. Requiere acceso local al directorio para explotar el caso previo. |
 | OPS-02 | Media, condicionada | El sondeo Qdrant heredaba proxies ambientales, incluida su sonda de compatibilidad. | `trust_env=False` y `check_compatibility=False`, conservando timeout y cierre. Sin tráfico a un proxy real durante la prueba. |
@@ -85,7 +87,7 @@ Todos los defectos de esta tabla están confirmados por código y pruebas o comp
 | Media | Evaluación RAG insuficiente | 43 casos sintéticos, 11 rúbricas completas; no validadas por expertos del dominio. Completar referencias independientes y ejecutar con corpus autorizado, modelo e índice fijados. No inventar respuestas para forzar un PASS. |
 | Media | Acreditación de extracción histórica | Payloads sin `extraction_incomplete` se tratan como cobertura desconocida/parcial. Ejecutar reconciliación completa; `sync_new` no actualiza documentos existentes. Un documento legítimamente parcial no provoca reindexación infinita. |
 | Media | Aislamiento y semántica | Un proceso de extracción con límites no es un sandbox de SO sin red. Las marcas detectan omisiones conocidas, no comprensión visual universal. Pins comprueban metadata del runtime, no integridad de pesos contra un runtime comprometido. |
-| Media | Navegador y rendimiento | Instalación de Chromium falló por archivo descargado inválido. No hay aprobación visual/E2E real, latencia productiva, capacidad de GPU ni pruebas de carga. |
+| Media | E2E completo y rendimiento | Diez escenarios de navegador con API sintética aprobados tras resolver la descarga de Chromium. Siguen pendientes E2E con servicios, latencia productiva, capacidad de GPU y carga. [Seguimiento](services-browser-followup.md). |
 
 No se asigna una nota global que oculte estos pendientes. Cobertura de código por pruebas, cobertura de lectura y aceptación productiva son medidas distintas; las categorías operativas sin evidencia se mantienen **NOT_EVALUATED**. La valoración global es **PROVISIONAL**.
 

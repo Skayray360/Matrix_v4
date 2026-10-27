@@ -1,5 +1,5 @@
 # Creado por Aldo Garcia.
-name: Calidad aislada
+name: Calidad y recuperacion vectorial
 
 on:
   pull_request:
@@ -107,3 +107,106 @@ jobs:
           corepack npm run build
           corepack npm audit --audit-level=low
           corepack npm audit signatures
+      - name: Navegador real con API sintetica
+        run: |
+          node node_modules/@playwright/test/cli.js install --with-deps --only-shell chromium
+          node node_modules/@playwright/test/cli.js test --config=playwright.visual.config.ts
+
+  vector_recovery:
+    name: Recuperacion vectorial (MySQL y Qdrant reales)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: backend
+    services:
+      mysql:
+        # Indice OCI oficial mysql:8.4, verificado el 2026-10-27.
+        image: mysql@sha256:76f0358884cb92d9a086d24e5671c38048d3fef40f2588703d73eb55392d6b69
+        env:
+          MYSQL_ROOT_PASSWORD: ${{ github.run_id }}-${{ github.run_attempt }}-root
+          MYSQL_DATABASE: matrix_rh_test_vectors
+          MYSQL_USER: matrix_ci
+          # Valor sintetico exclusivo de este contenedor efimero, no un secreto productivo.
+          MYSQL_PASSWORD: ${{ github.run_id }}-${{ github.run_attempt }}-fixture
+        ports:
+          - 3306/tcp
+        options: >-
+          --health-cmd="mysqladmin ping --host=127.0.0.1 --silent"
+          --health-interval=10s --health-timeout=5s --health-retries=10
+      qdrant:
+        # Qdrant v1.20.0 oficial; sin volumen ni corpus externo.
+        image: qdrant/qdrant@sha256:9bfc89f9914fc14876a88c05270685921a55b8877b254a98bcc1cc2f0a424cd2
+        env:
+          QDRANT__TELEMETRY_DISABLED: "true"
+        ports:
+          - 6333/tcp
+    env:
+      APP_ENV: test
+      APP_LOG_LEVEL: WARNING
+      PYTHONNOUSERSITE: "1"
+      MATRIX_TEST_ALLOW_DESTRUCTIVE: "true"
+      MATRIX_TEST_REQUIRE_QDRANT_SERVER: "true"
+      MATRIX_ADOPT_EXISTING_DATABASE: "true"
+      UPLOAD_STORAGE_ROOT: ./var/tests/vector-recovery/uploads
+      QDRANT_PATH: ./var/tests/vector-recovery/qdrant
+      QDRANT_MODE: server
+      QDRANT_URL: http://127.0.0.1:${{ job.services.qdrant.ports['6333'] }}
+      RAG_COLLECTION_CORPORATE: matrix_rh_test_corporate
+      RAG_COLLECTION_PRIVATE: matrix_rh_test_private
+      MYSQL_TEST_PORT: ${{ job.services.mysql.ports['3306'] }}
+      MYSQL_TEST_PASSWORD: ${{ github.run_id }}-${{ github.run_attempt }}-fixture
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12.16"
+      - name: Dependencias fijadas
+        run: |
+          python -m pip install --only-binary=:all: uv==0.13.6
+          uv sync --locked --extra dev --no-install-project --no-build
+      - name: Migraciones y pruebas de recuperacion sin omisiones
+        run: |
+          .venv/bin/python - <<'PY'
+          import json
+          import os
+          import sys
+          from dataclasses import asdict
+          from pathlib import Path
+          from sqlalchemy import URL
+          os.environ["DATABASE_URL"] = URL.create(
+              "mysql+pymysql", username="matrix_ci", password=os.environ["MYSQL_TEST_PASSWORD"],
+              host="127.0.0.1", port=int(os.environ["MYSQL_TEST_PORT"]),
+              database="matrix_rh_test_vectors", query={"charset": "utf8mb4"},
+          ).render_as_string(hide_password=False)
+          from scripts.test_environment import require_disposable_database
+          require_disposable_database()
+          from app.database.migrator import run_migrations
+          print(f"Migraciones aplicadas: {len(run_migrations())}")
+          from scripts.run_quality_gate import BACKEND_ROOT, PASS, _run
+          reports = Path(os.environ["RUNNER_TEMP"]) / "vector-recovery"
+          reports.mkdir(parents=True, exist_ok=True)
+          all_complete = True
+          for mode in ("server", "embedded"):
+              os.environ["QDRANT_MODE"] = mode
+              os.environ["MATRIX_TEST_REQUIRE_QDRANT_SERVER"] = "true" if mode == "server" else "false"
+              junit, collection = reports / f"{mode}-junit.xml", reports / f"{mode}-collection.json"
+              command = [sys.executable, "-m", "pytest", "tests/integration/test_generation_recovery_mysql.py",
+                         "-q", "-p", "scripts.quality_gate_pytest", "--matrix-test-group", "integration_services",
+                         "--matrix-collection-report", str(collection), "--junitxml", str(junit)]
+              result = _run(command, cwd=BACKEND_ROOT, name=f"recuperacion MySQL/Qdrant {mode}",
+                            require_complete_junit=junit)
+              print(json.dumps(asdict(result), indent=2))
+              inventory = json.loads(collection.read_text())
+              complete = (result.status == PASS and inventory["selected"] > 0
+                          and inventory["selected"] == inventory["collected_total"] == result.junit_testcases)
+              all_complete = all_complete and complete
+              with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as summary:
+                  summary.write(f"Recuperacion MySQL/Qdrant {mode}: **{'PASS' if complete else 'FAIL'}**, "
+                                f"{result.junit_testcases} casos. Datos sinteticos y embeddings deterministas.\n\n")
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as summary:
+              summary.write("Suite dirigida; no acredita toda la integracion, modelos, Windows o failover.\n")
+          raise SystemExit(0 if all_complete else 1)
+          PY
