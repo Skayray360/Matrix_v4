@@ -32,6 +32,16 @@ describe("Composer", () => {
     expect(onSend).not.toHaveBeenCalled();
   });
 
+  it("Enter confirma la composición del teclado sin enviar una pregunta incompleta", () => {
+    const onSend = vi.fn();
+    render(<Composer disabled={false} attachments={[]} onSend={onSend} onUpload={vi.fn()} />);
+    const input = screen.getByTestId("composer-input");
+    fireEvent.change(input, { target: { value: "Pregunta en composición" } });
+    fireEvent.keyDown(input, { key: "Enter", isComposing: true });
+    expect(onSend).not.toHaveBeenCalled();
+    expect(input).toHaveValue("Pregunta en composición");
+  });
+
   it("deshabilita el envio mientras hay una respuesta en curso", () => {
     render(<Composer disabled attachments={[]} onSend={vi.fn()} onUpload={vi.fn()} />);
     expect(screen.getByTestId("send-button")).toBeDisabled();
@@ -66,12 +76,37 @@ describe("Composer", () => {
       />,
     );
     expect(screen.getByTestId("attachments")).toHaveTextContent("manual.pdf");
-    expect(screen.getByTestId("attachments")).toHaveTextContent("indexed");
+    expect(screen.getByTestId("attachments")).toHaveTextContent("Listo para consultar");
   });
 
   it("advierte que el adjunto es privado de la conversacion", () => {
     render(<Composer disabled={false} attachments={[]} onSend={vi.fn()} onUpload={vi.fn()} />);
     expect(screen.getByText(/solo en esta conversacion/i)).toBeInTheDocument();
+  });
+
+  it("informa que un archivo sin texto no está listo para consultar", () => {
+    render(
+      <Composer
+        disabled={false}
+        attachments={[
+          {
+            id: "empty-document",
+            filename: "escaneo.pdf",
+            status: "empty",
+            chunk_count: 0,
+            scope: "conversation",
+            category: null,
+            error_message: null,
+          },
+        ]}
+        onSend={vi.fn()}
+        onUpload={vi.fn()}
+      />,
+    );
+    expect(screen.getByTestId("attachments")).toHaveTextContent(
+      "No se encontró texto en el archivo",
+    );
+    expect(screen.queryByText("Listo para consultar")).not.toBeInTheDocument();
   });
 
   it("permite seleccionar una presentación PPTX admitida por el servidor", async () => {

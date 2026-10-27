@@ -1,7 +1,7 @@
 /* Creado por Aldo Garcia. */
 /** Lista de mensajes de la conversacion con sus fuentes citadas. */
 
-import { useEffect, useRef } from "react";
+import { useEffect, useId, useRef } from "react";
 
 import { Icon } from "./Icon";
 import { Mascot } from "./Mascot";
@@ -30,6 +30,7 @@ export function MessageList({
   pendingLabel = "Procesando su consulta",
   displayName,
 }: Props): JSX.Element {
+  const citationPrefix = useId();
   const endRef = useRef<HTMLDivElement | null>(null);
   const lastMessageId = messages[messages.length - 1]?.id;
 
@@ -78,7 +79,7 @@ export function MessageList({
   return (
     <div className="messages" id="conversacion" aria-live="polite" aria-busy={pending}>
       <div className="thread">
-        {messages.map((message) => {
+        {messages.map((message, messageIndex) => {
           const known = new Set(message.sources.map((source) => source.source_id));
           // Los mensajes de entregas anteriores pueden no tener answer_basis.
           const basis = message.answer_basis ?? (message.intent === "general" ? "general" : null);
@@ -101,6 +102,13 @@ export function MessageList({
           // en mitad de la frase.
           const numbers = new Map(
             message.sources.map((source, index) => [source.source_id, index + 1] as const),
+          );
+
+          const targets = new Map(
+            message.sources.map(
+              (source, index) =>
+                [source.source_id, `${citationPrefix}-m${messageIndex}-s${index + 1}`] as const,
+            ),
           );
 
           if (message.role === "user") {
@@ -147,14 +155,19 @@ export function MessageList({
                   </p>
                 ) : null}
 
-                <Markdown text={message.content} knownSources={known} sourceNumbers={numbers} />
+                <Markdown
+                  text={message.content}
+                  knownSources={known}
+                  sourceNumbers={numbers}
+                  sourceTargets={targets}
+                />
 
                 {message.sources.length > 0 ? (
                   <div className="sources" data-testid="sources">
                     <h4>Fuentes</h4>
                     <ul>
                       {message.sources.map((source, index) => (
-                        <li key={source.source_id}>
+                        <li key={source.source_id} id={targets.get(source.source_id)} tabIndex={-1}>
                           <span className="source-chip" title={source.source_id}>
                             <span className="n" aria-hidden="true">
                               {index + 1}

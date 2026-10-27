@@ -138,6 +138,7 @@ export function ChatPage({ me, onLogout, onProfileUpdated, onSessionExpired }: P
   const navigation = useRef(0);
   const conversationListRequest = useRef(0);
   const mounted = useRef(false);
+  const expiredSession = useRef(false);
   const readController = useRef<AbortController | null>(null);
   const sending = useRef(false);
   const uploadingRef = useRef(false);
@@ -162,6 +163,36 @@ export function ChatPage({ me, onLogout, onProfileUpdated, onSessionExpired }: P
     };
   }, []);
 
+  const expireSession = useCallback(
+    (caught: unknown): boolean => {
+      if (!(caught instanceof ApiError && caught.status === 401)) return false;
+      if (!mounted.current || expiredSession.current) return true;
+      expiredSession.current = true;
+      // Un 401 confirmado retira también los datos ya pintados. Abortar lecturas
+      // e invalidar sus tickets impide que una respuesta tardía los reponga.
+      navigation.current += 1;
+      conversationListRequest.current += 1;
+      readController.current?.abort();
+      requestController.current?.abort();
+      uncertain.current.clear();
+      completedUpload.current = null;
+      selected.current = null;
+      setMessages([]);
+      setAttachments([]);
+      setConversations([]);
+      setDrafts({});
+      setTrace(null);
+      setActiveId(null);
+      setBeforeSeq(null);
+      setLoading(false);
+      setPendingCleanups([]);
+      setError("Su sesión expiró. Inicie sesión nuevamente.");
+      onSessionExpired?.();
+      return true;
+    },
+    [onSessionExpired],
+  );
+
   const describeError = useCallback((caught: unknown): string => {
     if (caught instanceof ApiError) {
       return caught.requestId
@@ -175,12 +206,13 @@ export function ChatPage({ me, onLogout, onProfileUpdated, onSessionExpired }: P
     try {
       await onLogout();
     } catch (caught) {
+      if (expireSession(caught)) return;
       if (mounted.current)
         setError(
           `No se pudo confirmar el cierre de sesión. Inténtelo nuevamente. ${describeError(caught)}`,
         );
     }
-  }, [onLogout, describeError]);
+  }, [onLogout, describeError, expireSession]);
 
   const refreshConversations = useCallback(async () => {
     const ticket = ++conversationListRequest.current;
@@ -188,10 +220,11 @@ export function ChatPage({ me, onLogout, onProfileUpdated, onSessionExpired }: P
       const result = await api.listConversations();
       if (mounted.current && ticket === conversationListRequest.current) setConversations(result);
     } catch (caught) {
+      if (expireSession(caught)) return;
       if (mounted.current && ticket === conversationListRequest.current)
         setError(describeError(caught));
     }
-  }, [describeError]);
+  }, [describeError, expireSession]);
 
   useEffect(() => {
     void refreshConversations();
@@ -238,6 +271,7 @@ export function ChatPage({ me, onLogout, onProfileUpdated, onSessionExpired }: P
           })),
         );
       } catch (caught) {
+        if (expireSession(caught)) return;
         if (
           ticket === navigation.current &&
           !(caught instanceof DOMException && caught.name === "AbortError")
@@ -248,7 +282,7 @@ export function ChatPage({ me, onLogout, onProfileUpdated, onSessionExpired }: P
         if (ticket === navigation.current) setLoading(false);
       }
     },
-    [describeError],
+    [describeError, expireSession],
   );
 
   const startConversation = useCallback(async () => {
@@ -268,11 +302,12 @@ export function ChatPage({ me, onLogout, onProfileUpdated, onSessionExpired }: P
       setTrace(null);
       await refreshConversations();
     } catch (caught) {
+      if (expireSession(caught)) return;
       if (ticket === navigation.current) setError(describeError(caught));
     } finally {
       if (ticket === navigation.current) setLoading(false);
     }
-  }, [describeError, refreshConversations]);
+  }, [describeError, refreshConversations, expireSession]);
 
   const clearSelectedConversation = useCallback((id: string) => {
     if (id !== selected.current) return;
@@ -297,6 +332,7 @@ export function ChatPage({ me, onLogout, onProfileUpdated, onSessionExpired }: P
         setError(null);
         await refreshConversations();
       } catch (caught) {
+        if (expireSession(caught)) return;
         if (caught instanceof ApiError && caught.code === "conversation_cleanup_pending") {
           // El servidor confirmo la baja SQL; no conservar sus mensajes en pantalla.
           clearSelectedConversation(id);
@@ -316,7 +352,7 @@ export function ChatPage({ me, onLogout, onProfileUpdated, onSessionExpired }: P
         setCleanupBusy(false);
       }
     },
-    [clearSelectedConversation, describeError, refreshConversations],
+    [clearSelectedConversation, describeError, refreshConversations, expireSession],
   );
 
   const sendMessage = useCallback(
@@ -420,6 +456,7 @@ export function ChatPage({ me, onLogout, onProfileUpdated, onSessionExpired }: P
         if (mounted.current) await refreshConversations();
         return true;
       } catch (caught) {
+        if (expireSession(caught)) return false;
         if (caught instanceof ApiError && caught.code === "chat_capacity_full")
           uncertain.current.delete(requestKey);
         if (mounted.current && navigation.current === ticket && !controller.signal.aborted) {
@@ -445,7 +482,7 @@ export function ChatPage({ me, onLogout, onProfileUpdated, onSessionExpired }: P
         }
       }
     },
-    [describeError, refreshConversations, loading, openConversation],
+    [describeError, refreshConversations, loading, openConversation, expireSession],
   );
 
   const cancelRequest = useCallback(async () => {
@@ -457,12 +494,13 @@ export function ChatPage({ me, onLogout, onProfileUpdated, onSessionExpired }: P
       // El estado confirmado por el servidor decide el resultado. Cancelar
       // una ejecucion no significa que la GPU ya haya liberado sus recursos.
     } catch (caught) {
+      if (expireSession(caught)) return;
       if (mounted.current && activeRequest.current === requestId) {
         setError(describeError(caught));
         setCancelling(false);
       }
     }
-  }, [cancelling, describeError]);
+  }, [cancelling, describeError, expireSession]);
 
   const uploadFiles = useCallback(
     async (files: File[]) => {
@@ -514,6 +552,7 @@ export function ChatPage({ me, onLogout, onProfileUpdated, onSessionExpired }: P
         }
         if (mounted.current) await refreshConversations();
       } catch (caught) {
+        if (expireSession(caught)) return;
         if (
           mounted.current &&
           selected.current === conversationId &&
@@ -533,7 +572,7 @@ export function ChatPage({ me, onLogout, onProfileUpdated, onSessionExpired }: P
         if (mounted.current) setUploading(false);
       }
     },
-    [describeError, refreshConversations, loading],
+    [describeError, refreshConversations, loading, expireSession],
   );
 
   async function loadOlder(): Promise<void> {
@@ -557,6 +596,7 @@ export function ChatPage({ me, onLogout, onProfileUpdated, onSessionExpired }: P
         ...current,
       ]);
     } catch (caught) {
+      if (expireSession(caught)) return;
       if (ticket === navigation.current) setError(describeError(caught));
     } finally {
       if (ticket === navigation.current) setLoading(false);

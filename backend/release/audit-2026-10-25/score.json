@@ -1,0 +1,99 @@
+{
+  "methodology": "local-ai-project-auditor weighted 0..5; unknowns excluded from score but included in coverage",
+  "status": "PROVISIONAL",
+  "score_out_of_10": 7.29,
+  "coverage_weight_percent": 78,
+  "not_a_probability_or_certification": true,
+  "domains": [
+    {
+      "id": "D1",
+      "domain": "Arquitectura y localidad",
+      "weight": 12,
+      "rating_out_of_5": 4
+    },
+    {
+      "id": "D2",
+      "domain": "Modelos y runtime real",
+      "weight": 8,
+      "rating_out_of_5": "NOT_EVALUATED"
+    },
+    {
+      "id": "D3",
+      "domain": "RAG y seguridad vectorial",
+      "weight": 12,
+      "rating_out_of_5": 3.5
+    },
+    {
+      "id": "D4",
+      "domain": "Seguridad y seguridad de IA",
+      "weight": 15,
+      "rating_out_of_5": 3
+    },
+    {
+      "id": "D5",
+      "domain": "Datos y aislamiento",
+      "weight": 12,
+      "rating_out_of_5": 4
+    },
+    {
+      "id": "D6",
+      "domain": "Herramientas estructuradas",
+      "weight": 6,
+      "rating_out_of_5": 4
+    },
+    {
+      "id": "D7",
+      "domain": "Despliegue real",
+      "weight": 8,
+      "rating_out_of_5": "NOT_EVALUATED"
+    },
+    {
+      "id": "D8",
+      "domain": "Capacidad productiva",
+      "weight": 6,
+      "rating_out_of_5": "NOT_EVALUATED"
+    },
+    {
+      "id": "D9",
+      "domain": "Backend y API",
+      "weight": 4,
+      "rating_out_of_5": 4.5
+    },
+    {
+      "id": "D10",
+      "domain": "Frontend y UX",
+      "weight": 3,
+      "rating_out_of_5": 4
+    },
+    {
+      "id": "D11",
+      "domain": "Calidad de codigo",
+      "weight": 3,
+      "rating_out_of_5": 4.5
+    },
+    {
+      "id": "D12",
+      "domain": "QA y evaluacion",
+      "weight": 5,
+      "rating_out_of_5": 3
+    },
+    {
+      "id": "D13",
+      "domain": "Documentacion",
+      "weight": 2,
+      "rating_out_of_5": 4.5
+    },
+    {
+      "id": "D14",
+      "domain": "Cadena de suministro",
+      "weight": 2,
+      "rating_out_of_5": 2
+    },
+    {
+      "id": "D15",
+      "domain": "Observabilidad y operacion",
+      "weight": 2,
+      "rating_out_of_5": 3
+    }
+  ]
+}

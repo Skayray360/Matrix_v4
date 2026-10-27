@@ -1,0 +1,402 @@
+{
+  "benchmark": "Actual Matrix queue/API; synthetic orchestrator; SQLite WAL",
+  "timestamp_utc": "2026-10-25T22:45:34.633108+00:00",
+  "python": "3.12.14 (main, Aug 25 2026, 14:00:49) [Clang 22.1.3 ]",
+  "platform": "Linux-6.18.55-x86_64-with-glibc2.39",
+  "inference_slots": 2,
+  "mock_inference_ms": 20,
+  "scenario_hard_deadline_s": 30,
+  "http_transport": "ASGI in memory; real cookies, CSRF, RBAC, SQL queue and publication",
+  "completion_clock": "after execute_chat commits; excludes browser polling delay",
+  "no_external_network": true,
+  "warmup": "No model warmup; fresh synthetic scenario includes first-worker start",
+  "gpu_model_latency_measured": false,
+  "capacity_certified": false,
+  "limitations": [
+    "Not MySQL/Windows performance",
+    "No Ollama, GPU, vector search or real corpus",
+    "No browser polling overhead",
+    "Shared CI hardware; no production SLO claim"
+  ],
+  "passed": true,
+  "results": [
+    {
+      "scenario": "normal",
+      "concurrency": 1,
+      "repetition": 1,
+      "samples": 32,
+      "queue_limit": 50,
+      "http_statuses": {
+        "202": 32
+      },
+      "terminal_states": {
+        "completed": 32
+      },
+      "unfinished": 0,
+      "queued_acceptances": 0,
+      "notices": 0,
+      "submit_p50_ms": 16.466,
+      "submit_p95_ms": 24.663,
+      "submit_p99_ms": 38.26,
+      "complete_p50_ms": 42.578,
+      "complete_p95_ms": 48.398,
+      "complete_p99_ms": 64.668,
+      "elapsed_s": 1.404,
+      "remaining_admission_slots": {},
+      "passed": true
+    },
+    {
+      "scenario": "normal",
+      "concurrency": 1,
+      "repetition": 2,
+      "samples": 32,
+      "queue_limit": 50,
+      "http_statuses": {
+        "202": 32
+      },
+      "terminal_states": {
+        "completed": 32
+      },
+      "unfinished": 0,
+      "queued_acceptances": 0,
+      "notices": 0,
+      "submit_p50_ms": 14.48,
+      "submit_p95_ms": 18.55,
+      "submit_p99_ms": 38.669,
+      "complete_p50_ms": 41.077,
+      "complete_p95_ms": 45.779,
+      "complete_p99_ms": 65.102,
+      "elapsed_s": 1.354,
+      "remaining_admission_slots": {},
+      "passed": true
+    },
+    {
+      "scenario": "normal",
+      "concurrency": 1,
+      "repetition": 3,
+      "samples": 32,
+      "queue_limit": 50,
+      "http_statuses": {
+        "202": 32
+      },
+      "terminal_states": {
+        "completed": 32
+      },
+      "unfinished": 0,
+      "queued_acceptances": 0,
+      "notices": 0,
+      "submit_p50_ms": 13.656,
+      "submit_p95_ms": 19.339,
+      "submit_p99_ms": 37.842,
+      "complete_p50_ms": 40.235,
+      "complete_p95_ms": 47.066,
+      "complete_p99_ms": 70.142,
+      "elapsed_s": 1.352,
+      "remaining_admission_slots": {},
+      "passed": true
+    },
+    {
+      "scenario": "normal",
+      "concurrency": 4,
+      "repetition": 1,
+      "samples": 32,
+      "queue_limit": 50,
+      "http_statuses": {
+        "202": 32
+      },
+      "terminal_states": {
+        "completed": 32
+      },
+      "unfinished": 0,
+      "queued_acceptances": 30,
+      "notices": 25,
+      "submit_p50_ms": 21.919,
+      "submit_p95_ms": 57.705,
+      "submit_p99_ms": 88.599,
+      "complete_p50_ms": 100.555,
+      "complete_p95_ms": 151.679,
+      "complete_p99_ms": 152.778,
+      "elapsed_s": 0.901,
+      "remaining_admission_slots": {},
+      "passed": true
+    },
+    {
+      "scenario": "normal",
+      "concurrency": 4,
+      "repetition": 2,
+      "samples": 32,
+      "queue_limit": 50,
+      "http_statuses": {
+        "202": 32
+      },
+      "terminal_states": {
+        "completed": 32
+      },
+      "unfinished": 0,
+      "queued_acceptances": 30,
+      "notices": 30,
+      "submit_p50_ms": 21.3,
+      "submit_p95_ms": 89.026,
+      "submit_p99_ms": 139.925,
+      "complete_p50_ms": 94.105,
+      "complete_p95_ms": 170.452,
+      "complete_p99_ms": 226.267,
+      "elapsed_s": 0.879,
+      "remaining_admission_slots": {},
+      "passed": true
+    },
+    {
+      "scenario": "normal",
+      "concurrency": 4,
+      "repetition": 3,
+      "samples": 32,
+      "queue_limit": 50,
+      "http_statuses": {
+        "202": 32
+      },
+      "terminal_states": {
+        "completed": 32
+      },
+      "unfinished": 0,
+      "queued_acceptances": 30,
+      "notices": 30,
+      "submit_p50_ms": 18.66,
+      "submit_p95_ms": 73.43,
+      "submit_p99_ms": 83.942,
+      "complete_p50_ms": 87.125,
+      "complete_p95_ms": 145.313,
+      "complete_p99_ms": 166.917,
+      "elapsed_s": 0.779,
+      "remaining_admission_slots": {},
+      "passed": true
+    },
+    {
+      "scenario": "normal",
+      "concurrency": 8,
+      "repetition": 1,
+      "samples": 32,
+      "queue_limit": 50,
+      "http_statuses": {
+        "202": 32
+      },
+      "terminal_states": {
+        "completed": 32
+      },
+      "unfinished": 0,
+      "queued_acceptances": 30,
+      "notices": 25,
+      "submit_p50_ms": 19.795,
+      "submit_p95_ms": 113.202,
+      "submit_p99_ms": 155.798,
+      "complete_p50_ms": 178.494,
+      "complete_p95_ms": 293.367,
+      "complete_p99_ms": 363.215,
+      "elapsed_s": 0.844,
+      "remaining_admission_slots": {},
+      "passed": true
+    },
+    {
+      "scenario": "normal",
+      "concurrency": 8,
+      "repetition": 2,
+      "samples": 32,
+      "queue_limit": 50,
+      "http_statuses": {
+        "202": 32
+      },
+      "terminal_states": {
+        "completed": 32
+      },
+      "unfinished": 0,
+      "queued_acceptances": 30,
+      "notices": 27,
+      "submit_p50_ms": 16.814,
+      "submit_p95_ms": 133.944,
+      "submit_p99_ms": 236.681,
+      "complete_p50_ms": 176.735,
+      "complete_p95_ms": 280.251,
+      "complete_p99_ms": 401.815,
+      "elapsed_s": 0.808,
+      "remaining_admission_slots": {},
+      "passed": true
+    },
+    {
+      "scenario": "normal",
+      "concurrency": 8,
+      "repetition": 3,
+      "samples": 32,
+      "queue_limit": 50,
+      "http_statuses": {
+        "202": 32
+      },
+      "terminal_states": {
+        "completed": 32
+      },
+      "unfinished": 0,
+      "queued_acceptances": 30,
+      "notices": 31,
+      "submit_p50_ms": 27.326,
+      "submit_p95_ms": 120.924,
+      "submit_p99_ms": 178.987,
+      "complete_p50_ms": 215.544,
+      "complete_p95_ms": 338.457,
+      "complete_p99_ms": 382.093,
+      "elapsed_s": 0.997,
+      "remaining_admission_slots": {},
+      "passed": true
+    },
+    {
+      "scenario": "normal",
+      "concurrency": 51,
+      "repetition": 1,
+      "samples": 51,
+      "queue_limit": 50,
+      "http_statuses": {
+        "202": 51
+      },
+      "terminal_states": {
+        "completed": 51
+      },
+      "unfinished": 0,
+      "queued_acceptances": 49,
+      "notices": 49,
+      "submit_p50_ms": 324.311,
+      "submit_p95_ms": 499.734,
+      "submit_p99_ms": 550.849,
+      "complete_p50_ms": 984.664,
+      "complete_p95_ms": 1376.08,
+      "complete_p99_ms": 1449.263,
+      "elapsed_s": 1.5,
+      "remaining_admission_slots": {},
+      "passed": true
+    },
+    {
+      "scenario": "normal",
+      "concurrency": 51,
+      "repetition": 2,
+      "samples": 51,
+      "queue_limit": 50,
+      "http_statuses": {
+        "202": 51
+      },
+      "terminal_states": {
+        "completed": 51
+      },
+      "unfinished": 0,
+      "queued_acceptances": 49,
+      "notices": 48,
+      "submit_p50_ms": 296.785,
+      "submit_p95_ms": 549.156,
+      "submit_p99_ms": 604.386,
+      "complete_p50_ms": 823.777,
+      "complete_p95_ms": 1223.099,
+      "complete_p99_ms": 1280.075,
+      "elapsed_s": 1.298,
+      "remaining_admission_slots": {},
+      "passed": true
+    },
+    {
+      "scenario": "normal",
+      "concurrency": 51,
+      "repetition": 3,
+      "samples": 51,
+      "queue_limit": 50,
+      "http_statuses": {
+        "202": 51
+      },
+      "terminal_states": {
+        "completed": 51
+      },
+      "unfinished": 0,
+      "queued_acceptances": 49,
+      "notices": 50,
+      "submit_p50_ms": 318.369,
+      "submit_p95_ms": 485.293,
+      "submit_p99_ms": 562.209,
+      "complete_p50_ms": 827.137,
+      "complete_p95_ms": 1206.343,
+      "complete_p99_ms": 1245.535,
+      "elapsed_s": 1.292,
+      "remaining_admission_slots": {},
+      "passed": true
+    },
+    {
+      "scenario": "bounded_overload",
+      "concurrency": 51,
+      "repetition": 1,
+      "samples": 51,
+      "queue_limit": 2,
+      "http_statuses": {
+        "202": 4,
+        "503": 47
+      },
+      "terminal_states": {
+        "completed": 4
+      },
+      "unfinished": 0,
+      "queued_acceptances": 2,
+      "notices": 3,
+      "submit_p50_ms": 317.038,
+      "submit_p95_ms": 416.294,
+      "submit_p99_ms": 501.175,
+      "complete_p50_ms": 547.653,
+      "complete_p95_ms": 562.389,
+      "complete_p99_ms": 562.389,
+      "elapsed_s": 0.589,
+      "remaining_admission_slots": {},
+      "passed": true
+    },
+    {
+      "scenario": "bounded_overload",
+      "concurrency": 51,
+      "repetition": 2,
+      "samples": 51,
+      "queue_limit": 2,
+      "http_statuses": {
+        "202": 4,
+        "503": 47
+      },
+      "terminal_states": {
+        "completed": 4
+      },
+      "unfinished": 0,
+      "queued_acceptances": 2,
+      "notices": 3,
+      "submit_p50_ms": 494.712,
+      "submit_p95_ms": 818.948,
+      "submit_p99_ms": 860.695,
+      "complete_p50_ms": 914.486,
+      "complete_p95_ms": 939.123,
+      "complete_p99_ms": 939.123,
+      "elapsed_s": 0.975,
+      "remaining_admission_slots": {},
+      "passed": true
+    },
+    {
+      "scenario": "bounded_overload",
+      "concurrency": 51,
+      "repetition": 3,
+      "samples": 51,
+      "queue_limit": 2,
+      "http_statuses": {
+        "202": 4,
+        "503": 47
+      },
+      "terminal_states": {
+        "completed": 4
+      },
+      "unfinished": 0,
+      "queued_acceptances": 2,
+      "notices": 3,
+      "submit_p50_ms": 315.774,
+      "submit_p95_ms": 489.697,
+      "submit_p99_ms": 688.299,
+      "complete_p50_ms": 705.676,
+      "complete_p95_ms": 757.852,
+      "complete_p99_ms": 757.852,
+      "elapsed_s": 0.768,
+      "remaining_admission_slots": {},
+      "passed": true
+    }
+  ]
+}

@@ -53,6 +53,9 @@ def test_documental_query_on_empty_index_returns_no_invented_sources(corpus_envi
 
 
 def test_readiness_accepts_a_healthy_vector_store_without_collections(corpus_environment, monkeypatch):
+    from app.api.routes import health
+
+    monkeypatch.setattr(health, "_ready_cache", health.ReadinessCache())
     env = corpus_environment
     now = utcnow_naive()
     env.db.add(JobLock(

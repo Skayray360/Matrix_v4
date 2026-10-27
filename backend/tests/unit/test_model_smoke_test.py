@@ -191,7 +191,8 @@ def test_all_profiles_keep_own_budget_and_thinking_when_same_model(monkeypatch, 
     "fault,code",
     [
         ("embedding_dimension", "embedding_contract_failed"),
-        ("embedding_zero", "embedding_shape_or_zero_vector"),
+        # El adapter rechaza el vector antes de entregarlo al smoke test.
+        ("embedding_zero", "embedding_contract_failed"),
         ("wrong_number", "synthetic_numeric_answer_mismatch"),
         ("reasoning_leak", "synthetic_numeric_answer_mismatch"),
         ("schema_extra", "structured_contract_failed"),
