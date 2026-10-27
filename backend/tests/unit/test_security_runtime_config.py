@@ -259,10 +259,10 @@ def test_active_session_refreshes_idle_clock_without_extending_absolute_deadline
     monkeypatch.setattr(sessions, "get_settings", lambda: configured(session_idle_minutes=30))
     record = SessionRecord(
         user_id="synthetic-user", last_seen_at=now - timedelta(minutes=29),
-        expires_at=now + timedelta(hours=1), revoked_at=None,
+        expires_at=now + timedelta(hours=1), revoked_at=None, auth_source="local_test",
     )
     deadline = record.expires_at
-    user = User(id=record.user_id, is_active=True)
+    user = User(id=record.user_id, is_active=True, auth_source="local_test", is_synthetic_test=True)
     assert sessions.validate_session_record(SimpleNamespace(get=lambda *_: user), record) == (record, user)
     assert record.last_seen_at == now
     assert record.expires_at == deadline

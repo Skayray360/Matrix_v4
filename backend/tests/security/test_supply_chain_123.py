@@ -39,6 +39,7 @@ def npm_tree(tmp_path, monkeypatch):
     (package / "package.json").write_text(json.dumps({"name": "normal", "version": "1.0.0"}))
     deny = tmp_path / "deny.yaml"
     deny.write_text(yaml.safe_dump({
+        "version": 1,
         "incidents": [{"id": "synthetic", "packages": [{"name": "blocked", "versions": ["1.2.3"]}]}],
         "indicators": {"content_patterns": [r"webhook\.site"], "filenames": ["shai-hulud*"]},
     }))

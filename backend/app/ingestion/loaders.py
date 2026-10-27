@@ -22,6 +22,7 @@ import io
 from collections.abc import Callable
 from dataclasses import dataclass, field, replace
 from pathlib import Path
+from zipfile import ZipFile
 
 from app.common.errors import ExtractionFailedError, UnsupportedFileError
 from app.common.logging import get_logger
@@ -70,6 +71,9 @@ class ExtractedDocument:
     #: Avisos no fatales (paginas sin texto, hojas truncadas...). Se persisten
     #: para que el operador sepa que parte del documento no se indexo.
     warnings: list[str] = field(default_factory=list)
+    #: Se separa del aviso legible: OCR aplicado no significa truncamiento,
+    #: pero paginas/filas omitidas si impiden acreditar cobertura completa.
+    extraction_incomplete: bool = False
 
     @property
     def is_empty(self) -> bool:
@@ -144,6 +148,14 @@ def extract_docx(data: bytes) -> ExtractedDocument:
     blocks: list[TextBlock] = []
     warnings: list[str] = []
     section = ""
+    incomplete = bool(document.element.xpath(".//w:drawing | .//w:pict | .//w:object"))
+    if incomplete:
+        warnings.append("El documento Word contiene imagenes u objetos cuyo contenido no se extrae.")
+    # iter_inner_content cubre el cuerpo; los encabezados y pies viven en
+    # partes independientes. No acreditar su cobertura por leer el cuerpo.
+    if document.element.xpath(".//w:headerReference | .//w:footerReference"):
+        incomplete = True
+        warnings.append("El documento Word contiene encabezados o pies de pagina que no se extraen.")
 
     # Las colecciones paragraphs/tables separadas pierden la posicion original:
     # una tabla podia heredar el ultimo titulo del documento. python-docx expone
@@ -203,7 +215,8 @@ def extract_docx(data: bytes) -> ExtractedDocument:
 
     if not blocks:
         warnings.append("El documento Word no contiene texto extraible.")
-    return ExtractedDocument(blocks=blocks, mime_type=_EXTENSION_MIME[".docx"], warnings=warnings)
+    return ExtractedDocument(blocks=blocks, mime_type=_EXTENSION_MIME[".docx"], warnings=warnings,
+                             extraction_incomplete=incomplete)
 
 
 # ---------------------------------------------------------------------------
@@ -235,6 +248,7 @@ def extract_pdf(data: bytes, *, ocr_options: OcrOptions | None = None) -> Extrac
     blocks: list[TextBlock] = []
     warnings: list[str] = []
     pages = reader.pages
+    incomplete = len(pages) > MAX_PDF_PAGES
     if len(pages) > MAX_PDF_PAGES:
         warnings.append(f"PDF truncado a {MAX_PDF_PAGES} paginas de {len(pages)}.")
 
@@ -262,6 +276,7 @@ def extract_pdf(data: bytes, *, ocr_options: OcrOptions | None = None) -> Extrac
                 except ExtractionFailedError as exc:
                     warnings.append(f"Pagina {page_number}: {exc.message}")
             if not text.strip():
+                incomplete = True
                 empty_pages.append(page_number)
                 continue
         else:
@@ -273,6 +288,7 @@ def extract_pdf(data: bytes, *, ocr_options: OcrOptions | None = None) -> Extrac
                     image_text = ocr_pdf_page(
                         graphics_only_pdf(page), 1, options, preserve_layout=True,
                     )
+                    incomplete = incomplete or not image_text.strip()
                     warnings.append(
                         f"Pagina {page_number}: OCR local de imagenes; "
                         "revisar cifras, filas y columnas contra el original."
@@ -281,8 +297,10 @@ def extract_pdf(data: bytes, *, ocr_options: OcrOptions | None = None) -> Extrac
                         "no se acredita su cobertura."
                     )
                 elif has_images:
+                    incomplete = True
                     mixed_pages_without_ocr.append(page_number)
             except Exception as exc:  # noqa: BLE001 - conservar texto digital y avisar
+                incomplete = True
                 message = exc.message if isinstance(exc, ExtractionFailedError) else "No se pudieron leer las imagenes."
                 warnings.append(f"Pagina {page_number}: {message} Cobertura de imagenes pendiente.")
 
@@ -307,14 +325,15 @@ def extract_pdf(data: bytes, *, ocr_options: OcrOptions | None = None) -> Extrac
         )
         if not options.enabled:
             warnings.append("El OCR local esta desactivado; las paginas escaneadas no se indexaron.")
-    return ExtractedDocument(blocks=blocks, mime_type=_EXTENSION_MIME[".pdf"], warnings=warnings)
+    return ExtractedDocument(blocks=blocks, mime_type=_EXTENSION_MIME[".pdf"], warnings=warnings,
+                             extraction_incomplete=bool(incomplete))
 
 
 def extract_pptx(data: bytes) -> ExtractedDocument:
     from app.ingestion.pptx import extract_pptx_blocks
 
-    blocks, warnings = extract_pptx_blocks(data)
-    return ExtractedDocument(blocks, _EXTENSION_MIME[".pptx"], warnings)
+    blocks, warnings, incomplete = extract_pptx_blocks(data)
+    return ExtractedDocument(blocks, _EXTENSION_MIME[".pptx"], warnings, extraction_incomplete=incomplete)
 
 
 # ---------------------------------------------------------------------------
@@ -344,12 +363,24 @@ def extract_xlsx(data: bytes) -> ExtractedDocument:
     blocks: list[TextBlock] = []
     warnings: list[str] = []
     formula_workbook = None
+    incomplete = False
     try:
+        # read_only omite dibujos/graficos, incluidos sus titulos y etiquetas.
+        # Inspeccionar solo el directorio ZIP no descomprime ni ejecuta esas
+        # partes; su presencia impide acreditar cobertura completa del libro.
+        with ZipFile(io.BytesIO(data)) as archive:
+            if any(
+                name.startswith(("xl/drawings/", "xl/charts/")) and not name.endswith("/")
+                for name in archive.namelist()
+            ):
+                incomplete = True
+                warnings.append("El libro de Excel contiene dibujos o graficos cuyo contenido no se extrae.")
         # Segunda lectura acotada para distinguir celdas vacias de formulas
         # sin resultado guardado. No calcular formulas ni resolver enlaces.
         formula_workbook = load_workbook(io.BytesIO(data), read_only=True, data_only=False, keep_links=False)
         sheet_names = workbook.sheetnames[:MAX_XLSX_SHEETS]
         if len(workbook.sheetnames) > MAX_XLSX_SHEETS:
+            incomplete = True
             warnings.append(f"Libro truncado a {MAX_XLSX_SHEETS} hojas.")
 
         for sheet_name in sheet_names:
@@ -358,6 +389,7 @@ def extract_xlsx(data: bytes) -> ExtractedDocument:
             row_lines: list[str] = []
             missing_formula_values = 0
             if sheet.max_column and sheet.max_column > MAX_XLSX_COLUMNS:
+                incomplete = True
                 warnings.append(f"Hoja '{sheet_name}' truncada a {MAX_XLSX_COLUMNS} columnas.")
             read_rows = min(sheet.max_row or MAX_XLSX_ROWS_PER_SHEET + 1, MAX_XLSX_ROWS_PER_SHEET + 1)
             read_columns = min(sheet.max_column or MAX_XLSX_COLUMNS, MAX_XLSX_COLUMNS)
@@ -370,6 +402,7 @@ def extract_xlsx(data: bytes) -> ExtractedDocument:
             formula_rows = formula_workbook[sheet_name].iter_rows(max_row=read_rows, max_col=read_columns)
             for row_number, (row, formula_row) in enumerate(zip(value_rows, formula_rows, strict=True), start=1):
                 if row_number > MAX_XLSX_ROWS_PER_SHEET:
+                    incomplete = True
                     warnings.append(
                         f"Hoja '{sheet_name}' truncada a {MAX_XLSX_ROWS_PER_SHEET} filas."
                     )
@@ -393,6 +426,7 @@ def extract_xlsx(data: bytes) -> ExtractedDocument:
                     row_lines.append(f"- Fila {row_number}: " + "; ".join(pairs))
 
             if missing_formula_values:
+                incomplete = True
                 warnings.append(
                     f"Hoja '{sheet_name}': {missing_formula_values} formulas sin resultado guardado; "
                     "recalcule y guarde el libro en Excel antes de cargarlo. No se evaluaron formulas."
@@ -425,7 +459,8 @@ def extract_xlsx(data: bytes) -> ExtractedDocument:
 
     if not blocks:
         warnings.append("El libro de Excel no contiene datos extraibles.")
-    return ExtractedDocument(blocks=blocks, mime_type=_EXTENSION_MIME[".xlsx"], warnings=warnings)
+    return ExtractedDocument(blocks=blocks, mime_type=_EXTENSION_MIME[".xlsx"], warnings=warnings,
+                             extraction_incomplete=incomplete)
 
 
 # ---------------------------------------------------------------------------
@@ -447,9 +482,12 @@ def extract_csv(data: bytes) -> ExtractedDocument:
     warnings: list[str] = []
     headers: list[str] = []
     lines: list[str] = []
+    incomplete = False
+    rows_with_extra_values = 0
 
     for index, row in enumerate(reader):
         if index >= MAX_CSV_ROWS:
+            incomplete = True
             warnings.append(f"CSV truncado a {MAX_CSV_ROWS} filas.")
             break
         values = [cell.strip() for cell in row]
@@ -458,15 +496,23 @@ def extract_csv(data: bytes) -> ExtractedDocument:
         if not headers:
             headers = [v or f"col{i + 1}" for i, v in enumerate(values)]
             continue
+        if any(values[len(headers):]):
+            incomplete = True
+            rows_with_extra_values += 1
         pairs = [f"{headers[i]}: {v}" for i, v in enumerate(values) if i < len(headers) and v]
         if pairs:
             lines.append("- " + "; ".join(pairs))
 
+    if rows_with_extra_values:
+        warnings.append(
+            f"CSV: {rows_with_extra_values} filas contienen valores en columnas sin encabezado; "
+            "esos valores no se extrajeron."
+        )
     if headers:
         blocks.append(TextBlock("Columnas: " + ", ".join(headers), section="csv", kind="paragraph"))
     if lines:
         blocks.append(TextBlock("\n".join(lines), section="csv", kind="list"))
-    return ExtractedDocument(blocks=blocks, mime_type="text/csv", warnings=warnings)
+    return ExtractedDocument(blocks=blocks, mime_type="text/csv", warnings=warnings, extraction_incomplete=incomplete)
 
 
 # ---------------------------------------------------------------------------

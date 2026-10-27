@@ -137,6 +137,9 @@ class QueryPolicyValidator:
         if source is None:
             logger.warning("structured.unknown_source", extra={"source_name": plan.source})
             raise StructuredQueryRejectedError("La fuente solicitada no esta disponible.")
+        # La autorizacion y el SQL conservan el mismo contrato aunque el
+        # catalogo se reemplace o se actualice durante esta operacion.
+        source = source.model_copy(deep=True)
         if not source.enabled:
             raise StructuredQueryRejectedError("La fuente solicitada no esta habilitada.")
         self._authorize_source(source, ctx=ctx)
@@ -178,22 +181,22 @@ class QueryPolicyValidator:
             )
         if plan.group_by and not set(plan.group_by).issubset(set(plan.fields)):
             raise StructuredQueryRejectedError("group_by debe estar contenido en los campos proyectados.")
+        if plan.group_by and not set(plan.fields).issubset(set(plan.group_by)):
+            raise StructuredQueryRejectedError("Todos los campos proyectados deben aparecer en group_by.")
+        if (plan.group_by or plan.aggregations) and any(sort.field not in plan.group_by for sort in plan.sort):
+            raise StructuredQueryRejectedError("El orden de una consulta agrupada requiere campos de group_by.")
 
         # --- limites -------------------------------------------------------
         effective_limit = min(plan.limit, entity.max_rows, source.max_rows)
 
         # --- filtros organizacionales obligatorios --------------------------
         injected: list[QueryFilter] = list(self.user_scope(source, entity, ctx=ctx))
-        declared_fields = {f.field for f in plan.filters}
         for column, value in entity.required_filters.items():
             if column not in allowed_columns:
                 raise StructuredQueryRejectedError(
                     "La configuracion de la entidad exige un filtro sobre una columna no permitida."
                 )
-            if column in declared_fields:
-                # El plan ya filtra por esa columna: se conserva el filtro
-                # obligatorio ademas del suyo, nunca en su lugar.
-                pass
+            # El filtro del plan nunca sustituye el obligatorio del catalogo.
             injected.append(
                 QueryFilter.model_validate({"field": column, "operator": "eq", "value": value})
             )

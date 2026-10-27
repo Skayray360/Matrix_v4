@@ -493,6 +493,12 @@ def _reconcile_private_documents(
             raise
         except Exception as exc:  # noqa: BLE001 - preservar otros adjuntos y generacion previa
             db.rollback()
+            if isinstance(exc, GenerationCleanupPendingError):
+                from app.ingestion.pending_generation_cleanup import persist_pending_generation_cleanup
+
+                # La ruta privada necesita el mismo reintento durable que la
+                # corporativa; el error del documento no conserva la generacion.
+                persist_pending_generation_cleanup(db, exc.pending_generation)
             # Solo identificadores opacos; no se publica el nombre del archivo
             # privado ni su contenido dentro del diagnostico administrativo.
             message = str(getattr(exc, "message", "No se pudo leer o reindexar el adjunto."))[:500]

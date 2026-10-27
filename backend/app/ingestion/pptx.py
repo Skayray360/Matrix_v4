@@ -57,10 +57,11 @@ def _cell(text: str) -> str:
     return " ".join(text.split()).replace("|", "\\|")
 
 
-def extract_pptx_blocks(data: bytes) -> tuple[list[TextBlock], list[str]]:
+def extract_pptx_blocks(data: bytes) -> tuple[list[TextBlock], list[str], bool]:
     """Conserva el orden de presentation.xml, que puede diferir de slideN.xml."""
     blocks: list[TextBlock] = []
     warnings: list[str] = []
+    incomplete = False
     try:
         with zipfile.ZipFile(io.BytesIO(data)) as archive:
             entries = archive.infolist()
@@ -95,6 +96,13 @@ def extract_pptx_blocks(data: bytes) -> tuple[list[TextBlock], list[str]]:
                 root = _xml(archive, slide_paths[relation_id])
                 locator = f"diapositiva {number}"
                 section = locator
+                if (root.find(".//p:pic", _NS) is not None or root.find(".//p:oleObj", _NS) is not None
+                        or any(item.find("a:tbl", _NS) is None
+                               for item in root.findall(".//a:graphicData", _NS))):
+                    incomplete = True
+                    warnings.append(
+                        f"Diapositiva {number}: imagenes, graficos u objetos cuyo contenido no se extrae."
+                    )
                 shapes = root.findall(".//p:sp", _NS)
                 tables = root.findall(".//a:tbl", _NS)
                 if len(shapes) + len(tables) > MAX_SHAPES_PER_SLIDE:
@@ -151,9 +159,10 @@ def extract_pptx_blocks(data: bytes) -> tuple[list[TextBlock], list[str]]:
                         if lines:
                             blocks.append(TextBlock("\n".join(lines), section, locator, "table"))
                 if len(blocks) == before:
+                    incomplete = True
                     warnings.append(f"Diapositiva {number}: sin texto extraible; imagenes y notas no se indexan.")
     except ExtractionFailedError:
         raise
     except (KeyError, zipfile.BadZipFile, ElementTree.ParseError, OSError, RuntimeError, ValueError) as exc:
         raise ExtractionFailedError("La presentacion no pudo abrirse (protegida o corrupta).") from exc
-    return blocks, warnings
+    return blocks, warnings, incomplete

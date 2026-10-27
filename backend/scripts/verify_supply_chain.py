@@ -94,12 +94,50 @@ class Report:
         }
 
 
+def _policy_text(value: object) -> bool:
+    return isinstance(value, str) and bool(value.strip()) and value == value.strip()
+
+
+def _validate_denylist(value: object) -> dict:
+    """Una politica vacia o mal tipada no puede aprobar un arbol sin reglas."""
+    if not isinstance(value, dict) or type(value.get("version")) is not int or value["version"] != 1:
+        raise ValueError("version debe ser el entero 1")
+    incidents = value.get("incidents")
+    if not isinstance(incidents, list) or not incidents:
+        raise ValueError("incidents debe ser una lista no vacia")
+    for incident in incidents:
+        if not isinstance(incident, dict) or not _policy_text(incident.get("id")):
+            raise ValueError("cada incidente requiere un id no vacio")
+        packages = incident.get("packages")
+        if not isinstance(packages, list) or not packages:
+            raise ValueError("cada incidente requiere packages no vacio")
+        for entry in packages:
+            if not isinstance(entry, dict) or not _policy_text(entry.get("name")):
+                raise ValueError("cada paquete requiere un name no vacio")
+            versions = entry.get("versions")
+            if isinstance(versions, list):
+                if not versions or not all(_policy_text(item) and item != "*" for item in versions):
+                    raise ValueError("versions debe contener versiones exactas; el comodin se declara como '*'")
+            elif not _policy_text(versions):
+                raise ValueError("versions debe ser una version exacta, una lista o '*'")
+    indicators = value.get("indicators")
+    if not isinstance(indicators, dict):
+        raise ValueError("indicators debe declarar filenames y content_patterns")
+    for field_name in ("filenames", "content_patterns"):
+        patterns = indicators.get(field_name)
+        if not isinstance(patterns, list) or not patterns or not all(_policy_text(item) for item in patterns):
+            raise ValueError(f"indicators.{field_name} debe ser una lista de patrones no vacios")
+    for pattern in indicators["content_patterns"]:
+        re.compile(pattern)
+    return value
+
+
 def load_denylist(path: Path | None = None) -> dict:
     target = path or DENYLIST_PATH
     if not target.exists():
         raise ConfigurationError(f"No existe la lista de bloqueo: {target}")
     try:
-        return yaml.safe_load(target.read_text(encoding="utf-8")) or {}
+        return _validate_denylist(yaml.safe_load(target.read_text(encoding="utf-8")))
     except Exception as exc:  # noqa: BLE001
         raise ConfigurationError(
             f"La lista de bloqueo es invalida: {target.name}", detail=str(exc)
@@ -429,7 +467,12 @@ def check_npm_lock(report: Report, denylist: dict, packages: list[tuple], *, loc
 
 def run(*, allowed_script_packages: set[str] | None = None, lock_only: bool = False) -> Report:
     report = Report()
-    denylist = load_denylist()
+    try:
+        denylist = load_denylist()
+    except ConfigurationError as exc:
+        report.checks["politica_de_suministro"] = "FAIL (politica ausente o invalida)"
+        report.findings.append(Finding("critical", "politica_de_suministro_invalida", exc.message))
+        return report
 
     check_reproducible_install(report)
     check_package_manager_pin(report)

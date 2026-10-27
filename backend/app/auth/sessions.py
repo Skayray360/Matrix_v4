@@ -21,7 +21,7 @@ from sqlalchemy.orm import Session
 from app.common.errors import UnauthorizedError
 from app.common.ids import new_opaque_token, sha256_text, utcnow_naive
 from app.common.logging import get_logger
-from app.config import get_settings
+from app.config import AppEnv, AuthProvider, get_settings
 from app.database.models import SessionRecord, User
 
 logger = get_logger(__name__)
@@ -92,16 +92,30 @@ def resolve_session_id(db: Session, session_id: str | None) -> tuple[SessionReco
 
 def validate_session_record(db: Session, record: SessionRecord) -> tuple[SessionRecord, User]:
     """Una sola validacion para cookies y trabajos previamente autenticados."""
+    settings = get_settings()
     now = utcnow_naive()
-    idle_limit = timedelta(minutes=get_settings().session_idle_minutes)
+    idle_limit = timedelta(minutes=settings.session_idle_minutes)
     if (
         record.revoked_at is not None or record.expires_at <= now
         or record.last_seen_at + idle_limit <= now
     ):
         raise UnauthorizedError("La sesion expiro. Vuelva a iniciar sesion.")
 
+    # Deshabilitar un proveedor debe invalidar tambien sus cookies y trabajos
+    # pendientes, no solo impedir nuevos logins. La clave HMAC del contexto no
+    # invalida los tokens opacos persistidos al cambiar de entorno/proveedor.
+    if record.auth_source != settings.auth_provider:
+        raise UnauthorizedError()
+    if record.auth_source == AuthProvider.LOCAL_TEST and (
+        settings.app_env not in (AppEnv.DEVELOPMENT, AppEnv.TEST) or not settings.local_test_auth_enabled
+    ):
+        raise UnauthorizedError()
+
     user = db.get(User, record.user_id)
-    if user is None or not user.is_active:
+    if (
+        user is None or not user.is_active or user.auth_source != record.auth_source
+        or (user.is_synthetic_test and record.auth_source != AuthProvider.LOCAL_TEST)
+    ):
         raise UnauthorizedError()
 
     record.last_seen_at = now

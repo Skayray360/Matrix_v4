@@ -11,7 +11,7 @@ from contextvars import ContextVar
 from dataclasses import replace
 from threading import Event
 from typing import Any, Literal, Protocol
-from urllib.parse import quote, urlparse
+from urllib.parse import urlparse
 
 import httpx
 from jsonschema import Draft202012Validator
@@ -83,52 +83,6 @@ class InferenceClient(Protocol):
     def embed_one(self, text: str, *, model: str | None = None) -> list[float]: ...
 
 
-def vertex_schema(schema: dict[str, Any]) -> dict[str, Any]:
-    """Subset explicito de responseSchema. No se eliminan restricciones en silencio.
-
-    La validacion completa de JSON Schema ocurre otra vez al recibir la respuesta.
-    """
-    definitions = schema.get("$defs", {})
-
-    def convert(node: dict[str, Any], depth: int = 0) -> dict[str, Any]:
-        if depth > 24:
-            raise ConfigurationError("El schema es recursivo o demasiado profundo.")
-        if "$ref" in node:
-            ref = node["$ref"]
-            if not ref.startswith("#/$defs/") or ref[8:] not in definitions:
-                raise ConfigurationError("Solo se admiten referencias locales en el schema.")
-            return convert(definitions[ref[8:]], depth + 1)
-        out: dict[str, Any] = {}
-        for key, value in node.items():
-            if key in ("$defs", "title", "default", "additionalProperties"):
-                # Vertex no soporta estos campos; jsonschema los exige en la salida.
-                continue
-            if key == "type":
-                if value == "null":
-                    out["nullable"] = True
-                else:
-                    out[key] = value.upper()
-            elif key == "properties":
-                out[key] = {name: convert(child, depth + 1) for name, child in value.items()}
-            elif key == "items":
-                out[key] = convert(value, depth + 1)
-            elif key == "anyOf":
-                children = [child for child in value if child.get("type") != "null"]
-                if len(children) != len(value):
-                    out["nullable"] = True
-                if len(children) == 1:
-                    out.update(convert(children[0], depth + 1))
-                else:
-                    out[key] = [convert(child, depth + 1) for child in children]
-            elif key in ("description", "enum", "required", "format", "minimum", "maximum", "minItems", "maxItems"):
-                out[key] = value
-            else:
-                raise ConfigurationError(f"responseSchema no admite la restriccion {key}.")
-        return out
-
-    return convert(schema)
-
-
 class ModelClient(OllamaClient):
     """Fachada compatible con el cliente previo; modelos y protocolos vienen de .env.
 
@@ -141,7 +95,7 @@ class ModelClient(OllamaClient):
         self.settings = settings or get_settings()
         s = self.settings
         providers = (s.llm_provider, s.llm_deep_provider, s.llm_embedding_provider)
-        if not s.llm_local_only or "vertex" in providers:
+        if not s.llm_local_only or any(provider not in {"ollama", "openai_compatible"} for provider in providers):
             raise ConfigurationError(
                 "Matrix requiere inferencia y embeddings locales en todos los entornos; "
                 "LLM_LOCAL_ONLY=false y el adapter Vertex no estan habilitados en este producto."
@@ -166,7 +120,6 @@ class ModelClient(OllamaClient):
         ):
             raise ConfigurationError("Los modelos cloud de Ollama estan deshabilitados en modo local.")
         super().__init__(client=client, settings=self.settings, **kwargs)
-        self._vertex_validated: dict[str, float] = {}
 
     @staticmethod
     def _canonical_digest(value: str) -> str:
@@ -175,7 +128,10 @@ class ModelClient(OllamaClient):
 
     def _assert_local_request(self, url: str) -> None:
         s = self.settings
-        if not s.llm_local_only or "vertex" in (s.llm_provider, s.llm_deep_provider, s.llm_embedding_provider):
+        if not s.llm_local_only or any(
+            provider not in {"ollama", "openai_compatible"}
+            for provider in (s.llm_provider, s.llm_deep_provider, s.llm_embedding_provider)
+        ):
             raise ConfigurationError("Matrix requiere inferencia local; el cambio cloud fue rechazado.")
         parsed = urlparse(url)
         hosts = {host.strip().casefold() for host in s.llm_local_hosts.split(",")}
@@ -295,14 +251,6 @@ class ModelClient(OllamaClient):
             secret = self.settings.llm_api_key.get_secret_value()
             if secret:
                 headers["Authorization"] = f"Bearer {secret}"
-        elif self.settings.llm_vertex_base_url and url.startswith(self.settings.llm_vertex_base_url.rstrip("/") + "/"):
-            # Se carga google-auth solo cuando TI habilita el adapter cloud.
-            import google.auth
-            from google.auth.transport.requests import Request
-
-            credentials, _ = google.auth.default(scopes=["https://www.googleapis.com/auth/cloud-platform"])
-            credentials.refresh(Request())
-            headers["Authorization"] = f"Bearer {credentials.token}"
         with admission("inference", self.settings.inference_max_inflight):
             # La espera de un worker consume el mismo presupuesto de la consulta.
             remaining = self._remaining(call_deadline - time.monotonic())
@@ -434,10 +382,7 @@ class ModelClient(OllamaClient):
                 stop=stop, response_schema=response_schema, think=think, top_k=top_k, started=started,
             )
         else:
-            result = self._vertex_chat(
-                model=model, messages=messages, temperature=temperature, max_tokens=max_tokens,
-                stop=stop, response_schema=response_schema, think=think, top_k=top_k, started=started,
-            )
+            raise ConfigurationError("Proveedor de inferencia local no soportado.")
         if not isinstance(result.content, str):
             raise InferenceFailureError(InferenceFailureKind.FORMAT, "Respuesta de chat no valida.")
         if not result.content.strip():
@@ -509,54 +454,6 @@ class ModelClient(OllamaClient):
         )
         return result
 
-    def _vertex_chat(
-        self, *, model: str, messages: list[dict[str, str]], temperature: float,
-        max_tokens: int | None, stop: list[str] | None, response_schema: dict[str, Any] | None,
-        think: bool | None, top_k: int | None, started: float,
-    ) -> ChatResult:
-        """Construye y valida Vertex sin mezclar sus campos con Ollama."""
-        s = self.settings
-        if think is not None or top_k is not None:
-            raise ConfigurationError("Thinking/top_k por perfil requieren un adapter local compatible.")
-        config: dict[str, Any] = {"temperature": temperature, "topP": s.llm_top_p}
-        if max_tokens is not None:
-            config["maxOutputTokens"] = max_tokens
-        if stop:
-            config["stopSequences"] = stop
-        if response_schema is not None:
-            config.update(responseMimeType="application/json", responseSchema=vertex_schema(response_schema))
-        payload = {
-            "contents": [
-                {"role": "model" if m["role"] == "assistant" else "user", "parts": [{"text": m["content"]}]}
-                for m in messages
-                if m["role"] != "system"
-            ],
-            "generationConfig": config,
-        }
-        systems = [m["content"] for m in messages if m["role"] == "system"]
-        if systems:
-            payload["systemInstruction"] = {"parts": [{"text": "\n\n".join(systems)}]}
-        data = self._post(
-            s.llm_vertex_base_url.rstrip("/") + "/" + quote(model, safe="") + ":generateContent", payload
-        )
-        candidates = data.get("candidates") or []
-        if (
-            not isinstance(candidates, list)
-            or not candidates
-            or not isinstance(candidates[0], dict)
-            or candidates[0].get("finishReason") != "STOP"
-        ):
-            raise InferenceFailureError(InferenceFailureKind.INCOMPLETE, "Vertex rechazo o trunco la respuesta.")
-        candidate_content = candidates[0].get("content")
-        parts = candidate_content.get("parts") if isinstance(candidate_content, dict) else None
-        if not isinstance(parts, list) or any(
-            not isinstance(part, dict) or not isinstance(part.get("text", ""), str) for part in parts
-        ):
-            raise InferenceFailureError(InferenceFailureKind.FORMAT, "Vertex devolvio contenido no valido.")
-        content = "".join(part.get("text", "") for part in parts if not part.get("thought"))
-        result = ChatResult(content=content, model=model, latency_ms=int((time.perf_counter() - started) * 1000))
-        return result
-
     def _ollama_chat(self, **arguments: Any) -> ChatResult:
         """Regenera una sola salida terminada; conserva etapa, pin y evidencia.
 
@@ -608,12 +505,24 @@ class ModelClient(OllamaClient):
     def embed(self, texts: list[str], *, model: str | None = None) -> list[list[float]]:
         if not texts:
             return []
+        target_model = model or self.embedding_model
+        if "cloud" in target_model.casefold():
+            raise ConfigurationError("Los modelos cloud no estan habilitados en este producto.")
+        expected = self.settings.llm_embedding_digest
+        if expected:
+            if target_model != self.embedding_model:
+                raise ConfigurationError("Los embeddings requieren el modelo fijado en la configuracion.")
+            # El preflight no protege procesos ya arrancados contra un cambio de
+            # pesos. Verificar antes de cada lote, como se hace para generacion.
+            self._require_model_pin(
+                provider=self.settings.llm_embedding_provider, model=target_model, expected=expected,
+            )
         if self.settings.llm_embedding_provider == "ollama":
-            vectors = super().embed(texts, model=model)
+            vectors = super().embed(texts, model=target_model)
         else:
             data = self._post(
                 self.settings.llm_api_base_url.rstrip("/") + "/embeddings",
-                {"model": model or self.embedding_model, "input": texts},
+                {"model": target_model, "input": texts},
             )
             entries = data.get("data") or []
             if (
@@ -650,6 +559,11 @@ class ModelClient(OllamaClient):
         revision = self.settings.llm_embedding_revision
         if not revision or revision == "unverified":
             raise ConfigurationError("LLM_EMBEDDING_REVISION es obligatoria para el runtime compatible.")
+        # embed_one consulta la revision ANTES de acceder a la cache; una
+        # revision declarada no acredita que el runtime conserve los mismos pesos.
+        self._require_model_pin(
+            provider="openai_compatible", model=self.embedding_model, expected=self.settings.llm_embedding_digest,
+        )
         return revision
 
     def probe_embedding_dimension(self, *, model: str | None = None) -> int:
@@ -690,16 +604,4 @@ class ModelClient(OllamaClient):
             ):
                 if provider == "openai_compatible" and expected and dict(inventory.digests).get(model) != expected:
                     raise ConfigurationError("El runtime compatible no acredita el digest fijado en .env.")
-        # Sonda sintetica solo con opt-in cloud; cache de cinco minutos por proceso.
-        for provider, model in ((s.llm_provider, s.ollama_fast_model), (s.llm_deep_provider, s.ollama_deep_model)):
-            if provider == "vertex":
-                if self._vertex_validated.get(model, 0) < time.monotonic():
-                    self.chat(
-                        model=model,
-                        messages=[{"role": "user", "content": "Reply only OK."}],
-                        temperature=0,
-                        max_tokens=128,
-                    )
-                    self._vertex_validated[model] = time.monotonic() + 300
-                names.append(model)
         return ModelInventory(names=tuple(names), digests=tuple(digests))

@@ -1,0 +1,101 @@
+# Creado por Aldo Garcia.
+name: Calidad aislada
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: quality-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend y seguridad (datos sinteticos)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      APP_ENV: test
+      PYTHONNOUSERSITE: "1"
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.12.16"
+      - name: Dependencias fijadas, sin compilar paquetes
+        run: |
+          python -m pip install --only-binary=:all: uv==0.13.6
+          uv sync --locked --extra dev --no-install-project --no-build
+      - name: Lint y documentacion
+        run: |
+          .venv/bin/python -m ruff check app scripts seeds tests
+          .venv/bin/python -m mypy app
+          .venv/bin/python -m scripts.verify_headers
+          .venv/bin/python -m scripts.verify_documentation
+          .venv/bin/python -m scripts.preflight --integrity-only
+      - name: Suite completa de pruebas aisladas
+        run: |
+          .venv/bin/python - <<'PY'
+          import json
+          import os
+          import sys
+          from dataclasses import asdict
+          from scripts.run_quality_gate import PASS, TEST_REPORTS, _backend_tests
+          TEST_REPORTS.mkdir(parents=True, exist_ok=True)
+          result = _backend_tests(sys.executable, "standalone")
+          print(json.dumps(asdict(result), indent=2))
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as summary:
+              summary.write(f"Backend aislado: **{result.status}**. {result.detail}\n\n")
+              summary.write("No acredita integracion MySQL/Ollama ni instalacion Windows.\n")
+          raise SystemExit(0 if result.status == PASS and result.collection is not None else 1)
+          PY
+      - name: Secretos y dependencias conocidas
+        run: |
+          .venv/bin/python -m scripts.secrets_scan
+          .venv/bin/python -m scripts.verify_supply_chain --lock-only
+          .venv/bin/python - <<'PY'
+          import os
+          import tomllib
+          from pathlib import Path
+          lock = tomllib.loads(Path("uv.lock").read_text())
+          packages = sorted({(p["name"], p["version"]) for p in lock["package"] if "registry" in p.get("source", {})})
+          target = Path(os.environ["RUNNER_TEMP"]) / "matrix-lock-audit.txt"
+          target.write_text("".join(f"{name}=={version}\n" for name, version in packages))
+          PY
+          .venv/bin/python -m pip_audit --progress-spinner off --disable-pip --no-deps -r "$RUNNER_TEMP/matrix-lock-audit.txt"
+
+  frontend:
+    name: Frontend y build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "24.22.1"
+      - name: Instalar sin scripts de terceros
+        run: corepack npm ci --ignore-scripts --no-audit --no-fund
+      - name: Validar interfaz
+        run: |
+          corepack npm run typecheck
+          corepack npm run lint
+          corepack npm run format:check
+          corepack npm test
+          corepack npm run build
+          corepack npm audit --audit-level=low
+          corepack npm audit signatures

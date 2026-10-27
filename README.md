@@ -90,4 +90,55 @@ Los adaptadores de modelos separan la integración con el runtime de la lógica 
 | `frontend/` | Interfaz de chat, componentes, integración con la API y pruebas de interacción |
 | `knowledge-base/` | Área reservada para conocimiento local autorizado, excluido de la distribución de código |
 
+## Instalación y operación
+
+### Windows local
+
+El controlador actual requiere **Windows x64, PowerShell x64 5.1 o posterior y WampServer**. El proyecto debe estar dentro del `www` del WampServer elegido, por ejemplo `C:\wamp64\www\Matrix_v4` o `D:\wamp64\www\Matrix_v4`. Una carpeta independiente `C:\www` no satisface ese requisito. WAMP aporta Apache; Matrix administra su propio MySQL.
+
+1. Conserve una copia completa y coherente de cualquier instalación anterior. Para una instalación nueva, extraiga el código en una carpeta vacía; no superponga archivos sobre datos existentes.
+2. Mantenga activo su Ollama local y compruebe con `ollama list` las etiquetas de generación y embeddings de [env.example](backend/config/env.example). El instalador no descarga ni sustituye esos modelos.
+3. Ejecute `instalar.bat` como administrador para preparar runtimes, dependencias fijadas, cuenta local, esquema, índice e integración Apache. La preparación requiere red hacia distribuidores y servicios de avisos de seguridad. Los pins están en [runtime-manifest.json](backend/config/runtime-manifest.json).
+4. El usuario inicial es `Matrix`; consulte la contraseña **solo localmente** en `backend/config/secrets/local-admin-password.txt` y cámbiela al entrar. La configuración privada queda en `backend/config/.env`.
+5. Después utilice `iniciar.bat`, `detener.bat` y `diagnosticar.bat`. El acceso local predeterminado es `http://127.0.0.1:8085`. Detener Matrix conserva Apache y el Ollama externo.
+
+Los directorios `backend/config`, `backend/runtime` y `knowledge-base` pertenecen a la instalación. No se deben borrar para actualizar código. `frontend/dist` se distribuye y se reconstruye con el Node/npm fijado; no es basura. Antes de actualizar, detenga Matrix y use `scripts.installation_backup` desde el Python de esa instalación para preparar y verificar un respaldo en frío. Ese comando no acredita una recuperación MySQL: ensáyela en una copia separada antes de reemplazar la instalación.
+
+### Desarrollo y comprobaciones aisladas
+
+Utilice una copia sin `.env`, documentos ni datos productivos, Python 3.12 y Node compatible con `frontend/package.json`. Desde la raíz:
+
+```bash
+uv sync --project backend --locked --extra dev --no-install-project --no-build
+cd frontend
+corepack npm ci --ignore-scripts --no-audit --no-fund
+corepack npm run typecheck
+corepack npm run lint
+corepack npm test
+corepack npm run build
+```
+
+Desde `backend`, en Linux/macOS:
+
+```bash
+APP_ENV=test .venv/bin/python -m pytest tests -q -p scripts.quality_gate_pytest --matrix-test-group standalone
+.venv/bin/python -m ruff check app scripts seeds tests
+.venv/bin/python -m scripts.verify_documentation
+.venv/bin/python -m scripts.secrets_scan
+```
+
+En PowerShell use `$env:APP_ENV='test'` y `.venv\Scripts\python.exe`. El grupo `standalone` recopila toda la suite y selecciona únicamente casos aislados. Las pruebas que requieren MySQL/Ollama, la evaluación de respuestas reales y la instalación Windows se validan por separado. El gate completo (`python -m scripts.run_quality_gate`) exige un entorno desechable y conserva el estado `INCOMPLETE` si falta evidencia; no es un comando de diagnóstico para producción.
+
+La automatización de GitHub ejecuta lint, contratos, pruebas aisladas, build y auditoría de dependencias en cada pull request. Las acciones están fijadas por commit y el token tiene permiso de lectura. Los casos omitidos bloquean esa comprobación: el runner necesita PowerShell para las pruebas sintéticas del controlador. Una prueba aislada aprobada no certifica capacidad ni calidad documental con el hardware y corpus de una instalación.
+
+La [auditoría del 27 de octubre de 2026](backend/release/audit-2026-10-27/report.md) registra las correcciones, el alcance de lectura, las pruebas y los riesgos pendientes. Su estado es provisional hasta validar la instalación real.
+
+### Límites y actualización segura
+
+- Los modelos y sus revisiones deben corresponder a los digests privados de la instalación. Cambiar embeddings requiere reconstruir y validar el índice.
+- Los índices anteriores a esta auditoría no acreditan cobertura completa de extracción. Ejecute una reconciliación completa para incorporar los nuevos metadatos; el alta incremental de archivos nuevos no actualiza documentos existentes. Las omisiones conocidas conservan una advertencia de respuesta parcial.
+- Para exposición a red se requieren HTTPS, cookies seguras y un proveedor de identidad configurado. No convierta el perfil local en publicación LAN cambiando únicamente `APP_HOST`.
+- Las políticas de categorías rechazan campos desconocidos, nombres repetidos y claves YAML duplicadas: corrija la configuración si el arranque la rechaza.
+- El perfil Docker usa otra copia Linux y estado separado; no comparte un datadir activo con la instalación Windows. Su build y arranque necesitan validación específica en el entorno destino.
+
 Creado por Aldo Garcia.

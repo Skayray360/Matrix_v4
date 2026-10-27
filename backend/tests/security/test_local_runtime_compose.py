@@ -124,7 +124,8 @@ def test_imagenes_fijadas_y_build_sin_secretos_ni_estado():
     for line in dockerfile.splitlines():
         if line.startswith("FROM "):
             assert re.search(r"@sha256:[0-9a-f]{64}(?: AS \w+)?$", line)
-    assert "uv==0.13.5" in dockerfile
+    assert "uv==0.13.6" in dockerfile
+    assert "FROM python:3.12.16-slim@sha256:" in dockerfile
     assert "pip==26.2.2" in dockerfile
     assert "--locked --no-dev --no-install-project --no-build" in dockerfile
     assert dockerfile.index("RUN uv audit ") < dockerfile.index("RUN uv sync ")

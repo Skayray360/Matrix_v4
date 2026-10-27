@@ -17,7 +17,7 @@ from app.config.settings import Settings
 from app.database import migrator
 from app.database.models import ConversationMessage
 from app.llm.ollama_client import ChatResult
-from app.llm.provider import ModelClient, vertex_schema
+from app.llm.provider import ModelClient
 from app.memory.service import MemoryService, authorization_fingerprint
 from app.structured_data.schemas import StructuredQueryPlan
 from tests.conftest import make_context
@@ -119,21 +119,20 @@ def test_malformed_ollama_embedding_is_rejected(monkeypatch, value):
         client.embed(["documento sintetico"])
 
 
-@pytest.mark.parametrize("value", ["MX", 12, 1.5, True, None, ["MX", 12, False, None]])
-def test_actual_query_schema_keeps_filter_types_for_vertex(value):
+@pytest.mark.parametrize("operator,value", [
+    ("eq", "MX"), ("eq", 12), ("eq", 1.5), ("eq", True),
+    ("is_null", None), ("in", ["MX", 12, False]),
+])
+def test_actual_query_schema_keeps_filter_types(operator, value):
     schema = StructuredQueryPlan.model_json_schema()
     payload = {
         "source": "rh_demo",
         "entity": "employees",
-        "filters": [{"field": "country", "operator": "eq", "value": value}],
+        "filters": [{"field": "country", "operator": operator, "value": value}],
     }
     Draft202012Validator(schema).validate(payload)
     parsed = StructuredQueryPlan.model_validate(payload)
     assert parsed.filters[0].value == value
-    converted = vertex_schema(schema)
-    typed_value = converted["properties"]["filters"]["items"]["properties"]["value"]
-    assert typed_value["nullable"] is True
-    assert {branch["type"] for branch in typed_value["anyOf"]} == {"STRING", "NUMBER", "BOOLEAN", "ARRAY"}
 
 
 @pytest.mark.parametrize("provider", ["ollama", "openai_compatible"])

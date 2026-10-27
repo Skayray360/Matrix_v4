@@ -503,6 +503,12 @@ class Settings(BaseSettings):
                     "DATABASE_URL requiere un usuario dedicado con contrasena "
                     "en standalone, staging, production o al exponer el servicio en red."
                 )
+        # Cambiar a un IdP real no convierte HTTP en un transporte seguro.
+        # Aplica tambien a development/test publicados detras de un proxy.
+        if exposed and (urlparse(self.app_base_url).scheme != "https" or not self.session_cookie_secure):
+            raise ValueError(
+                "La exposicion en red requiere HTTPS y SESSION_COOKIE_SECURE=true con cualquier proveedor."
+            )
         return self
 
     @model_validator(mode="after")

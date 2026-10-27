@@ -30,7 +30,7 @@ from dataclasses import dataclass, field
 from qdrant_client import models
 
 from app.authorization.context import UserContext
-from app.common.errors import QdrantUnavailableError
+from app.common.errors import IndexUpdateRequiredError, QdrantUnavailableError
 from app.common.logging import get_logger
 from app.config import get_settings
 from app.llm.ollama_client import get_ollama_client
@@ -274,6 +274,11 @@ class Retriever:
         # El prefijo de tarea es obligatorio para embeddinggemma: sin el, la
         # consulta y los documentos no son comparables (ver embedding_prompts).
         query_vector = self._llm.embed_one(format_query(question))
+        if indexing_fingerprint(self._llm) != fingerprint:
+            # El catalogo y su filtro se resolvieron con la revision anterior.
+            # Nunca comparar un vector nuevo con ese indice aunque su dimension
+            # coincida; reiniciar/reindexar es preferible a citas irrelevantes.
+            raise IndexUpdateRequiredError()
         candidates: list[ScoredPayload] = []
         scopes = [SCOPE_CORPORATE]
         if include_private and conversation_id:
@@ -352,6 +357,7 @@ class Retriever:
             after_dedup=len(deduped),
             best_score=best_score,
             used_private_scope=used_private,
+            truncated=any(item.payload.get("extraction_incomplete") is not False for item in final),
         )
 
     def _resolve_explicit_documents(

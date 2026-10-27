@@ -203,7 +203,7 @@ class VectorStore:
             "sensitivity": sensitivity,
         }
         fields = [*expected_metadata, "chunk_id", "chunk_index", "allowed_roles", "allowed_groups",
-                  "filename", "relative_path", "source_id", "text"]
+                  "filename", "relative_path", "source_id", "text", "extraction_incomplete"]
         seen: set[int] = set()
         offset: Any | None = None
         try:
@@ -230,6 +230,7 @@ class VectorStore:
                     payload = point.payload or {}
                     index = payload.get("chunk_index")
                     if (type(index) is not int or not 0 <= index < expected_chunks or index in seen
+                            or type(payload.get("extraction_incomplete")) is not bool
                             or any(payload.get(key) != value for key, value in expected_metadata.items())
                             or payload.get("chunk_id") != str(point.id)
                             or payload.get("allowed_roles") != []
@@ -560,7 +561,9 @@ class VectorStore:
                 int(item.payload.get("chunk_index", 0)),
             )
         )
-        return collected[:limit], len(collected) > limit
+        # Los payloads anteriores a este metadato no acreditan completitud.
+        incomplete = any(item.payload.get("extraction_incomplete") is not False for item in collected[:limit])
+        return collected[:limit], len(collected) > limit or incomplete
 
     def list_authorized_documents(
         self,
@@ -704,7 +707,8 @@ class VectorStore:
         # Una sola consulta SQL final, tambien para detectar una eliminacion o
         # reindexacion ocurrida mientras se leian los documentos anteriores.
         visible = visible_candidates(collected)
-        return visible, truncated or len(visible) < len(collected)
+        incomplete = any(item.payload.get("extraction_incomplete") is not False for item in visible)
+        return visible, truncated or len(visible) < len(collected) or incomplete
 
     # ------------------------------------------------------------- utilidades
     def count(self, collection: str) -> int:

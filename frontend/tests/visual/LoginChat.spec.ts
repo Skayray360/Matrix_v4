@@ -166,7 +166,9 @@ async function noOverflow(page: Page) {
   ).toBe(0);
 }
 
-test("recuperación de un fallo de render mediante recarga", async ({ page }, testInfo) => {
+test("un perfil malformado se rechaza antes de renderizar y permite reintentar", async ({
+  page,
+}, testInfo) => {
   await page.setViewportSize({ width: 320, height: 667 });
   let profileReads = 0;
   const errors: string[] = [];
@@ -183,11 +185,11 @@ test("recuperación de un fallo de render mediante recarga", async ({ page }, te
     });
   });
   await page.goto("/");
-  await expect(page.getByRole("alert")).toContainText("No se pudo mostrar Matrix RH");
+  await expect(page.getByRole("alert")).toContainText("No se pudo verificar su sesión");
   await expect(page.locator(".recovery-card")).not.toContainText("TypeError");
   await noOverflow(page);
   await page.screenshot({ path: testInfo.outputPath("recovery-mobile.png"), fullPage: true });
-  await page.getByRole("button", { name: "Recargar Matrix RH" }).click();
+  await page.getByRole("button", { name: "Reintentar conexión" }).click();
   await expect(
     page.getByRole("heading", { name: "Consulta conocimiento interno con contexto" }),
   ).toBeVisible();
@@ -319,8 +321,16 @@ test("menú móvil, tema oscuro y adjunto privado", async ({ page }, testInfo) =
   await login(page);
   await page.getByRole("button", { name: "Conversaciones", exact: true }).click();
   await expect(page.locator(".sidebar")).toHaveAttribute("data-open", "true");
+  await expect(page.locator(".sidebar")).toBeVisible();
   await page.locator(".sidebar-close").click();
   await expect(page.locator(".sidebar")).toHaveAttribute("data-open", "false");
+  await expect(page.locator(".sidebar")).toBeHidden();
+  // El menu cerrado tampoco debe capturar el foco fuera de la pantalla.
+  await page.getByRole("button", { name: "Conversaciones", exact: true }).focus();
+  await page.keyboard.press("Shift+Tab");
+  expect(
+    await page.locator(".sidebar").evaluate((node) => node.contains(document.activeElement)),
+  ).toBe(false);
   await page.getByTestId("theme-toggle").click();
   await page.getByTestId("theme-toggle").click();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");

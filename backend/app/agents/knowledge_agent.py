@@ -1070,9 +1070,9 @@ class KnowledgeAgent:
             return answer
         return (
             answer.rstrip()
-            + "\n\nNota: el material o el contexto de esta solicitud supera el presupuesto "
-            "operativo. La respuesta cubre una seleccion de unidades completas; "
-            "solicite el resto por secciones."
+            + "\n\nNota: la extraccion o recuperacion disponible no acredita la cobertura "
+            "completa del documento. La respuesta cubre una seleccion de unidades completas; "
+            "consulte el original o solicite el resto por secciones."
         )
 
     @staticmethod

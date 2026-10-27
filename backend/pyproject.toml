@@ -45,7 +45,6 @@ dependencies = [
 [project.optional-dependencies]
 # Suites de calidad y seguridad. Se instalan por separado para que un equipo
 # de produccion no arrastre herramientas de auditoria.
-vertex = ["google-auth>=2.40,<3", "requests>=2.32.4,<3"]
 dev = [
     "pytest>=9.0.3,<10",
     "pytest-asyncio>=1.3,<2",

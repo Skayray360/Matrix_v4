@@ -21,7 +21,7 @@ from pathlib import Path
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, field_validator
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, update
 from sqlalchemy.orm import Session
 
 from app.common.errors import ConfigurationError
@@ -35,7 +35,10 @@ from app.database.models import (
     Permission,
     Role,
     RolePermission,
+    SessionRecord,
     StructuredSourcePermission,
+    User,
+    UserRole,
 )
 from app.structured_data.sources import load_sources
 
@@ -281,12 +284,14 @@ def sync(*, prune: bool = False, dry_run: bool = False, allow_placeholders: bool
         "created": 0,
         "skipped": 0,
         "pruned": 0,
+        "roles_revoked": 0,
+        "sessions_revoked": 0,
     }
 
     with session_scope() as db:
         declared_roles = _sync_declared_roles(mapping_file, db)
         _sync_declared_structured_sources(declared_roles, db)
-        declared_keys: set[tuple[str, str, str]] = set()
+        declared_keys: set[tuple[str, str, str, str]] = set()
 
         for entry in mapping_file.mappings:
             if entry.external_key in PLACEHOLDER_KEYS and not allow_placeholders:
@@ -305,7 +310,7 @@ def sync(*, prune: bool = False, dry_run: bool = False, allow_placeholders: bool
                     f"El rol '{entry.role}' no existe en la base. Cree el rol antes de mapearlo."
                 )
 
-            declared_keys.add((entry.provider, entry.external_kind, entry.external_key))
+            declared_keys.add((entry.provider, entry.external_kind, entry.external_key, role.id))
             exists = db.execute(
                 select(EntraGroupRoleMapping).where(
                     EntraGroupRoleMapping.provider == entry.provider,
@@ -331,14 +336,45 @@ def sync(*, prune: bool = False, dry_run: bool = False, allow_placeholders: bool
 
         if prune:
             current = db.execute(select(EntraGroupRoleMapping)).scalars().all()
+            pruned_roles: dict[str, set[str]] = {}
             for row in current:
-                key = (row.provider, row.external_kind, row.external_key)
+                key = (row.provider, row.external_kind, row.external_key, row.role_id)
                 if key not in declared_keys:
                     if not dry_run:
+                        pruned_roles.setdefault(row.provider, set()).add(row.role_id)
                         db.execute(
                             delete(EntraGroupRoleMapping).where(EntraGroupRoleMapping.id == row.id)
                         )
                     stats["pruned"] += 1
+
+            for provider, role_ids in pruned_roles.items():
+                # Los claims externos no viven en la sesion local. Tras retirar
+                # un mapeo, exigir login evita conservar permisos hasta expirar.
+                affected_users = (
+                    select(UserRole.user_id).join(User, UserRole.user_id == User.id)
+                    .where(User.auth_source == provider, UserRole.role_id.in_(role_ids))
+                )
+                revoked_sessions = db.execute(
+                    update(SessionRecord).where(
+                        SessionRecord.auth_source == provider,
+                        SessionRecord.user_id.in_(affected_users),
+                        SessionRecord.revoked_at.is_(None),
+                    ).values(revoked_at=utcnow_naive())
+                )
+                stats["sessions_revoked"] += revoked_sessions.rowcount
+                remaining_roles = set(db.scalars(select(EntraGroupRoleMapping.role_id).where(
+                    EntraGroupRoleMapping.provider == provider, EntraGroupRoleMapping.role_id.in_(role_ids),
+                )))
+                orphaned_roles = role_ids - remaining_roles
+                if orphaned_roles:
+                    # Sin ningun mapeo restante, el siguiente login ya no conoce
+                    # este rol como gobernado. Retirarlo aqui evita un privilegio
+                    # huerfano; las identidades de otros proveedores se conservan.
+                    revoked_roles = db.execute(delete(UserRole).where(
+                        UserRole.role_id.in_(orphaned_roles),
+                        UserRole.user_id.in_(select(User.id).where(User.auth_source == provider)),
+                    ))
+                    stats["roles_revoked"] += revoked_roles.rowcount
 
         if dry_run:
             db.rollback()
@@ -360,7 +396,8 @@ def main(argv: list[str] | None = None) -> int:
     stats = sync(prune=args.prune, dry_run=args.dry_run, allow_placeholders=args.allow_placeholders)
     print(
         f"Mapeos declarados: {stats['declared']} | creados: {stats['created']} "
-        f"| omitidos (marcadores de ejemplo): {stats['skipped']} | eliminados: {stats['pruned']}"
+        f"| omitidos (marcadores de ejemplo): {stats['skipped']} | eliminados: {stats['pruned']} "
+        f"| roles revocados: {stats['roles_revoked']} | sesiones revocadas: {stats['sessions_revoked']}"
     )
     if stats["skipped"]:
         print(

@@ -62,17 +62,33 @@
     "windows_binaries_executed_during_qa": false
   },
   "current_audit": {
-    "date": "2026-10-25",
-    "base_commit": "dbc6eea2492ae75b428cd2b92e60758b19eb74af",
-    "validation": "backend/release/audit-2026-10-25/validation.json",
-    "status": "PROVISIONAL; production acceptance pending",
-    "detailed_report": "Delivered separately to repository owner; not published"
+    "date": "2026-10-27",
+    "base_commit": "d057889aa85f1690576e2d65d19729a91cf06da4",
+    "validation": "backend/release/audit-2026-10-27/validation.json",
+    "detailed_report": "backend/release/audit-2026-10-27/report.md",
+    "status": "PROVISIONAL; production acceptance pending"
   },
   "corpus_distribution": "No operational documents; synthetic test fixtures only",
   "current_remediation": {
-    "date": "2026-10-25",
-    "base_commit": "984cf52cf2030224c0b53393423be3eba55ef792",
-    "validation": "backend/release/remediation-2026-10-25.json",
-    "status": "SCOPED_REMEDIATION_VALIDATED; production acceptance pending"
-  }
+    "date": "2026-10-27",
+    "base_commit": "d057889aa85f1690576e2d65d19729a91cf06da4",
+    "validation": "backend/release/audit-2026-10-27/validation.json",
+    "status": "ISOLATED_VALIDATION_PASSED; production acceptance pending"
+  },
+  "audit_history": [
+    {
+      "date": "2026-10-25",
+      "base_commit": "dbc6eea2492ae75b428cd2b92e60758b19eb74af",
+      "validation": "backend/release/audit-2026-10-25/validation.json",
+      "status": "PROVISIONAL; production acceptance pending",
+      "detailed_report": "Delivered separately to repository owner; not published"
+    },
+    {
+      "date": "2026-10-25",
+      "base_commit": "984cf52cf2030224c0b53393423be3eba55ef792",
+      "validation": "backend/release/remediation-2026-10-25.json",
+      "status": "SCOPED_REMEDIATION_VALIDATED; production acceptance pending"
+    }
+  ],
+  "validation_is_historical": true
 }

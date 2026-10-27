@@ -1,9 +1,9 @@
 # Creado por Aldo Garcia.
 """Modelo ORM de la base interna de Matrix RH.
 
-Estos modelos reflejan exactamente el DDL de ``backend/migrations``. La prueba
-``tests/integration/test_schema_matches_models.py`` compara ambos para impedir
-que la migracion y el ORM se desincronicen con el tiempo.
+Las migraciones de ``backend/migrations`` son la autoridad del esquema MySQL.
+Los modelos conservan sus columnas y restricciones de unicidad; la prueba
+``tests/integration/test_schema_and_seed.py`` comprueba esa correspondencia.
 
 Ninguna tabla guarda secretos: las credenciales locales guardan unicamente un
 hash Argon2id y las fuentes externas guardan el *nombre* de la variable de
@@ -25,6 +25,7 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
+    UniqueConstraint,
 )
 from sqlalchemy.dialects.mysql import DATETIME, MEDIUMTEXT
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
@@ -80,6 +81,9 @@ class IdentityLink(Base):
     """Vincula el subject de un proveedor de identidad con el usuario logico."""
 
     __tablename__ = "identity_links"
+    __table_args__ = (
+        UniqueConstraint("provider", "subject_id", name="uq_identity_links_provider_subject"),
+    )
 
     id: Mapped[str] = _uuid_pk()
     user_id: Mapped[str] = mapped_column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
@@ -128,6 +132,9 @@ class EntraGroupRoleMapping(Base):
     """Mapeo grupo/app-role externo -> rol interno de Matrix RH."""
 
     __tablename__ = "entra_group_role_mappings"
+    __table_args__ = (
+        UniqueConstraint("provider", "external_kind", "external_key", "role_id", name="uq_group_role"),
+    )
 
     id: Mapped[str] = _uuid_pk()
     provider: Mapped[str] = mapped_column(String(32), default="entra", nullable=False)
@@ -145,6 +152,9 @@ class CategoryPermission(Base):
     """
 
     __tablename__ = "category_permissions"
+    __table_args__ = (
+        UniqueConstraint("role_id", "category", "access", name="uq_category_permissions"),
+    )
 
     id: Mapped[str] = _uuid_pk()
     role_id: Mapped[str] = mapped_column(String(36), ForeignKey("roles.id", ondelete="CASCADE"), nullable=False)
@@ -156,6 +166,9 @@ class CategoryPermission(Base):
 
 class StructuredSourcePermission(Base):
     __tablename__ = "structured_source_permissions"
+    __table_args__ = (
+        UniqueConstraint("role_id", "source_name", name="uq_structured_source_permissions"),
+    )
 
     id: Mapped[str] = _uuid_pk()
     role_id: Mapped[str] = mapped_column(String(36), ForeignKey("roles.id", ondelete="CASCADE"), nullable=False)
@@ -417,6 +430,9 @@ class StructuredDataSource(Base):
 
 class StructuredSourcePolicy(Base):
     __tablename__ = "structured_source_policies"
+    __table_args__ = (
+        UniqueConstraint("source_name", "entity", name="uq_structured_source_policies"),
+    )
 
     id: Mapped[str] = _uuid_pk()
     source_name: Mapped[str] = mapped_column(String(128), nullable=False)
