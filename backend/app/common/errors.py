@@ -29,6 +29,7 @@ class ErrorCode(StrEnum):
     CHAT_CAPACITY_FULL = "chat_capacity_full"
     EMBEDDING_DIMENSION_MISMATCH = "embedding_dimension_mismatch"
     QDRANT_UNAVAILABLE = "qdrant_unavailable"
+    INDEX_UPDATE_REQUIRED = "index_update_required"
     DATABASE_UNAVAILABLE = "database_unavailable"
     STRUCTURED_QUERY_REJECTED = "structured_query_rejected"
     INSUFFICIENT_EVIDENCE = "insufficient_evidence"
@@ -156,6 +157,14 @@ class QdrantUnavailableError(MatrixError):
     code = ErrorCode.QDRANT_UNAVAILABLE
     status_code = 503
     default_message = "El almacen vectorial no esta disponible."
+
+
+class IndexUpdateRequiredError(MatrixError):
+    code = ErrorCode.INDEX_UPDATE_REQUIRED
+    status_code = 503
+    default_message = (
+        "El índice requiere actualización. Solicite su reindexación antes de consultar estos documentos."
+    )
 
 
 class DatabaseUnavailableError(MatrixError):

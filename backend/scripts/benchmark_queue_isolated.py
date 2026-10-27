@@ -222,6 +222,18 @@ def run_scenario(concurrency, repetition, *, samples=32, queue_limit=50, overloa
                     state: sum(s == state for _, s in completion_times.values())
                     for _, state in completion_times.values()
                 }
+                lifecycle = {
+                    "terminal_rows": sum(row.status in ("completed", "failed", "cancelled", "expired") for row in rows),
+                    "missing_finished_at": sum(
+                        row.finished_at is None for row in rows
+                        if row.status in ("completed", "failed", "cancelled", "expired")
+                    ),
+                    "completed_missing_execution_ms": sum(
+                        row.execution_ms is None for row in rows if row.status == "completed"
+                    ),
+                    **{name: chat_queue._duration_summary([getattr(row, name) for row in rows])
+                       for name in ("queue_ms", "execution_ms", "total_ms")},
+                }
                 result = {
                     "scenario": "bounded_overload" if overload else "normal",
                     "concurrency": concurrency,
@@ -230,6 +242,7 @@ def run_scenario(concurrency, repetition, *, samples=32, queue_limit=50, overloa
                     "queue_limit": queue_limit,
                     "http_statuses": status_counts,
                     "terminal_states": final_states,
+                    "persisted_lifecycle": lifecycle,
                     "unfinished": len(operation_ids) - len(completion_times),
                     "queued_acceptances": sum(x["queued"] for x in results),
                     "notices": sum(x["notice"] for x in results),
@@ -248,6 +261,8 @@ def run_scenario(concurrency, repetition, *, samples=32, queue_limit=50, overloa
             result["remaining_admission_slots"] = snapshot()
             result["passed"] = (
                 not snapshot()
+                and lifecycle["missing_finished_at"] == 0
+                and lifecycle["completed_missing_execution_ms"] == 0
                 and result["unfinished"] == 0
                 and result["http_statuses"] == ({"202": 4, "503": 47} if overload else {"202": samples})
                 and result["terminal_states"] == {"completed": 4 if overload else samples}
@@ -315,6 +330,7 @@ def main():
         "scenario_hard_deadline_s": 30,
         "http_transport": "ASGI in memory; real cookies, CSRF, RBAC, SQL queue and publication",
         "completion_clock": "after execute_chat commits; excludes browser polling delay",
+        "persisted_lifecycle_clock": "UTC SQL acceptance/running/terminal timestamps; not model latency or TTFT",
         "no_external_network": True,
         "warmup": "No model warmup; fresh synthetic scenario includes first-worker start",
         "gpu_model_latency_measured": False,

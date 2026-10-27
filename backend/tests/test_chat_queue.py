@@ -443,6 +443,8 @@ def test_worker_revalidates_session_and_current_roles_before_model_access(queue_
         controlled_queue.manager._run(operation.id, controlled_queue.launches[operation.id])
         failed = harness.operation(request_id)
         assert failed.status == "failed"
+        assert failed.finished_at is not None
+        assert failed.execution_ms is not None
         assert failed.response is None
         assert failed.message is None
         assert failed.session_id is None
@@ -467,6 +469,9 @@ def test_expired_queue_entry_releases_capacity_without_replaying_it(queue_db, co
         controlled_queue.manager.dispatch_once()
         operation = harness.operation(request_id)
         assert operation.status == "expired"
+        assert operation.finished_at is not None
+        assert operation.queue_ms >= 0 and operation.total_ms == operation.queue_ms
+        assert operation.execution_ms is None
         assert operation.message is None
         assert operation.session_id is None
     assert not controlled_queue.launches
@@ -605,6 +610,8 @@ def test_shutdown_expires_running_work_without_replay_and_retains_live_worker_le
         controlled_queue.manager.stop()
         expired = harness.operation(request_id)
         assert expired.status == "expired"
+        assert expired.finished_at is not None
+        assert expired.execution_ms is expired.total_ms is None
         assert expired.message is None
         assert expired.session_id is None
         assert expired.response is None
@@ -757,3 +764,38 @@ def test_foreign_pending_conversation_is_indistinguishable_from_unknown_conversa
     with queue_db() as db:
         assert len(db.scalars(select(ChatOperation)).all()) == 1
         assert len(db.scalars(select(Conversation)).all()) == 1
+
+
+def test_http_terminal_timing_uses_queue_and_execution_boundaries(queue_db, controlled_queue, monkeypatch):
+    from app.agents import chat_queue
+    from app.common import operation_lifecycle
+
+    clock = [utcnow_naive()]
+    monkeypatch.setattr(chat_queue, "utcnow_naive", lambda: clock[0])
+    monkeypatch.setattr(operation_lifecycle, "utcnow_naive", lambda: clock[0])
+    request_id = "request-lifecycle-timing-123456"
+    with authenticated_client(queue_db) as harness:
+        with ExitStack() as occupied:
+            occupied.enter_context(admission("chat", 2))
+            occupied.enter_context(admission("chat", 2))
+            accepted = submit(harness, request_id)
+            assert accepted.status_code == 202
+            assert accepted.json()["timing"] == {"queue_ms": None, "execution_ms": None, "total_ms": None}
+        clock[0] += timedelta(seconds=2)
+        controlled_queue.manager.dispatch_once()
+        operation = harness.operation(request_id)
+        assert operation.started_at == clock[0]
+        clock[0] += timedelta(seconds=3)
+        controlled_queue.manager._run(operation.id, controlled_queue.launches[operation.id])
+        completed = status(harness, request_id)
+        assert completed.status_code == 200
+        assert completed.json()["status"] == "completed"
+        assert completed.json()["timing"] == {"queue_ms": 2000, "execution_ms": 3000, "total_ms": 5000}
+        persisted = harness.operation(request_id)
+        assert persisted.finished_at == clock[0]
+        clock[0] += timedelta(seconds=5)
+        assert harness.client.post(f"/api/chat/requests/{request_id}/cancel").status_code == 200
+        repeated = submit(harness, request_id)
+        assert repeated.json()["status"] == "completed"
+        assert repeated.json()["timing"] == completed.json()["timing"]
+        assert harness.operation(request_id).finished_at == persisted.finished_at

@@ -13,6 +13,7 @@ from app.agents.knowledge_agent import KnowledgeAgent
 from app.agents.prompts import build_answer_messages, format_evidence_block
 from app.common.answers import UNVERIFIED_ANSWER_NOTICE, safe_nonfactual_text
 from app.common.inference_errors import InferenceFailureError, InferenceFailureKind
+from app.common.text_budget import TextBudget, estimate_tokens
 from app.config import get_settings
 from app.ingestion.loaders import extract_docx
 from app.llm.model_policy import Intent, ModelPolicy
@@ -141,15 +142,15 @@ def test_normal_prompt_keeps_exception_after_old_2200_cut():
 def test_documental_prompt_budget_omits_whole_unit_and_reports_selection(monkeypatch):
     class BudgetPolicy(ModelPolicy):
         def generation_profile(self, *_args, **_kwargs):
-            return SimpleNamespace(num_ctx=6000, max_tokens=1000, temperature=0.1)
+            return SimpleNamespace(num_ctx=12000, max_tokens=1000, temperature=0.1)
 
     first = evidence("Regla A completa. " * 260 + "No aplica al personal temporal.")
     second = evidence("Regla B completa. " * 260 + "Solo con autorizacion escrita.", 1)
     llm = ScriptedLlm([f"{first.text} [[{first.source_id}]]"])
     agent = KnowledgeAgent(llm=llm, policy=BudgetPolicy())
     one_unit = build_answer_messages(question="Que reglas aplican?", evidences=(first,), documentary_only=True)
-    budget = sum(len(message["content"]) for message in one_unit)
-    monkeypatch.setattr(agent, "_input_budget_chars", lambda *_a, **_kw: budget)
+    budget = TextBudget.from_tokens(sum(estimate_tokens(message["content"]) for message in one_unit))
+    monkeypatch.setattr(agent, "_input_budget", lambda *_a, **_kw: budget)
     result = agent.synthesize(question="Que reglas aplican?", evidences=(first, second), model_name="gemma4:latest")
     messages = llm.calls[0]["messages"]
     assert first.text in messages[-1]["content"]

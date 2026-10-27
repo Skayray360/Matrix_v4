@@ -41,6 +41,9 @@ const CAPACITY_NOTICE =
   "Tu solicitud está en proceso. Puede demorar un poco porque tenemos muchas solicitudes en curso.";
 
 function generationFailure(code: ChatRequestStatus["error_code"], requestId: string): string {
+  if (code === "index_update_required") {
+    return `El índice requiere actualización. El borrador se conservó. Solicite a TI la reindexación de estos documentos antes de volver a consultar. Referencia de la solicitud: ${requestId}`;
+  }
   if (code === "forbidden") {
     return `No tiene permiso para completar esta solicitud. El borrador se conservó. Revise su sesión y los permisos antes de reintentar. Referencia de la solicitud: ${requestId}`;
   }
@@ -142,9 +145,9 @@ export function ChatPage({ me, onLogout, onProfileUpdated, onSessionExpired }: P
   const readController = useRef<AbortController | null>(null);
   const sending = useRef(false);
   const uploadingRef = useRef(false);
-  const activeRequest = useRef<string | null>(null);
+  const activeRequest = useRef<{ id: string; conversationId: string | null } | null>(null);
   const requestController = useRef<AbortController | null>(null);
-  const uncertain = useRef(new Map<string, string>());
+  const uncertain = useRef(new Map<string, { id: string; conversationId: string | null }>());
   const completedUpload = useRef<{
     conversationId: string;
     documents: DocumentStatus[];
@@ -365,11 +368,12 @@ export function ChatPage({ me, onLogout, onProfileUpdated, onSessionExpired }: P
       // otra conversacion o se cambia el borrador antes de volver a intentarlo.
       const requestKey = JSON.stringify([destination, text]);
       const previous = uncertain.current.get(requestKey);
-      const requestId = previous ?? crypto.randomUUID();
-      activeRequest.current = requestId;
+      const requestId = previous?.id ?? crypto.randomUUID();
+      const expectedConversation = previous?.conversationId ?? destination;
+      activeRequest.current = { id: requestId, conversationId: expectedConversation };
       const controller = new AbortController();
       requestController.current = controller;
-      uncertain.current.set(requestKey, requestId);
+      uncertain.current.set(requestKey, activeRequest.current);
       setError(null);
       setPending(true);
       setRequestStatus(null);
@@ -379,17 +383,31 @@ export function ChatPage({ me, onLogout, onProfileUpdated, onSessionExpired }: P
         let status: ChatRequestStatus | undefined;
         if (previous) {
           try {
-            status = await api.chatStatus(requestId, controller.signal);
+            status = await api.chatStatus(requestId, controller.signal, expectedConversation);
           } catch (caught) {
             if (!(caught instanceof ApiError && caught.status === 404)) throw caught;
           }
         }
         status ??= await api.submitChat(text, destination, requestId, controller.signal);
+        if (controller.signal.aborted || !mounted.current) return false;
+        if (expectedConversation !== null && status.conversation_id !== expectedConversation) {
+          throw new ApiError(
+            "invalid_response",
+            "La respuesta no corresponde a esta conversación.",
+            200,
+            null,
+          );
+        }
+        // Una conversación nueva queda vinculada al primer estado válido; los
+        // sondeos y la cancelación posteriores no pueden cambiar de destino.
+        const operationConversation = expectedConversation ?? status.conversation_id;
+        activeRequest.current = { id: requestId, conversationId: operationConversation };
+        uncertain.current.set(requestKey, activeRequest.current);
         while (status.status === "queued" || status.status === "running") {
           if (controller.signal.aborted || !mounted.current) return false;
           setRequestStatus(status);
           await waitForStatus(status.poll_after_ms, controller.signal);
-          status = await api.chatStatus(requestId, controller.signal);
+          status = await api.chatStatus(requestId, controller.signal, operationConversation);
         }
         if (controller.signal.aborted || !mounted.current) return false;
         if (status.status !== "completed" || !status.response) {
@@ -463,8 +481,10 @@ export function ChatPage({ me, onLogout, onProfileUpdated, onSessionExpired }: P
           setError(
             caught instanceof TypeError ||
               (caught instanceof ApiError &&
-                ["request_timeout", "invalid_response"].includes(caught.code))
-              ? "No fue posible confirmar el resultado. Conservamos el borrador; vuelve a enviar el mismo mensaje para consultar su estado sin duplicarlo."
+                (["request_timeout", "invalid_response"].includes(caught.code) ||
+                  (caught.status >= 500 &&
+                    !["chat_capacity_full", "index_update_required"].includes(caught.code))))
+              ? `No fue posible confirmar el resultado. Conservamos el borrador; vuelve a enviar el mismo mensaje para consultar su estado sin duplicarlo. Referencia de la solicitud: ${requestId}${caught instanceof ApiError && caught.requestId ? ` (diagnóstico: ${caught.requestId})` : ""}`
               : caught instanceof Error && !(caught instanceof ApiError)
                 ? caught.message
                 : describeError(caught),
@@ -486,16 +506,16 @@ export function ChatPage({ me, onLogout, onProfileUpdated, onSessionExpired }: P
   );
 
   const cancelRequest = useCallback(async () => {
-    const requestId = activeRequest.current;
-    if (!requestId || cancelling) return;
+    const request = activeRequest.current;
+    if (!request || cancelling) return;
     setCancelling(true);
     try {
-      await api.cancelChat(requestId);
+      await api.cancelChat(request.id, request.conversationId);
       // El estado confirmado por el servidor decide el resultado. Cancelar
       // una ejecucion no significa que la GPU ya haya liberado sus recursos.
     } catch (caught) {
       if (expireSession(caught)) return;
-      if (mounted.current && activeRequest.current === requestId) {
+      if (mounted.current && activeRequest.current?.id === request.id) {
         setError(describeError(caught));
         setCancelling(false);
       }

@@ -10,8 +10,10 @@ from __future__ import annotations
 
 from contextlib import ExitStack, contextmanager, suppress
 from datetime import timedelta
+from math import ceil
 from threading import Event, RLock, Thread
 from time import monotonic
+from weakref import WeakKeyDictionary
 
 from sqlalchemy import func, or_, select, update
 from sqlalchemy.exc import IntegrityError, OperationalError
@@ -27,6 +29,7 @@ from app.common.errors import CapacityFullError, ForbiddenError, MatrixError, Ol
 from app.common.ids import utcnow_naive
 from app.common.inference_errors import InferenceFailureError, InferenceFailureKind
 from app.common.logging import bind_request_context, get_logger, reset_request_context
+from app.common.operation_lifecycle import TERMINAL, elapsed_ms, finalize_operations
 from app.config import get_settings
 from app.database.engine import get_sessionmaker
 from app.database.models import ChatOperation, JobLock
@@ -65,17 +68,60 @@ def expire_stalled(db: Session) -> None:
     now = utcnow_naive()
     queued_cutoff = now - timedelta(seconds=settings.chat_queue_timeout_seconds)
     running_cutoff = now - timedelta(seconds=settings.llm_request_deadline_seconds + 60)
-    db.execute(
-        update(ChatOperation)
-        .where(
-            or_(
-                (ChatOperation.status == "queued") & (ChatOperation.created_at < queued_cutoff),
-                (ChatOperation.status == "running")
-                & (func.coalesce(ChatOperation.started_at, ChatOperation.created_at) < running_cutoff),
-            )
-        )
-        .values(status="expired", message=None, session_id=None)
+    finalize_operations(
+        db,
+        or_(
+            (ChatOperation.status == "queued") & (ChatOperation.created_at < queued_cutoff),
+            (ChatOperation.status == "running")
+            & (func.coalesce(ChatOperation.started_at, ChatOperation.created_at) < running_cutoff),
+        ),
+        status="expired", execution_end_known=False,
     )
+
+
+_metrics_cache: WeakKeyDictionary = WeakKeyDictionary()
+_metrics_lock = RLock()
+_METRIC_SAMPLE_LIMIT = 1000
+_METRIC_CACHE_SECONDS = 1.0
+
+
+def _duration_summary(values: list[int | None]) -> dict:
+    samples = sorted(value for value in values if value is not None and value >= 0)
+    return {
+        "samples": len(samples),
+        **{name: samples[max(0, ceil(len(samples) * quantile) - 1)] if samples else None
+           for name, quantile in (("p50", .50), ("p95", .95), ("p99", .99))},
+    }
+
+
+def terminal_metrics(db: Session) -> dict:
+    """Last 1000 recorded terminal operations, one query/second/process/database.
+
+    Nearest-rank percentiles, per-duration sample counts, no payload/user IDs.
+    Unknown historical and recovery durations never enter latency samples.
+    """
+    bind = db.get_bind()
+    engine = getattr(bind, "engine", bind)
+    now = monotonic()
+    with _metrics_lock:
+        cached = _metrics_cache.get(engine)
+        if cached is not None and now - cached[0] < _METRIC_CACHE_SECONDS:
+            return cached[1]
+        rows = db.execute(
+            select(ChatOperation.status, ChatOperation.queue_ms, ChatOperation.execution_ms, ChatOperation.total_ms)
+            .where(ChatOperation.finished_at.is_not(None), ChatOperation.status.in_(TERMINAL))
+            .order_by(ChatOperation.finished_at.desc()).limit(_METRIC_SAMPLE_LIMIT)
+        ).all()
+        result = {
+            "sample_limit": _METRIC_SAMPLE_LIMIT,
+            "sample_size": len(rows),
+            "cache_ttl_ms": round(_METRIC_CACHE_SECONDS * 1000),
+            "terminal_counts": {status: sum(row.status == status for row in rows) for status in TERMINAL},
+            **{name: _duration_summary([getattr(row, name) for row in rows])
+               for name in ("queue_ms", "execution_ms", "total_ms")},
+        }
+        _metrics_cache[engine] = (now, result)
+        return result
 
 
 def capacity_status(db: Session) -> dict:
@@ -87,6 +133,7 @@ def capacity_status(db: Session) -> dict:
     limit = effective_limit()
     utilization = max(active / limit, inference_active / settings.inference_max_inflight) * 100
     return {
+        "metrics": terminal_metrics(db),
         "active": active,
         "limit": limit,
         "queued": queued,
@@ -113,6 +160,11 @@ def operation_status(db: Session, operation: ChatOperation) -> dict:
         "capacity": capacity,
         "notice": NOTICE if operation.status in PENDING and capacity["overloaded"] else None,
         "poll_after_ms": 2000,
+        "timing": {
+            "queue_ms": operation.queue_ms,
+            "execution_ms": operation.execution_ms,
+            "total_ms": operation.total_ms,
+        },
     }
 
 
@@ -201,9 +253,8 @@ class ChatQueue:
         if previous_owner != self.owner:
             # El único dueño anterior ya no puede publicar. No repetir una
             # inferencia ambigua que estaba running cuando murió el proceso.
-            db.execute(
-                update(ChatOperation).where(ChatOperation.status == "running")
-                .values(status="expired", message=None, session_id=None)
+            finalize_operations(
+                db, ChatOperation.status == "running", status="expired", execution_end_known=False,
             )
             logger.info("chat.queue_owner_recovered", extra={"previous_owner_state": state})
         row.locked_by = self.owner
@@ -249,8 +300,10 @@ class ChatQueue:
                 resources = self.reserve(user_id=operation.user_id, conversation_id=operation.conversation_id)
         if resources is None and capacity["queued"] >= get_settings().chat_queue_max_size:
             raise CapacityFullError()
+        operation.created_at = operation.created_at or utcnow_naive()
         operation.status = "running" if resources else "queued"
         operation.started_at = utcnow_naive() if resources else None
+        operation.queue_ms = elapsed_ms(operation.created_at, operation.started_at)
         db.add(operation)
         try:
             db.commit()
@@ -270,11 +323,7 @@ class ChatQueue:
             # El primer commit ya pudo confirmar la operacion. La clave sigue
             # siendo consultable, pero nunca dejar un cupo sin worker propietario.
             with suppress(Exception), get_sessionmaker()() as failure_db:
-                failure_db.execute(
-                    update(ChatOperation)
-                    .where(ChatOperation.id == operation_id, ChatOperation.status.in_(PENDING))
-                    .values(status="failed", message=None, session_id=None)
-                )
+                finalize_operations(failure_db, ChatOperation.id == operation_id, status="failed")
                 failure_db.commit()
             raise
         if resources:
@@ -301,10 +350,7 @@ class ChatQueue:
             self._workers.pop(operation_id, None)
             resources.close()
             with get_sessionmaker()() as db:
-                db.execute(
-                    update(ChatOperation).where(ChatOperation.id == operation_id)
-                    .values(status="failed", message=None, session_id=None)
-                )
+                finalize_operations(db, ChatOperation.id == operation_id, status="failed")
                 db.commit()
             raise
 
@@ -328,10 +374,14 @@ class ChatQueue:
                 except OllamaUnavailableError:
                     break
                 try:
+                    started = utcnow_naive()
                     changed = db.execute(
                         update(ChatOperation)
                         .where(ChatOperation.id == operation.id, ChatOperation.status == "queued")
-                        .values(status="running", started_at=utcnow_naive())
+                        .values(
+                            status="running", started_at=started,
+                            queue_ms=elapsed_ms(operation.created_at, started),
+                        )
                     )
                     db.commit()
                 except Exception:
@@ -389,10 +439,9 @@ class ChatQueue:
                     )
         except Exception as exc:
             with suppress(Exception), get_sessionmaker()() as db:
-                db.execute(
-                    update(ChatOperation)
-                    .where(ChatOperation.id == operation_id, ChatOperation.status == "running")
-                    .values(status="failed", error_code=chat_failure_code(exc), message=None, session_id=None)
+                finalize_operations(
+                    db, ChatOperation.id == operation_id, ChatOperation.status == "running",
+                    status="failed", error_code=chat_failure_code(exc),
                 )
                 db.commit()
             logger.warning("chat.queue_job_failed", extra=_failure_fields(exc))
@@ -415,10 +464,9 @@ class ChatQueue:
             operation_ids = tuple(self._workers)
         if operation_ids:
             with suppress(Exception), get_sessionmaker()() as db:
-                db.execute(
-                    update(ChatOperation)
-                    .where(ChatOperation.id.in_(operation_ids), ChatOperation.status == "running")
-                    .values(status="expired", message=None, session_id=None)
+                finalize_operations(
+                    db, ChatOperation.id.in_(operation_ids), ChatOperation.status == "running",
+                    status="expired", execution_end_known=False,
                 )
                 db.commit()
         # Cierra sólo las conexiones HTTP de ESTE backend. No apaga ni descarga

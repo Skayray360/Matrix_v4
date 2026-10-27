@@ -583,7 +583,7 @@ class VectorStore:
         from sqlalchemy import select
 
         from app.database.models import Document
-        from app.rag.index_manifest import session_scope
+        from app.rag.index_manifest import require_current_index, session_scope
 
         query = select(
             Document.id, Document.filename, Document.active_generation, Document.chunk_count,
@@ -592,11 +592,6 @@ class VectorStore:
             Document.scope == scope,
             Document.deleted_at.is_(None),
         )
-        if not include_unavailable:
-            query = query.where(
-                Document.status == "indexed", Document.active_generation.is_not(None),
-                Document.index_fingerprint == index_fingerprint,
-            )
         if scope == SCOPE_CONVERSATION and user_id and conversation_id:
             query = query.where(Document.owner_user_id == user_id, Document.conversation_id == conversation_id)
         elif scope == SCOPE_CORPORATE and authorized_categories:
@@ -604,6 +599,12 @@ class VectorStore:
         else:
             return []
         with session_scope() as db:
+            require_current_index(db, query, index_fingerprint)
+            if not include_unavailable:
+                query = query.where(
+                    Document.status == "indexed", Document.active_generation.is_not(None),
+                    Document.index_fingerprint == index_fingerprint,
+                )
             rows = db.execute(query.order_by(Document.filename, Document.id)).all()
         return [AuthorizedDocument(
             row.id, row.filename, row.active_generation or "", row.chunk_count,
@@ -777,4 +778,10 @@ def payload_to_evidence(payload: dict[str, Any], score: float) -> Evidence:
         document_id=str(payload.get("document_id", "")),
         chunk_id=str(payload.get("chunk_id", "")),
         scope=scope,
+        document_sha256=payload.get("document_sha256", ""),
+        generation=payload.get("generation", ""),
+        index_fingerprint=payload.get("index_fingerprint", ""),
+        embedding_model=payload.get("embedding_model", ""),
+        embedding_dimension=payload.get("embedding_dimension"),
+        ingestion_version=payload.get("ingestion_version", ""),
     )

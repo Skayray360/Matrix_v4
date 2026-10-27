@@ -1,0 +1,494 @@
+{
+  "completed": {
+    "status": "completed",
+    "conversation_id": "synthetic-conversation",
+    "operation_id": "synthetic-operation",
+    "response": {
+      "conversation_id": "synthetic-conversation",
+      "message_id": "synthetic-message",
+      "answer": "Respuesta ficticia con fuente [[synthetic#0]].",
+      "sources": [
+        {
+          "source_id": "synthetic#0",
+          "category": "synthetic",
+          "filename": "ejemplo.txt",
+          "section": "",
+          "page_or_sheet": "pagina 1",
+          "score": 0.7,
+          "label": "ejemplo.txt, pagina 1",
+          "scope": "corporate",
+          "provenance": {
+            "document_sha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+            "generation": "synthetic-generation",
+            "index_fingerprint": "synthetic-index",
+            "embedding_model": "synthetic-embedding",
+            "embedding_dimension": 768,
+            "ingestion_version": "synthetic-v1"
+          }
+        }
+      ],
+      "intent": "documental",
+      "grounded": true,
+      "answer_basis": "documented",
+      "latency_ms": 12
+    },
+    "error_code": null,
+    "capacity": {
+      "active": 1,
+      "limit": 2,
+      "queued": 0,
+      "queue_limit": 5,
+      "utilization_pct": 50,
+      "overloaded": false,
+      "inference_active": 1,
+      "inference_limit": 2,
+      "metrics": {
+        "sample_limit": 1000,
+        "sample_size": 2,
+        "cache_ttl_ms": 1000,
+        "terminal_counts": {
+          "completed": 1,
+          "failed": 1,
+          "cancelled": 0,
+          "expired": 0
+        },
+        "queue_ms": {
+          "samples": 2,
+          "p50": 10,
+          "p95": 20,
+          "p99": 20
+        },
+        "execution_ms": {
+          "samples": 1,
+          "p50": 5,
+          "p95": 5,
+          "p99": 5
+        },
+        "total_ms": {
+          "samples": 2,
+          "p50": 20,
+          "p95": 25,
+          "p99": 25
+        }
+      }
+    },
+    "notice": null,
+    "poll_after_ms": 2000,
+    "timing": {
+      "queue_ms": 10,
+      "execution_ms": 5,
+      "total_ms": 15
+    }
+  },
+  "invalid_mutations": [
+    {
+      "name": "unknown state",
+      "path": [
+        "status"
+      ],
+      "value": "success"
+    },
+    {
+      "name": "numeric state",
+      "path": [
+        "status"
+      ],
+      "value": 1
+    },
+    {
+      "name": "missing completed reply",
+      "path": [
+        "response"
+      ],
+      "value": null
+    },
+    {
+      "name": "pending with reply",
+      "path": [
+        "status"
+      ],
+      "value": "running"
+    },
+    {
+      "name": "wrong conversation",
+      "path": [
+        "response",
+        "conversation_id"
+      ],
+      "value": "another-conversation"
+    },
+    {
+      "name": "empty answer",
+      "path": [
+        "response",
+        "answer"
+      ],
+      "value": "  "
+    },
+    {
+      "name": "object answer",
+      "path": [
+        "response",
+        "answer"
+      ],
+      "value": {}
+    },
+    {
+      "name": "untyped sources",
+      "path": [
+        "response",
+        "sources"
+      ],
+      "value": {}
+    },
+    {
+      "name": "partial source",
+      "path": [
+        "response",
+        "sources"
+      ],
+      "value": [
+        {
+          "source_id": "synthetic#0"
+        }
+      ]
+    },
+    {
+      "name": "source id object",
+      "path": [
+        "response",
+        "sources",
+        0,
+        "source_id"
+      ],
+      "value": {}
+    },
+    {
+      "name": "source id whitespace",
+      "path": [
+        "response",
+        "sources",
+        0,
+        "source_id"
+      ],
+      "value": " "
+    },
+    {
+      "name": "source score string",
+      "path": [
+        "response",
+        "sources",
+        0,
+        "score"
+      ],
+      "value": "0.7"
+    },
+    {
+      "name": "source label object",
+      "path": [
+        "response",
+        "sources",
+        0,
+        "label"
+      ],
+      "value": {}
+    },
+    {
+      "name": "invalid provenance",
+      "path": [
+        "response",
+        "sources",
+        0,
+        "provenance"
+      ],
+      "value": {
+        "embedding_dimension": 0
+      }
+    },
+    {
+      "name": "invalid provenance text",
+      "path": [
+        "response",
+        "sources",
+        0,
+        "provenance"
+      ],
+      "value": {
+        "generation": []
+      }
+    },
+    {
+      "name": "grounded string",
+      "path": [
+        "response",
+        "grounded"
+      ],
+      "value": "true"
+    },
+    {
+      "name": "invalid basis",
+      "path": [
+        "response",
+        "answer_basis"
+      ],
+      "value": "official"
+    },
+    {
+      "name": "negative latency",
+      "path": [
+        "response",
+        "latency_ms"
+      ],
+      "value": -1
+    },
+    {
+      "name": "fraction latency",
+      "path": [
+        "response",
+        "latency_ms"
+      ],
+      "value": 0.5
+    },
+    {
+      "name": "error code on success",
+      "path": [
+        "error_code"
+      ],
+      "value": "generation_failed"
+    },
+    {
+      "name": "bad operation id",
+      "path": [
+        "operation_id"
+      ],
+      "value": {}
+    },
+    {
+      "name": "absent capacity",
+      "path": [
+        "capacity"
+      ],
+      "value": null
+    },
+    {
+      "name": "negative active",
+      "path": [
+        "capacity",
+        "active"
+      ],
+      "value": -1
+    },
+    {
+      "name": "string count",
+      "path": [
+        "capacity",
+        "active"
+      ],
+      "value": "1"
+    },
+    {
+      "name": "boolean count",
+      "path": [
+        "capacity",
+        "active"
+      ],
+      "value": true
+    },
+    {
+      "name": "unsafe integer",
+      "path": [
+        "capacity",
+        "active"
+      ],
+      "value": 9007199254740992
+    },
+    {
+      "name": "zero limit",
+      "path": [
+        "capacity",
+        "limit"
+      ],
+      "value": 0
+    },
+    {
+      "name": "negative queue",
+      "path": [
+        "capacity",
+        "queued"
+      ],
+      "value": -1
+    },
+    {
+      "name": "negative queue limit",
+      "path": [
+        "capacity",
+        "queue_limit"
+      ],
+      "value": -1
+    },
+    {
+      "name": "impossible utilization",
+      "path": [
+        "capacity",
+        "utilization_pct"
+      ],
+      "value": 101
+    },
+    {
+      "name": "string overload",
+      "path": [
+        "capacity",
+        "overloaded"
+      ],
+      "value": "true"
+    },
+    {
+      "name": "bad inference limit",
+      "path": [
+        "capacity",
+        "inference_limit"
+      ],
+      "value": 0
+    },
+    {
+      "name": "bad inference active",
+      "path": [
+        "capacity",
+        "inference_active"
+      ],
+      "value": []
+    },
+    {
+      "name": "invalid timing",
+      "path": [
+        "timing"
+      ],
+      "value": {
+        "queue_ms": -1,
+        "execution_ms": null,
+        "total_ms": null
+      }
+    },
+    {
+      "name": "incomplete timing",
+      "path": [
+        "timing"
+      ],
+      "value": {
+        "queue_ms": 1
+      }
+    },
+    {
+      "name": "invalid metrics",
+      "path": [
+        "capacity",
+        "metrics"
+      ],
+      "value": {}
+    },
+    {
+      "name": "object notice",
+      "path": [
+        "notice"
+      ],
+      "value": {}
+    },
+    {
+      "name": "poll zero",
+      "path": [
+        "poll_after_ms"
+      ],
+      "value": 0
+    },
+    {
+      "name": "unbounded poll",
+      "path": [
+        "poll_after_ms"
+      ],
+      "value": 10001
+    },
+    {
+      "name": "string poll",
+      "path": [
+        "poll_after_ms"
+      ],
+      "value": "2000"
+    },
+    {
+      "name": "boolean poll",
+      "path": [
+        "poll_after_ms"
+      ],
+      "value": true
+    },
+    {
+      "name": "miscounted terminal population",
+      "path": [
+        "capacity",
+        "metrics",
+        "terminal_counts",
+        "completed"
+      ],
+      "value": 3
+    },
+    {
+      "name": "excess sample size",
+      "path": [
+        "capacity",
+        "metrics",
+        "sample_size"
+      ],
+      "value": 1001
+    },
+    {
+      "name": "negative sample count",
+      "path": [
+        "capacity",
+        "metrics",
+        "queue_ms",
+        "samples"
+      ],
+      "value": -1
+    },
+    {
+      "name": "percentiles without samples",
+      "path": [
+        "capacity",
+        "metrics",
+        "queue_ms",
+        "samples"
+      ],
+      "value": 0
+    },
+    {
+      "name": "too many duration samples",
+      "path": [
+        "capacity",
+        "metrics",
+        "queue_ms",
+        "samples"
+      ],
+      "value": 3
+    },
+    {
+      "name": "unordered percentiles",
+      "path": [
+        "capacity",
+        "metrics",
+        "queue_ms",
+        "p95"
+      ],
+      "value": 9
+    },
+    {
+      "name": "missing percentile",
+      "path": [
+        "capacity",
+        "metrics",
+        "execution_ms",
+        "p99"
+      ],
+      "value": null
+    }
+  ]
+}

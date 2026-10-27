@@ -91,12 +91,16 @@ def erase(env, *, db=None):
     return conversations.delete_conversation("chat-a", db=db or env.db, ctx=env.context)
 
 
-def assert_sql_content_removed(env):
+def assert_sql_content_removed(env, *, expected_status="completed"):
     with env.factory() as db:
         assert db.scalar(select(func.count()).select_from(ConversationMessage)) == 0
         assert db.scalar(select(func.count()).select_from(ConversationSummary)) == 0
         operation = db.get(ChatOperation, "1" * 64)
-        assert operation is not None and operation.status == "cancelled"
+        assert operation is not None and operation.status == expected_status
+        if expected_status == "completed":
+            assert operation.finished_at is None  # Historical terminal time stays unknown.
+        else:
+            assert operation.finished_at is not None
         assert operation.response is None and operation.message is None
         assert operation.session_id is None and operation.request_id is None
         previous_audit = db.get(AuditEvent, "audit-private")
@@ -314,7 +318,7 @@ def test_concurrent_delete_prevents_late_publication_with_stale_orm(state, monke
             message="Pregunta de la operacion en curso", expected_scope=scope,
             operation_id=operation.id if tracked_operation else None, reauthorize=lambda _: env.context,
         )
-    assert_sql_content_removed(env)
+    assert_sql_content_removed(env, expected_status="cancelled")
     assert not path.exists()
     with env.factory() as worker_db, pytest.raises(NotFoundError):
         env.memory.store_summary(worker_db, "chat-a", summary="Resumen tardio", message_count=3)

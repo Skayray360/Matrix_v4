@@ -28,6 +28,7 @@ from app.common.errors import ForbiddenError, NotFoundError, ValidationFailedErr
 from app.common.identity import is_identity_question
 from app.common.ids import new_id, utcnow_naive
 from app.common.logging import get_logger
+from app.common.operation_lifecycle import finalize_operations
 from app.database.models import (
     AuditEvent,
     ChatOperation,
@@ -204,9 +205,10 @@ class MemoryService:
         now = utcnow_naive()
         db.execute(delete(ConversationSummary).where(ConversationSummary.conversation_id == conversation.id))
         db.execute(delete(ConversationMessage).where(ConversationMessage.conversation_id == conversation.id))
+        finalize_operations(db, ChatOperation.conversation_id == conversation.id, status="cancelled")
         db.execute(
             update(ChatOperation).where(ChatOperation.conversation_id == conversation.id)
-            .values(status="cancelled", response=null(), message=None, session_id=None, request_id=None)
+            .values(response=null(), message=None, session_id=None, request_id=None)
         )
         # Las cargas historicas auditaban el nombre visible: tambien puede
         # contener datos personales. Se conserva evento/ID/decision, no nombres.

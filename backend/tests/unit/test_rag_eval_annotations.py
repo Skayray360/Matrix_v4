@@ -67,7 +67,8 @@ def test_every_grounded_source_contains_its_reviewed_fact(case, corpus_chunks):
 
 
 def test_recruitment_count_is_nine_actual_steps(corpus_chunks):
-    text = corpus_chunks["reclutamiento/proceso-de-reclutamiento.md#1"]
+    source_id = next(case for case in GROUNDED_CASES if case["id"] == "rec-01")["expected_source_ids"][0]
+    text = corpus_chunks[source_id]
     assert re.findall(r"^(\d+)\. ", text, re.MULTILINE) == [str(number) for number in range(1, 10)]
 
 

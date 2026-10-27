@@ -8,6 +8,8 @@ Metricas producidas:
   al conjunto anotado (separada de ACL); Recall@k mide la cobertura del conjunto;
 * ``grounded_answer_rate`` -- comprobacion de grounding de la aplicacion, no
   veracidad semantica; ``answer_pass_rate`` agrega los contratos de respuesta;
+* ``external_accuracy`` -- rubrica independiente de enunciados completos,
+  hechos/citas/abstencion. Sin anotacion: null y cobertura incompleta;
 * ``unsupported_claim_rate`` -- fallos del contrato de abstencion en casos
   ``unsupported``, solo con generacion. No es un verificador semantico de claims;
 * ``acl_leakage_rate``     -- **debe ser 0**: cualquier evidencia de una
@@ -27,6 +29,7 @@ Uso:
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import sys
 import time
@@ -42,14 +45,37 @@ from app.authorization.policy import get_policy_engine
 from app.common.answers import safe_nonfactual_text
 from app.common.errors import ForbiddenError, MatrixError
 from app.common.ids import new_id
+from app.common.text_budget import TEXT_BUDGET_VERSION
 from app.config import get_settings
 from app.database.engine import session_scope
 from app.database.models import User
 from app.memory.service import MemoryService
+from app.rag.index_manifest import PIPELINE_VERSION
 from app.rag.retriever import Retriever
+from scripts.answer_rubric import (
+    LIMITATIONS,
+    assess_answer,
+    dataset_fingerprint,
+    partition_cases,
+    validate_rubric,
+)
 from scripts.test_environment import require_disposable_database
 
 GOLDEN_SET = Path(__file__).resolve().parents[1] / "tests" / "rag_eval" / "golden_set.yaml"
+GOLDEN_RUBRICS = GOLDEN_SET.with_name("golden_rubrics.yaml")
+
+
+def source_revision() -> dict[str, Any]:
+    """Huella de los documentos sinteticos, sin indices ni salidas de modelos."""
+    corpus = GOLDEN_SET.parent.parent / "fixtures" / "knowledge"
+    digest = hashlib.sha256()
+    for path in sorted(corpus.glob("*/*.md")):
+        digest.update(path.relative_to(corpus).as_posix().encode())
+        digest.update(b"\0")
+        digest.update(path.read_bytes())
+        digest.update(b"\0")
+    return {"corpus_sha256": digest.hexdigest(), "pipeline_version": PIPELINE_VERSION,
+            "text_budget_version": TEXT_BUDGET_VERSION}
 
 def _is_refusal(answer: str) -> bool:
     """Una pregunta o limitacion completa, nunca solo un marcador de negativa."""
@@ -74,12 +100,18 @@ class CaseResult:
     answer_pass: bool | None = None
     grounding_pass: bool | None = None
     retrieved_source_ids: tuple[str, ...] = ()
+    external_accuracy_pass: bool | None = None
+    external_status: str = "NOT_MEASURED"
+    external_reasons: tuple[str, ...] = ()
+    evaluation_group: str = ""
+    evaluation_split: str = "unassigned"
 
 
 @dataclass
 class EvaluationReport:
     mode: str
     results: list[CaseResult] = field(default_factory=list)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
     def metrics(self) -> dict[str, Any]:
         total = len(self.results)
@@ -106,6 +138,19 @@ class EvaluationReport:
                 sum(r.answer_pass is not None for r in self.results),
             ),
             "answer_measured_cases": sum(r.answer_pass is not None for r in self.results),
+            "product_contract_pass_rate_pct": rate(
+                sum(r.passed for r in self.results), total,
+            ),
+            "external_accuracy_pct": rate(
+                sum(r.external_accuracy_pass is True for r in self.results),
+                sum(r.external_accuracy_pass is not None for r in self.results),
+            ),
+            "external_accuracy_measured_cases": sum(
+                r.external_accuracy_pass is not None for r in self.results
+            ),
+            "external_coverage_pct": rate(
+                sum(r.external_accuracy_pass is not None for r in self.results), total,
+            ) if self.mode == "full" else None,
             "grounded_answer_rate_pct": rate(
                 sum(r.grounding_pass is True for r in grounded_cases),
                 sum(r.grounding_pass is not None for r in grounded_cases),
@@ -143,12 +188,20 @@ class EvaluationReport:
     def as_dict(self) -> dict[str, Any]:
         return {
             "metrics": self.metrics(),
+            "metadata": self.metadata,
+            "quality_gate": quality_gate(self),
+            "limitations": list(LIMITATIONS),
+            "metric_definitions": {
+                "answer_pass_rate_pct": "Contrato del producto; no es exactitud externa.",
+                "external_accuracy_pct": "Acuerdo conservador con hechos/enunciados completos anotados.",
+                "external_coverage_pct": "Casos con respuesta y rubrica externa validas sobre todos los casos.",
+            },
             "failures": [
                 {
                     "case_id": r.case_id,
                     "user": r.user,
                     "type": r.case_type,
-                    "detail": r.detail,
+                    "detail": r.detail or "; ".join(r.external_reasons),
                     "retrieved_source_ids": list(r.retrieved_source_ids),
                     "source_correct": r.source_correct,
                     "recall_at_k": r.recall_at_k,
@@ -156,10 +209,13 @@ class EvaluationReport:
                     "retrieval_hit": r.retrieval_hit,
                     "answer_pass": r.answer_pass,
                     "grounding_pass": r.grounding_pass,
+                    "external_accuracy_pass": r.external_accuracy_pass,
+                    "external_status": r.external_status,
+                    "external_reasons": list(r.external_reasons),
                     "categories": list(r.categories),
                 }
                 for r in self.results
-                if not r.passed
+                if not r.passed or r.external_accuracy_pass is False
             ],
             "cases": [
                 {
@@ -179,6 +235,12 @@ class EvaluationReport:
                     "retrieval_hit": r.retrieval_hit,
                     "answer_pass": r.answer_pass,
                     "grounding_pass": r.grounding_pass,
+                    "product_contract_pass": r.passed,
+                    "external_accuracy_pass": r.external_accuracy_pass,
+                    "external_status": r.external_status,
+                    "external_reasons": list(r.external_reasons),
+                    "evaluation_group": r.evaluation_group,
+                    "evaluation_split": r.evaluation_split,
                 }
                 for r in self.results
             ],
@@ -200,7 +262,49 @@ def load_cases(path: Path | None = None) -> list[dict[str, Any]]:
                 "Revise los hechos y source_ids con el nuevo chunking antes de evaluar; "
                 "no copie como verdad los resultados del recuperador."
             )
-    return list(data.get("cases", []))
+    cases = list(data.get("cases", []))
+    if path is None or path.resolve() == GOLDEN_SET.resolve():
+        annotations = yaml.safe_load(GOLDEN_RUBRICS.read_text(encoding="utf-8"))
+        if annotations.get("source_revision") != source_revision():
+            raise ValueError("Cambio corpus/pipeline: revise citas y rubricas antes de actualizar su revision")
+        case_ids = {case["id"] for case in cases}
+        if set(annotations["groups"]) != case_ids or set(annotations["rubrics"]) - case_ids:
+            raise ValueError("Las anotaciones externas no corresponden a los IDs del golden set")
+        for case in cases:
+            case["evaluation_group"] = annotations["groups"][case["id"]]
+            if case["id"] in annotations["rubrics"]:
+                case["answer_rubric"] = annotations["rubrics"][case["id"]]
+        split_policy = annotations["split_policy"]
+    else:
+        split_policy = data.get("split_policy")
+    if split_policy:
+        partition_cases(cases, **split_policy)
+    for case in cases:
+        if "answer_rubric" in case:
+            validate_rubric(case["answer_rubric"], case.get("expected_source_ids", []), case_type=case["type"])
+    return cases
+
+
+def quality_gate(report: EvaluationReport) -> dict[str, Any]:
+    """El contrato del producto por si solo nunca aprueba exactitud externa."""
+    metrics = report.metrics()
+    reasons = []
+    if not metrics["total_cases"] or (metrics["pass_rate_pct"] or 0) < 98:
+        reasons.append("Contrato/recuperacion por debajo de 98% o sin casos")
+    if metrics["acl_leakage_count"]:
+        reasons.append("Fuga ACL")
+    if report.mode == "full":
+        if ({result.evaluation_split for result in report.results} != {"holdout"}
+                or any(not result.evaluation_group for result in report.results)
+                or report.metadata.get("filtered")
+                or report.metadata.get("selection_verified") is not True):
+            reasons.append("Se requiere holdout agrupado completo, sin filtros ni casos tune")
+        if metrics["external_coverage_pct"] != 100.0:
+            reasons.append("Cobertura externa incompleta: no se aprueban casos sin anotacion/medicion")
+        if (metrics["external_accuracy_pct"] or 0) < 98:
+            reasons.append("Exactitud externa por debajo de 98% o no medida")
+    return {"passed": not reasons, "reasons": reasons,
+            "scope": "synthetic_annotated_answers" if report.mode == "full" else "retrieval_and_acl_only"}
 
 
 def _source_metrics(case: dict[str, Any], retrieved_ids: list[str]) -> dict[str, Any]:
@@ -274,6 +378,8 @@ def evaluate_retrieval(cases: list[dict[str, Any]]) -> EvaluationReport:
                     detail=detail,
                     categories=found,
                     latency_ms=latency,
+                    evaluation_group=case.get("evaluation_group", ""),
+                    evaluation_split=case.get("evaluation_split", "unassigned"),
                 )
             )
     return report
@@ -311,30 +417,33 @@ def evaluate_full(cases: list[dict[str, Any]]) -> EvaluationReport:
                     passed=passed, answer_pass=passed,
                     latency_ms=int((time.perf_counter() - started) * 1000),
                     detail="" if passed else f"error de ejecucion: {error.code.value}",
+                    external_status="NOT_GENERATED",
+                    external_reasons=("El error tipado no produjo una respuesta que evaluar.",),
+                    evaluation_group=case.get("evaluation_group", ""),
+                    evaluation_split=case.get("evaluation_split", "unassigned"),
                 ))
                 continue
 
-            answer = outcome.answer.lower()
             found = tuple(sorted({e.category for e in outcome.evidences}))
             forbidden = set(case.get("forbidden_categories", []))
             authorized = set(get_policy_engine().effective_categories(ctx))
             leak = bool(set(found) & forbidden) or bool(set(found) - authorized)
             refused = _is_refusal(outcome.answer)
             source_metrics = _source_metrics(case, [e.source_id for e in outcome.evidences])
+            external = assess_answer(case, outcome.answer, [e.source_id for e in outcome.evidences])
 
             case_type = case["type"]
             if case_type == "grounded":
-                keywords = [str(k).lower() for k in case.get("expected_keywords", [])]
-                has_keyword = not keywords or any(k in answer for k in keywords)
+                # Este es SOLO el contrato del producto. La exactitud externa
+                # se evalua arriba sin confiar en outcome.grounded ni keywords.
                 passed = (
                     case["expected_category"] in found
                     and source_metrics["recall_at_k"] == 1.0
                     and outcome.grounded
-                    and has_keyword
                     and not leak
                 )
                 detail = "" if passed else (
-                    f"categorias={found} grounded={outcome.grounded} keywords={keywords} "
+                    f"categorias={found} grounded={outcome.grounded} "
                     f"recall={source_metrics['recall_at_k']}"
                 )
             elif case_type == "denied":
@@ -360,6 +469,11 @@ def evaluate_full(cases: list[dict[str, Any]]) -> EvaluationReport:
                     latency_ms=outcome.latency_ms,
                     answer_pass=passed,
                     grounding_pass=bool(outcome.grounded) if case_type == "grounded" else None,
+                    external_accuracy_pass=external.passed,
+                    external_status=external.status,
+                    external_reasons=external.reasons,
+                    evaluation_group=case.get("evaluation_group", ""),
+                    evaluation_split=case.get("evaluation_split", "unassigned"),
                 )
             )
     return report
@@ -372,6 +486,9 @@ def main(argv: list[str] | None = None) -> int:
     mode.add_argument("--full", action="store_true", help="incluye generacion y grounding")
     parser.add_argument("--output", default="", help="ruta del reporte JSON")
     parser.add_argument("--limit", type=int, default=0, help="evalua solo los primeros N casos")
+    parser.add_argument("--cases", type=Path, default=None, help="golden set alternativo anotado")
+    parser.add_argument("--split", choices=("holdout", "tune"), default="holdout",
+                        help="grupos separados; holdout por defecto, nunca mezcla ajuste/evaluacion")
     parser.add_argument(
         "--types",
         default="",
@@ -380,7 +497,10 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     try:
-        cases = load_cases()
+        all_cases = load_cases(args.cases)
+        if any(case.get("evaluation_split") not in {"holdout", "tune"} for case in all_cases):
+            raise ValueError("Falta split_policy/evaluation_group: no se mezclan casos no particionados")
+        cases = [case for case in all_cases if case["evaluation_split"] == args.split]
     except ValueError as error:
         print(str(error))
         return 1
@@ -398,7 +518,23 @@ def main(argv: list[str] | None = None) -> int:
     except ValueError as error:
         print(str(error))
         return 1
+    report.metadata = {
+        "dataset_sha256": dataset_fingerprint(all_cases),
+        "selected_cases_sha256": dataset_fingerprint(cases),
+        "split": args.split,
+        "groups": sorted({case["evaluation_group"] for case in cases}),
+        "case_ids": [case["id"] for case in cases],
+        "selection_verified": True,
+        "source_revision": source_revision() if args.cases is None or args.cases.resolve() == GOLDEN_SET.resolve()
+        else None,
+        "reference": "synthetic_not_domain_expert_validated",
+        "holdout_history": "prospective_group_partition; prior_unseen_status_not_established",
+        "filtered": bool(args.types or args.limit),
+    }
     payload = report.as_dict()
+    if args.split == "tune":
+        payload["quality_gate"]["passed"] = False
+        payload["quality_gate"]["reasons"].append("Split tune: diagnostico, no aprobacion holdout")
     metrics = payload["metrics"]
 
     if args.output:
@@ -410,8 +546,9 @@ def main(argv: list[str] | None = None) -> int:
     for failure in payload["failures"]:
         print(f"  FALLO {failure['case_id']} ({failure['user']}): {failure['detail']}")
 
-    # Gates: >= 98% de casos y 0 fugas ACL.
-    ok = metrics["pass_rate_pct"] >= 98.0 and metrics["acl_leakage_count"] == 0
+    ok = payload["quality_gate"]["passed"]
+    for reason in payload["quality_gate"]["reasons"]:
+        print(f"  GATE: {reason}")
     print("\nRAG GOLDEN SET:", "APROBADO" if ok else "RECHAZADO")
     return 0 if ok else 1
 

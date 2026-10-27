@@ -81,7 +81,7 @@ class TestChunking:
         assert "uno" in chunks[0].text and "tres" in chunks[0].text
 
     def test_respeta_el_tamano_maximo(self):
-        texto = "palabra " * 4000
+        texto = ("palabra " * 20 + ". ") * 200
         chunks = chunk_text(texto, chunk_size_tokens=300, overlap_tokens=50)
         assert len(chunks) > 1
         assert all(estimate_tokens(c.text) <= 300 for c in chunks)

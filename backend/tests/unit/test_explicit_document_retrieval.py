@@ -9,6 +9,7 @@ from types import SimpleNamespace
 import pytest
 from qdrant_client import QdrantClient
 
+from app.common.errors import IndexUpdateRequiredError
 from app.common.ids import new_id, utcnow_naive
 from app.config.settings import Settings
 from app.database.models import Document
@@ -156,6 +157,11 @@ def test_deleted_pending_and_incompatible_documents_are_not_resolved(corpus, sta
         else:
             row.index_fingerprint = "different-index-fingerprint"
         db.commit()
+    if state == "incompatible":
+        with pytest.raises(IndexUpdateRequiredError):
+            corpus.ask("Segun Manual de Prestaciones.pdf, ¿cual es la regla?")
+        assert not corpus.search_calls
+        return
     result = corpus.ask("Segun Manual de Prestaciones.pdf, ¿cual es la regla?")
     assert not result.has_evidence and result.clarification and not corpus.search_calls
 

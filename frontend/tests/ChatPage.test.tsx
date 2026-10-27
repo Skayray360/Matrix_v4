@@ -602,7 +602,7 @@ describe("ChatPage concurrencia", () => {
     expect(screen.getByTestId("composer-input")).toHaveValue("Consulta A");
     await user.click(screen.getByTestId("send-button"));
     await screen.findByText("Respuesta recuperada A");
-    expect(api.chatStatus).toHaveBeenCalledWith(requestId, expect.any(AbortSignal));
+    expect(api.chatStatus).toHaveBeenCalledWith(requestId, expect.any(AbortSignal), "A");
     expect(api.submitChat).toHaveBeenCalledTimes(2);
   });
 
@@ -963,6 +963,50 @@ describe("ChatPage admision y aviso de capacidad", () => {
     await user.type(screen.getByTestId("composer-input"), `${message}{Enter}`);
   }
 
+  it("conserva el destino aprendido de una conversación nueva después de un sondeo ajeno", async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.fn().mockImplementation(
+      async (_url: string, options: RequestInit) =>
+        new Response(
+          JSON.stringify(
+            options.method === "POST" ? status() : completed({ ...reply, conversation_id: "B" }),
+          ),
+          {
+            headers: { "X-Request-ID": "synthetic-wrong-poll" },
+          },
+        ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    render(<ChatPage me={me} onLogout={vi.fn()} />);
+    await user.type(screen.getByTestId("composer-input"), "Nueva consulta{Enter}");
+    const alert = await screen.findByRole("alert", {}, { timeout: 3500 });
+    expect(alert).toHaveTextContent("synthetic-wrong-poll");
+    expect(screen.getByTestId("composer-input")).toHaveValue("Nueva consulta");
+    expect(screen.queryByText(reply.answer)).not.toBeInTheDocument();
+    await user.click(screen.getByTestId("send-button"));
+    expect(await screen.findByRole("alert")).toHaveTextContent("synthetic-wrong-poll");
+    expect(fetchMock.mock.calls.filter(([, options]) => options.method === "POST")).toHaveLength(1);
+    expect(fetchMock.mock.calls[2][0]).toBe(fetchMock.mock.calls[1][0]);
+    expect(screen.queryByText(reply.answer)).not.toBeInTheDocument();
+    expect(screen.getByTestId("composer-input")).toHaveValue("Nueva consulta");
+  });
+
+  it("explica que un índice antiguo necesita reindexación sin reintentar automáticamente", async () => {
+    const user = userEvent.setup();
+    vi.spyOn(api, "submitChat").mockResolvedValue(
+      status({ status: "failed", error_code: "index_update_required" }),
+    );
+    vi.spyOn(api, "chatStatus");
+    render(<ChatPage me={me} onLogout={vi.fn()} />);
+    await send(user);
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("Solicite a TI la reindexación");
+    expect(alert).toHaveTextContent("antes de volver a consultar");
+    expect(screen.getByTestId("composer-input")).toHaveValue("Consulta pendiente");
+    expect(api.submitChat).toHaveBeenCalledTimes(1);
+    expect(api.chatStatus).not.toHaveBeenCalled();
+  });
+
   it("no muestra saturacion bajo el umbral aunque el servidor incluya un texto de aviso", async () => {
     const user = userEvent.setup();
     vi.spyOn(api, "submitChat").mockResolvedValue(
@@ -1061,7 +1105,7 @@ describe("ChatPage admision y aviso de capacidad", () => {
     await send(user);
     const requestId = vi.mocked(api.submitChat).mock.calls[0][2];
     await user.click(screen.getByRole("button", { name: "Cancelar solicitud" }));
-    expect(api.cancelChat).toHaveBeenCalledWith(requestId);
+    expect(api.cancelChat).toHaveBeenCalledWith(requestId, "A");
     expect(screen.getByRole("button", { name: "Cancelación solicitada…" })).toBeDisabled();
     expect(await screen.findByRole("alert", {}, { timeout: 3500 })).toHaveTextContent(
       "Solicitud cancelada",
@@ -1074,6 +1118,14 @@ describe("ChatPage admision y aviso de capacidad", () => {
   it.each([
     ["corte de red", new TypeError("Failed to fetch")],
     ["tiempo de HTTP agotado", new ApiError("request_timeout", "Tiempo agotado", 408, null)],
+    [
+      "contrato inválido",
+      new ApiError("invalid_response", "Respuesta inválida", 200, "synthetic-contract"),
+    ],
+    [
+      "error interno del contrato",
+      new ApiError("internal_error", "Resultado incierto", 500, "synthetic-internal"),
+    ],
   ])("recupera el mismo identificador tras %s sin duplicar la pregunta", async (_name, failure) => {
     const user = userEvent.setup();
     vi.spyOn(api, "submitChat").mockResolvedValue(saturated);
@@ -1083,7 +1135,12 @@ describe("ChatPage admision y aviso de capacidad", () => {
     render(<ChatPage me={me} onLogout={vi.fn()} />);
     await send(user);
     const requestId = vi.mocked(api.submitChat).mock.calls[0][2];
-    await screen.findByRole("alert", {}, { timeout: 3500 });
+    const alert = await screen.findByRole("alert", {}, { timeout: 3500 });
+    expect(alert).toHaveTextContent(requestId);
+    if (failure instanceof ApiError && failure.requestId) {
+      expect(alert).toHaveTextContent(failure.requestId);
+    }
+    expect(screen.getByTestId("composer-input")).toHaveValue("Consulta pendiente");
     expect(screen.queryByTestId("capacity-notice")).not.toBeInTheDocument();
     vi.mocked(api.getConversation).mockResolvedValue({
       ...detail("A"),
@@ -1101,7 +1158,49 @@ describe("ChatPage admision y aviso de capacidad", () => {
     await user.click(screen.getByTestId("send-button"));
     await screen.findByText(reply.answer);
     expect(api.submitChat).toHaveBeenCalledTimes(1);
-    expect(api.chatStatus).toHaveBeenLastCalledWith(requestId, expect.any(AbortSignal));
+    expect(api.chatStatus).toHaveBeenLastCalledWith(requestId, expect.any(AbortSignal), "A");
+  });
+
+  it("conserva el envío ante completed sin respuesta y consulta el mismo ID hasta recuperarlo", async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.fn().mockImplementation(async (_url: string, options: RequestInit) => {
+      if (options.method === "POST") {
+        return new Response(JSON.stringify(status({ status: "completed", response: null })), {
+          status: 202,
+          headers: { "X-Request-ID": "synthetic-malformed-submit" },
+        });
+      }
+      return new Response(JSON.stringify(completed(reply)));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    render(<ChatPage me={me} onLogout={vi.fn()} />);
+    await send(user);
+    const requestId = JSON.parse(fetchMock.mock.calls[0][1].body as string).client_request_id;
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("sin duplicarlo");
+    expect(alert).toHaveTextContent("synthetic-malformed-submit");
+    expect(alert).toHaveTextContent(requestId);
+    expect(screen.getByTestId("composer-input")).toHaveValue("Consulta pendiente");
+    expect(screen.queryByText(reply.answer)).not.toBeInTheDocument();
+    vi.mocked(api.getConversation).mockResolvedValue({
+      ...detail("A"),
+      messages: [
+        {
+          id: reply.message_id,
+          role: "assistant",
+          content: reply.answer,
+          sources: [],
+          model: null,
+          created_at: "2026-10-26",
+        },
+      ],
+    });
+    await user.click(screen.getByTestId("send-button"));
+    expect(await screen.findByText(reply.answer)).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[1][0]).toBe(`/api/v1/chat/requests/${requestId}`);
+    expect(fetchMock.mock.calls[1][1].method).toBe("GET");
+    expect(screen.getByTestId("composer-input")).toHaveValue("");
   });
 
   it("no presenta el aviso ni la respuesta de A dentro de B", async () => {
