@@ -2,14 +2,16 @@
 REM Creado por Aldo Garcia.
 setlocal
 cd /d "%~dp0"
+if errorlevel 1 exit /b 1
 title Matrix RH - instalar
-where powershell.exe >nul 2>&1
-if errorlevel 1 (
+set "MATRIX_PS=%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe"
+if exist "%SystemRoot%\Sysnative\WindowsPowerShell\v1.0\powershell.exe" set "MATRIX_PS=%SystemRoot%\Sysnative\WindowsPowerShell\v1.0\powershell.exe"
+if not exist "%MATRIX_PS%" (
     echo [FALLA] Se requiere Windows PowerShell 5.1 x64.
     pause
     exit /b 1
 )
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0backend\scripts\windows\MatrixRH.ps1" -Action instalar %*
+"%MATRIX_PS%" -NoProfile -ExecutionPolicy Bypass -File "%~dp0backend\scripts\windows\MatrixRH.ps1" -Action instalar %*
 set "MATRIX_EXIT=%ERRORLEVEL%"
 if not "%MATRIX_EXIT%"=="0" echo [FALLA] La operacion termino con codigo %MATRIX_EXIT%.
 pause

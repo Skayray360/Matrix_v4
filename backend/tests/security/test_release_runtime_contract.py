@@ -21,13 +21,15 @@ CONTROLLER = ROOT / "backend/scripts/windows/MatrixRH.ps1"
 def test_instalador_python_sincroniza_lock_congelado_en_entorno_propio():
     script = CONTROLLER.read_text(encoding="utf-8")
     command = next(line for line in script.splitlines() if "Invoke-Checked $uv @('sync'" in line)
-    for flag in ("--frozen", "--no-dev", "--no-editable", "--managed-python", "--no-python-downloads"):
+    for flag in ("--frozen", "--no-dev", "--no-editable", "--managed-python", "--no-python-downloads", "--no-build", "--no-install-project"):
         assert f"'{flag}'" in command
     assert "UV_PROJECT_ENVIRONMENT=(Join-Path $script:Runtime 'venv')" in script
     assert "pip install" not in script.lower()
-    # El equipo destino reutiliza el build entregado; no resuelve paquetes de Node.
-    assert "frontend\\dist\\index.html" in script
-    assert not re.search(r"\bnpm (?:install|ci|run build)\b", script)
+    # Auditar antes de sincronizar; compilar con el Node/npm fijado y sin hooks.
+    assert "Invoke-Checked $uv @('audit'" in script
+    assert "Install-Node" in script and "Build-Frontend" in script
+    assert "Invoke-Npm @('ci','--include=dev','--include=optional','--no-audit')" in script
+    assert "'--ignore-scripts'" in script
 
 
 def test_runtime_manifest_fija_descargas_windows_x64_con_checksum():

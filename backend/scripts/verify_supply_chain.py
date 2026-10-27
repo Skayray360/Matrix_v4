@@ -37,6 +37,7 @@ import re
 import sys
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
+from urllib.parse import urlsplit
 
 import yaml
 
@@ -392,8 +393,15 @@ def check_npm_lock(report: Report, denylist: dict, packages: list[tuple], *, loc
         version = entry.get("version", "")
         resolved = entry.get("resolved", "")
         integrity = entry.get("integrity", "")
+        try:
+            origin = urlsplit(resolved) if isinstance(resolved, str) else None
+            trusted_origin = (origin is not None and origin.scheme == "https"
+                              and origin.hostname == "registry.npmjs.org" and origin.port in (None, 443)
+                              and not origin.username and not origin.password and not origin.fragment)
+        except ValueError:
+            trusted_origin = False
         if (entry.get("link") or not isinstance(version, str) or not version
-                or not isinstance(resolved, str) or not resolved.startswith("https://")
+                or not trusted_origin
                 or not isinstance(integrity, str)
                 or not re.fullmatch(r"sha(?:256|384|512)-[A-Za-z0-9+/]+={0,2}", integrity)):
             report.findings.append(Finding("critical", "lock_sin_integridad", location, str(target)))

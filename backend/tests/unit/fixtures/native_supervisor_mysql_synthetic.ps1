@@ -9,7 +9,7 @@ foreach ($function in $ast.FindAll({ param($n) $n -is [Management.Automation.Lan
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 $script:TestRoot=Join-Path ([IO.Path]::GetTempPath()) ('matrix mysql synthetic ' + [guid]::NewGuid().ToString('N'))
 $script:Utf8=[Text.UTF8Encoding]::new($false)
-$script:BinaryVersion='8.4.11'
+$script:BinaryVersion='8.4.13'
 function Assert([bool]$Condition,[string]$Message) { if (-not $Condition) { throw $Message } }
 function Reject([scriptblock]$Body,[string]$Expected) {
     $message=''
@@ -19,15 +19,15 @@ function Reject([scriptblock]$Body,[string]$Expected) {
 # Version probes are inert: the synthetic EXEs below are text and never executed.
 function MySql-Version([string]$Executable) { $script:Probes++; return $script:BinaryVersion }
 function Start-Owned { throw 'Provisioning must never initialize or start a database' }
-function New-Case([string]$Name,[bool]$IncludeClient=$true,[string]$ArchiveRoot='mysql-8.4.11-winx64') {
+function New-Case([string]$Name,[bool]$IncludeClient=$true,[string]$ArchiveRoot='mysql-8.4.13-winx64') {
     $script:Root=Join-Path $script:TestRoot $Name
     $script:Config=Join-Path $script:Root 'backend/config'
     $script:Runtime=Join-Path $script:Root 'backend/runtime'
     $script:Run=Join-Path $script:Root 'knowledge-base/state/run'
     $script:Secrets=Join-Path $script:Config 'secrets'
-    $script:Probes=0; $script:BinaryVersion='8.4.11'
+    $script:Probes=0; $script:BinaryVersion='8.4.13'
     foreach ($dir in @($script:Config,$script:Runtime,$script:Run,$script:Secrets)) { Ensure-Directory $dir }
-    $archive=Join-Path $script:Runtime 'downloads/mysql-8.4.11-winx64.zip'
+    $archive=Join-Path $script:Runtime 'downloads/mysql-8.4.13-winx64.zip'
     Ensure-Directory ([IO.Path]::GetDirectoryName($archive))
     $source=Join-Path $script:TestRoot ($Name + '-zip-source')
     $server=Join-Path $source ($ArchiveRoot + '/bin/mysqld.exe')
@@ -38,7 +38,7 @@ function New-Case([string]$Name,[bool]$IncludeClient=$true,[string]$ArchiveRoot=
     if (-not $IncludeClient) { Remove-Item -LiteralPath $client }
     Write-Text (Join-Path $source ($ArchiveRoot + '/LICENSE')) 'INERT LICENSE FIXTURE'
     [IO.Compression.ZipFile]::CreateFromDirectory($source,$archive)
-    $script:Pin=@{version='8.4.11';archive_name='mysql-8.4.11-winx64.zip';archive_root='mysql-8.4.11-winx64';url='https://cdn.mysql.com/Downloads/MySQL-8.4/mysql-8.4.11-winx64.zip';sha256=(Get-FileHash $archive -Algorithm SHA256).Hash.ToLowerInvariant();binary_sha256=$binaryHashes}
+    $script:Pin=@{version='8.4.13';minimum_version='8.4.13';archive_name='mysql-8.4.13-winx64.zip';archive_root='mysql-8.4.13-winx64';url='https://cdn.mysql.com/Downloads/MySQL-8.4/mysql-8.4.13-winx64.zip';sha256=(Get-FileHash $archive -Algorithm SHA256).Hash.ToLowerInvariant();binary_sha256=$binaryHashes}
     Write-Text (Join-Path $script:Config 'runtime-manifest.json') (@{mysql=$script:Pin} | ConvertTo-Json -Depth 5)
 }
 try {
@@ -53,19 +53,22 @@ try {
     $receiptPath=Join-Path $installed '.matrix-package.json'
     $receipt=[IO.File]::ReadAllText($receiptPath) | ConvertFrom-Json
     Assert ($receipt.source -eq 'official_mysql_zip') 'Official provenance missing'
-    # Idempotence: remove the cached archive and replace download with a failure.
-    # Reinstall with older 8.0 must keep its installed runtime and user state.
+    # Reinstalar reutiliza una version aprobada; una antigua se bloquea sin
+    # descargar un reemplazo ni tocar sus datos.
     Remove-Item -LiteralPath (Join-Path $script:Runtime 'downloads') -Recurse
     function Download-Pinned { throw 'REINSTALL MUST NOT DOWNLOAD OR UPGRADE MYSQL' }
-    $script:BinaryVersion='8.0.45'
-    $receipt.version='mysqld Ver 8.0.45 for Win64'; $receipt.PSObject.Properties.Remove('mysqladmin_sha256')
-    Write-Text $receiptPath ($receipt | ConvertTo-Json)
     $data=Join-Path $script:Root 'knowledge-base/state/mysql/mysql.ibd'
     Write-Text $data 'PRESERVE SYNTHETIC DATABASE'
     $before=[IO.File]::ReadAllText($receiptPath)
     Install-MySql
     Assert ([IO.File]::ReadAllText($receiptPath) -eq $before) 'Existing receipt was replaced'
+    $script:BinaryVersion='8.4.11'
+    Reject { Install-MySql } 'minimo de seguridad'
+    $script:BinaryVersion='8.0.45'
+    Reject { Install-MySql } 'minimo de seguridad'
     Assert ([IO.File]::ReadAllText($data) -eq 'PRESERVE SYNTHETIC DATABASE') 'Existing database changed'
+    Assert ([IO.File]::ReadAllText($receiptPath) -eq $before) 'Security rejection replaced runtime receipt'
+    $script:BinaryVersion='8.4.13'
     Write-Text (Join-Path $installed 'bin/mysqld.exe') 'TAMPERED FIXTURE'
     Reject { Install-MySql } 'Cambio no esperado'
     # Restore only the genuine download function: all subsequent downloads use

@@ -56,7 +56,7 @@ try {
         $sql=Get-Content -LiteralPath (Join-Path $script:Secrets 'mysql-init.sql') -Raw
         Assert ($sql -notmatch 'CREATE DATABASE') 'migrator must create and own schema'
         Assert ($sql -match 'GRANT SHUTDOWN') 'shutdown account grant missing'
-        Assert (($Arguments -join ' ') -notmatch 'aaaa|bbbb') 'password on command line'
+        Assert (($Arguments -join ' ') -notmatch ('a'*64 + '|' + 'b'*64)) 'password on command line'
         $script:ServerStarted=$true
     }
     $missingDataError=''

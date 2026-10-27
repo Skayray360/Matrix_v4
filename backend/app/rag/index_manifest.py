@@ -12,9 +12,9 @@ from app.config import get_settings
 from app.database.engine import session_scope
 from app.database.models import Document
 
-# Contrato unico para huella y manifest SQL. v8 agrega localizadores Word,
-# diapositivas PPTX y OCR local optativo; requiere reextraer los mismos bytes.
-PIPELINE_VERSION = 8
+# v9: OCR de paginas mixtas, secciones PDF explicitas y titulo documento/seccion
+# en embeddings. Reextraer los mismos bytes sin mezclar vectores de v8 y v9.
+PIPELINE_VERSION = 9
 
 
 def indexing_fingerprint(llm=None) -> str:
@@ -30,7 +30,7 @@ def indexing_fingerprint(llm=None) -> str:
         # v4 aplica el limite de filas/columnas durante la lectura de XLSX.
         # La huella obliga a reextraer documentos con bytes identicos para que
         # un indice anterior no conserve filas ahora fuera del limite.
-        "extractor": 5,
+        "extractor": 6,
         "ocr_enabled": settings.extraction_ocr_enabled,
         "ocr_language": settings.extraction_ocr_language,
         "ocr_dpi": settings.extraction_ocr_dpi,

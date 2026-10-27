@@ -95,8 +95,8 @@ def select_summary_scope(question: str, evidences: tuple[Evidence, ...]) -> Summ
     locations: set[tuple[str, str, str, str]] = set()
     selected_ids: set[str] = set()
     for item in evidences:
-        # PDF no tiene jerarquia de encabezados: su primera linea es el titulo
-        # de la pagina. No buscar dentro del cuerpo ni en el nombre del archivo.
+        # Usar secciones explicitas o la primera linea como titulo de pagina.
+        # No buscar dentro del cuerpo ni en el nombre del archivo.
         first_line = next((line.strip() for line in item.text.splitlines() if line.strip()), "")
         title_line = first_line if len(first_line.split()) <= 20 else ""
         if _heading_matches(item.section, section) or _heading_matches(title_line, section):
@@ -104,7 +104,8 @@ def select_summary_scope(question: str, evidences: tuple[Evidence, ...]) -> Summ
             if item.page_or_sheet:
                 locations.add((item.scope, item.document_id, item.filename, item.page_or_sheet))
     selected = tuple(item for item in evidences if item.source_id in selected_ids or (
-        item.scope, item.document_id, item.filename, item.page_or_sheet,
-    ) in locations)
+        (not item.section or _normalize(item.section) == _normalize(item.page_or_sheet))
+        and (item.scope, item.document_id, item.filename, item.page_or_sheet) in locations
+    ))
     return SummarySelection(selected, section_requested=True,
                             clarification="" if selected else SECTION_NOT_FOUND)

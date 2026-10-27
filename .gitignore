@@ -1,3 +1,4 @@
+# Creado por Aldo Garcia.
 # Local configuration, secrets and installation state
 .env
 .env.*
@@ -16,6 +17,7 @@ offline-models/
 backend/config/mysql.ini
 backend/config/mysql-initialized.json
 backend/config/apache/matrix-rh.conf
+backend/config/frontend-build.json
 
 # Dependencies and generated caches (frontend/dist is distributed)
 .venv/
