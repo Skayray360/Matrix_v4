@@ -1,0 +1,322 @@
+{
+  "moves": [
+    {
+      "from": "config",
+      "to": "backend/config"
+    },
+    {
+      "from": ".env.example",
+      "to": "backend/config/env.example"
+    },
+    {
+      "from": "LICENSE",
+      "to": "backend/LICENSE"
+    },
+    {
+      "from": "BUILD_INFO.json",
+      "to": "backend/release/BUILD_INFO.json"
+    },
+    {
+      "from": "SHA256SUMS.txt",
+      "to": "backend/release/SHA256SUMS.txt"
+    },
+    {
+      "from": ".dockerignore",
+      "to": "backend/Dockerfile.dockerignore"
+    },
+    {
+      "from": "infrastructure/database/init/01-create-database.sql",
+      "to": "backend/docker/mysql/init/01-create-database.sql"
+    },
+    {
+      "from": "infrastructure/nginx/matrixrh.conf",
+      "to": "frontend/nginx/matrixrh.conf"
+    },
+    {
+      "from": "data/prestaciones/PLATICA DE PLAN DE FALLECIMIENTO E INVALIDEZ RH 2020.pdf",
+      "to": "knowledge-base/documents/prestaciones/PLATICA DE PLAN DE FALLECIMIENTO E INVALIDEZ RH 2020.pdf"
+    },
+    {
+      "from": "data/prestaciones/PLATICA DE PLAN DE PENSIONES POR JUBILACI#U00d3N DICIEMBRE 2022.pdf",
+      "to": "knowledge-base/documents/prestaciones/PLATICA DE PLAN DE PENSIONES POR JUBILACI#U00d3N DICIEMBRE 2022.pdf"
+    },
+    {
+      "from": "data/prestaciones/PLATICA DE PRESTACIONES JUNIO 2020.pdf",
+      "to": "knowledge-base/documents/prestaciones/PLATICA DE PRESTACIONES JUNIO 2020.pdf"
+    },
+    {
+      "from": "data/prestaciones/Platicas Cartas designacion 2022 BMA.pdf",
+      "to": "knowledge-base/documents/prestaciones/Platicas Cartas designacion 2022 BMA.pdf"
+    },
+    {
+      "from": "data/prestaciones/prestaciones.pdf",
+      "to": "knowledge-base/documents/prestaciones/prestaciones.pdf"
+    },
+    {
+      "from": "data/Gastos medicos/Gastos medicos 2026.pdf",
+      "to": "knowledge-base/documents/prestaciones/Gastos medicos 2026.pdf"
+    },
+    {
+      "from": "data/ACR/analisis-1.md",
+      "to": "knowledge-base/unclassified/ACR/analisis-1.md"
+    },
+    {
+      "from": "data/ACR/analisis-10.md",
+      "to": "knowledge-base/unclassified/ACR/analisis-10.md"
+    },
+    {
+      "from": "data/ACR/analisis-2.md",
+      "to": "knowledge-base/unclassified/ACR/analisis-2.md"
+    },
+    {
+      "from": "data/ACR/analisis-3.md",
+      "to": "knowledge-base/unclassified/ACR/analisis-3.md"
+    },
+    {
+      "from": "data/ACR/analisis-4.md",
+      "to": "knowledge-base/unclassified/ACR/analisis-4.md"
+    },
+    {
+      "from": "data/ACR/analisis-5.md",
+      "to": "knowledge-base/unclassified/ACR/analisis-5.md"
+    },
+    {
+      "from": "data/ACR/analisis-6.md",
+      "to": "knowledge-base/unclassified/ACR/analisis-6.md"
+    },
+    {
+      "from": "data/ACR/analisis-7.md",
+      "to": "knowledge-base/unclassified/ACR/analisis-7.md"
+    },
+    {
+      "from": "data/ACR/analisis-8.md",
+      "to": "knowledge-base/unclassified/ACR/analisis-8.md"
+    },
+    {
+      "from": "data/ACR/analisis-9.md",
+      "to": "knowledge-base/unclassified/ACR/analisis-9.md"
+    },
+    {
+      "from": "data/synthetic_test_data/knowledge/nomina/politica-de-nomina.md",
+      "to": "backend/tests/fixtures/knowledge/nomina/politica-de-nomina.md"
+    },
+    {
+      "from": "data/synthetic_test_data/knowledge/prestaciones/fondo-de-ahorro-y-aguinaldo.md",
+      "to": "backend/tests/fixtures/knowledge/prestaciones/fondo-de-ahorro-y-aguinaldo.md"
+    },
+    {
+      "from": "data/synthetic_test_data/knowledge/prestaciones/politica-vacaciones.md",
+      "to": "backend/tests/fixtures/knowledge/prestaciones/politica-vacaciones.md"
+    },
+    {
+      "from": "data/synthetic_test_data/knowledge/reclutamiento/proceso-de-reclutamiento.md",
+      "to": "backend/tests/fixtures/knowledge/reclutamiento/proceso-de-reclutamiento.md"
+    },
+    {
+      "from": "data/synthetic_test_data/knowledge/relaciones_laborales/reglamento-interior.md",
+      "to": "backend/tests/fixtures/knowledge/relaciones_laborales/reglamento-interior.md"
+    },
+    {
+      "from": "data/synthetic_test_data/knowledge/salud_ambiental/seguridad-higiene-y-ambiente.md",
+      "to": "backend/tests/fixtures/knowledge/salud_ambiental/seguridad-higiene-y-ambiente.md"
+    }
+  ],
+  "consolidated_or_excluded": [
+    "data/README.md",
+    "data/synthetic_test_data/README.md",
+    "data/knowledge/README.md",
+    "data/prestaciones/README.md",
+    "data/knowledge/nomina/README.md",
+    "data/knowledge/general/README.md",
+    "data/knowledge/relaciones_laborales/README.md",
+    "data/knowledge/especializadas/README.md",
+    "data/knowledge/reclutamiento/README.md",
+    "data/knowledge/salud_ambiental/README.md",
+    "data/knowledge/prestaciones/README.md",
+    "data/knowledge/especializadas/matrix_rh_ia/README.md",
+    "data/knowledge/especializadas/capacitacion/README.md",
+    "data/knowledge/especializadas/relaciones_laborales/README.md",
+    "data/knowledge/especializadas/compensaciones/README.md",
+    "data/knowledge/especializadas/nomina_general/README.md",
+    "data/knowledge/especializadas/documentacion_empresarial/README.md",
+    "data/knowledge/especializadas/administracion_personal/README.md",
+    "data/knowledge/especializadas/nomina_confidencial/README.md",
+    "data/knowledge/especializadas/reclutamiento/README.md",
+    "data/knowledge/especializadas/talento/README.md",
+    "docs/CORRECCION_CONTEXTO_1.3.4.md",
+    "docs/README.md",
+    "docs/CORRECCION_INTEGRAL_1.3.2.md",
+    "docs/TROUBLESHOOTING.md",
+    "docs/RAG_DESIGN.md",
+    "docs/TESTING.md",
+    "docs/REVISION_DOCUMENTAL_2026-10-07.md",
+    "docs/SECURITY.md",
+    "docs/MEJORAS_2026-10-07.md",
+    "docs/ARCHITECTURE.md",
+    "docs/MODELOS_Y_RENDIMIENTO.md",
+    "docs/RUNBOOK.md",
+    "docs/INSTALACION.md",
+    "docs/VALIDACION_2026-10-08.md",
+    "docs/MEJORA_PREVENTIVA_2026-10-08.md",
+    "docs/AUTHENTICATION_AUTHORIZATION.md",
+    "docs/CORRECCION_INTERVALOS_2026-10-08.md",
+    "docs/RECUPERACION_1.3.3.md",
+    "docs/SINCRONIZACION_CONOCIMIENTO.md",
+    "docs/integrations/README.md",
+    "docs/integrations/DATABASE_CONNECTORS.md",
+    "docs/integrations/AD_ACTIVATION_CHECKLIST.md",
+    "docs/integrations/ENTRA_ID_SETUP.md",
+    "docs/assets/estructura-matrix-rh.svg",
+    "infrastructure/README.md",
+    "infrastructure/qdrant/README.md",
+    ".github/README.md",
+    ".github/workflows/README.md",
+    ".github/workflows/implementation-v2.yml",
+    "scripts/README.md",
+    "scripts/matrixrh.sh",
+    "frontend/README.md",
+    "backend/README.md",
+    "windows/README.md",
+    "backend/config/README.md",
+    "backend/scripts/README.md",
+    "CHANGELOG.md",
+    "SECURITY.md",
+    ".gitignore",
+    "docker-compose.ollama.yml"
+  ],
+  "data_deleted": false,
+  "retired_operations": [
+    {
+      "removed_files": [
+        "backend/scripts/release_transfer.py",
+        "backend/scripts/clean_legacy_layout.py",
+        "backend/tests/unit/test_release_transfer_127.py",
+        "backend/tests/unit/test_transfer_storage_boundaries.py",
+        "backend/tests/unit/test_clean_legacy_layout.py"
+      ],
+      "removed_test_cases": {
+        "backend/tests/unit/test_preventive_operations.py": [
+          "test_interrupted_transfer_restores_the_new_release_and_keeps_the_source",
+          "test_transfer_cli_explains_busy_port_without_process_termination",
+          "test_transfer_refuses_an_active_backend_before_copying_any_state"
+        ],
+        "backend/tests/unit/test_operation_failure_codes.py": [
+          "test_rollback_failure_is_distinguished_and_keeps_recovery_material",
+          "test_transfer_cli_explains_destination_rejection_without_copy_or_private_paths",
+          "test_transfer_cli_omits_unexpected_io_exception_text"
+        ]
+      },
+      "reason": "La version 1.4 se instala de forma nueva e independiente. Se retiran la copia automatica entre carpetas de versiones anteriores y la limpieza destructiva de layouts antiguos; las protecciones de propiedad SQL y installation_state se conservan.",
+      "replacement": "backend/scripts/installation_backup.py: respaldo frio verificable de una instalacion 1.4 completa; instalacion nueva con configuracion propia, sin adoptar estado de otra carpeta.",
+      "prior_archive_preserved": "Matrix_RH_1.3.4_completo_20261008.zip",
+      "prior_archive_sha256": "bee77523fbccfeef5ca8fc5ed951a607abf1eb2ba628af4eaf34b6c07c9b69d9",
+      "knowledge_or_user_data_deleted": false
+    },
+    {
+      "removed_files": [
+        "backend/tests/unit/test_linux_validation.py"
+      ],
+      "reason": "Contrato exclusivo de scripts/matrixrh.sh, ya retirado de la entrega. La validacion que arranca servicios y modifica estado desde ese shell no existe en 1.4.",
+      "replacement": "Comandos Docker opcionales y pruebas de su contrato; instalacion nativa mediante los cuatro .bat y backend/scripts/windows/MatrixRH.ps1.",
+      "prior_archive_preserved": "Matrix_RH_1.3.4_completo_20261008.zip",
+      "knowledge_or_user_data_deleted": false
+    }
+  ],
+  "test_migrations": [
+    {
+      "modified_file": "backend/tests/unit/test_windows_runtime.py",
+      "prior_file_sha256": "99e63f2a099905516729e753880fcfcbc55208edfaab3f00af1b61266744bcc4",
+      "removed_test_cases": [
+        "test_scripts_powershell_se_pueden_analizar",
+        "test_lee_env_utf8_comillas_y_prioridad_del_proceso",
+        "test_actualizacion_env_conserva_unicode_y_dolares_literales",
+        "test_creacion_de_env_genera_clave_y_preserva_archivo_existente",
+        "test_seed_password_se_genera_una_vez_no_se_publica_y_no_cambia_env",
+        "test_paquete_cruzado_no_modifica_instalacion_ni_intenta_ingesta",
+        "test_url_ipv6_usa_corchetes_y_direccion_local_para_escucha_total",
+        "test_sonda_de_puerto_distingue_listener_y_libera_el_puerto",
+        "test_sonda_comprueba_host_real_ipv4_ipv6_y_hostname",
+        "test_sonda_rechaza_puerto_invalido_sin_traceback",
+        "test_sonda_rechaza_host_invalido_sin_traceback",
+        "test_sonda_rechaza_host_no_local_con_error_identificable",
+        "test_escucha_total_rechaza_colision_fuera_de_127_0_0_1",
+        "test_guardia_inicial_usa_stdlib_del_sistema_con_venv_incompatible",
+        "test_diagnostico_usa_endpoints_reales_y_no_expone_credenciales",
+        "test_invocacion_python_devuelve_solo_codigo_y_restaura_cwd_y_pythonpath",
+        "test_control_de_procesos_distingue_carpeta_y_modulo",
+        "test_arranque_rechaza_puerto_ajeno_antes_de_crear_runtime",
+        "test_instalador_no_modifica_env_ni_runtime_con_puerto_ocupado",
+        "test_autoarranque_ejecuta_script_sin_bat_interactivo",
+        "test_instalador_no_ingiere_tras_preflight_fallido",
+        "test_instalador_respeta_adopcion_explicita_y_variable_heredada",
+        "test_helper_de_bd_no_clasifica_registro_incompatible_como_vacio",
+        "test_instalador_usa_build_incluido_sin_buscar_node",
+        "test_instalador_no_migra_si_mysql_no_puede_verificarse",
+        "test_uv_ausente_offline_no_intenta_instalar_ni_crea_archivos",
+        "test_ollama_abierto_se_reutiliza_sin_arrancar_procesos",
+        "test_inicio_ollama_acota_host_local_y_restaura_entorno",
+        "test_inicio_ollama_rechaza_endpoint_invalido_sin_procesos"
+      ],
+      "preserved_test_cases": [
+        "test_diagnostico_reconoce_matrix_activo_pero_instalacion_exige_puerto_libre",
+        "test_preflight_escucha_total_rechaza_colision_en_otra_interfaz",
+        "test_preflight_no_oculta_error_de_bind_ni_filtra_excepcion_privada",
+        "test_preflight_puerto_libre_no_depende_de_conectar_y_lo_libera",
+        "test_preflight_reporta_error_de_socket_sin_traceback",
+        "test_preflight_sonda_escucha_total_en_loopback",
+        "test_puerto_ajeno_es_un_fallo_obligatorio_del_preflight"
+      ],
+      "reason": "Los casos retirados ejecutaban exclusivamente windows/Common-MatrixRH.ps1 y el instalador anterior; esa API ya no existe en 1.4. Se conservan todos los casos Python de puertos/preflight y se ejercita el controlador nativo nuevo con fixtures aisladas reales de PowerShell.",
+      "replacement": [
+        "backend/tests/unit/test_windows_native_controller.py",
+        "backend/tests/unit/fixtures/native_supervisor_synthetic.ps1",
+        "backend/tests/unit/fixtures/native_supervisor_apache_synthetic.ps1",
+        "backend/tests/unit/fixtures/native_supervisor_identity_synthetic.ps1",
+        "backend/tests/integration/test_database_ownership.py"
+      ],
+      "knowledge_or_user_data_deleted": false,
+      "retired_legacy_controller_files": [
+        {
+          "path": "windows/Common-MatrixRH.ps1",
+          "sha256": "3bc0f56dd3732502c102b8df1ee017241c9dc63a64c942a52e0eca648b632a74"
+        },
+        {
+          "path": "windows/Diagnose-MatrixRH.ps1",
+          "sha256": "482711c5a31b3e38acc77d65f8a38ed69c73ee1c09dcd012f5660a0f5616fdbc"
+        },
+        {
+          "path": "windows/Install-Autostart.ps1",
+          "sha256": "97d946d2fa6cbfc0dad554971571b86dc41e657cf9fc3319f1f4ad1518b46ea4"
+        },
+        {
+          "path": "windows/Install-MatrixRH.ps1",
+          "sha256": "5b1cc2624ea43ea8b60be301a17dbad2fbe64a9224abeeac9d1f41a6b9b94c5f"
+        },
+        {
+          "path": "windows/Start-MatrixRH.ps1",
+          "sha256": "c90418c92d69245f11f74ed02188544c02fb08cc7f71551941ec2438a1834a82"
+        },
+        {
+          "path": "windows/Stop-MatrixRH.ps1",
+          "sha256": "809ffd56d97533dba10495eb7d7f0473cfed8de935eef8a768a1613982ca2320"
+        },
+        {
+          "path": "windows/TestModels-MatrixRH.ps1",
+          "sha256": "5ec4f7c2a3490a02fd780a821b3631752be9c0dd13dfe7b0d349c5d8e2c8a025"
+        },
+        {
+          "path": "windows/Upgrade-MatrixRH.ps1",
+          "sha256": "78217892169f5f05f40ba9fe10c26be6ca802680d851cf584669a74e42712c02"
+        },
+        {
+          "path": "windows/Validate-MatrixRH.ps1",
+          "sha256": "dcb0d9800561bd31a9e9669b5dfd71349d55bf310414e6bce7b6171dc1013d4f"
+        },
+        {
+          "path": "windows/uv-bootstrap-requirements.txt",
+          "sha256": "01dbd7ce103e0e1302d8e7ad08231188925370d4cc0d8f22bfdd94f8c09100db"
+        }
+      ]
+    }
+  ]
+}
