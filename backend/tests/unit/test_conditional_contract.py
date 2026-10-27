@@ -9,8 +9,9 @@ import pytest
 from app.agents.knowledge_agent import KnowledgeAgent
 from app.agents.prompts import build_answer_messages
 from app.common.answers import UNVERIFIED_ANSWER_NOTICE, safe_nonfactual_text
+from app.common.text_budget import estimate_tokens
 from app.config import get_settings
-from app.llm.model_policy import ModelPolicy
+from app.llm.model_policy import Intent, ModelPolicy
 from app.llm.ollama_client import ChatResult
 from app.rag.claim_context import claim_context, declared_case
 from app.rag.grounding import GroundingReport, verify_grounding
@@ -382,8 +383,7 @@ def test_retry_keeps_original_alias_when_first_source_no_longer_fits(monkeypatch
     first = evidence("Contenido documental. " * 220, source_id="long#0")
     second = evidence("La tasa es 12%.", source_id="small#0", filename="small.pdf")
     question = "Según las fuentes, indica la tasa."
-    size = sum(len(m["content"]) for m in build_answer_messages(question=question, evidences=(first, second), documentary_only=True))
-    monkeypatch.setattr(settings, "ollama_fast_num_ctx", 1400 + settings.ollama_fast_max_tokens + (size + 4) // 3)
+    messages = build_answer_messages(question=question, evidences=(first, second), documentary_only=True)
 
     class Client:
         calls = 0
@@ -392,6 +392,7 @@ def test_retry_keeps_original_alias_when_first_source_no_longer_fits(monkeypatch
             self.calls += 1
             if self.calls == 1:
                 assert first.text in kwargs["messages"][1]["content"]
+                assert second.text in kwargs["messages"][1]["content"]
                 text = "Dato no respaldado [[inexistente]]"
             else:
                 assert first.text not in kwargs["messages"][1]["content"]
@@ -401,13 +402,24 @@ def test_retry_keeps_original_alias_when_first_source_no_longer_fits(monkeypatch
 
     client = Client()
     policy = ModelPolicy()
-    result = KnowledgeAgent(llm=client, policy=policy).synthesize(
+    agent = KnowledgeAgent(llm=client, policy=policy)
+    profile = policy.generation_profile(policy.fast_model, intent=Intent.DOCUMENTAL)
+    reserved_tokens = profile.num_ctx - agent._input_budget(policy.fast_model, Intent.DOCUMENTAL).max_tokens
+    # Ambas fuentes caben completas en la primera llamada. El texto adicional
+    # del reintento desplaza la primera, conservando E2 para la segunda. Medir
+    # con el contador comun; len/3 ya no representa el presupuesto efectivo.
+    first_pass_tokens = sum(estimate_tokens(message["content"]) for message in messages)
+    monkeypatch.setattr(settings, "ollama_fast_num_ctx", reserved_tokens + first_pass_tokens)
+    assert agent._messages_fit(messages, policy.fast_model, Intent.DOCUMENTAL)
+    result = agent.synthesize(
         question=question,
         evidences=(first, second),
         model_name=policy.fast_model,
     )
+    assert client.calls == 2
     assert result.regenerated and result.grounding.grounded
     assert result.cited_source_ids == ("small#0",)
+    assert "La tasa es 12%." in result.answer and "[[small#0]]" in result.answer
 
 
 

@@ -1,11 +1,221 @@
 /* Creado por Aldo Garcia. */
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { api, ApiError, setCsrfToken } from "../src/services/api";
+import contract from "../../backend/tests/fixtures/chat_contract.json";
 
 afterEach(() => {
   vi.useRealTimers();
   vi.unstubAllGlobals();
   setCsrfToken("");
+});
+
+describe("contratos de chat compartidos con Pydantic", () => {
+  it.each(["submit", "poll", "legacy"])(
+    "rechaza una conversación distinta en %s aunque el resultado sea internamente consistente",
+    async (operation) => {
+      const payload = operation === "legacy" ? contract.completed.response : contract.completed;
+      vi.stubGlobal(
+        "fetch",
+        vi.fn().mockResolvedValue(
+          new Response(JSON.stringify(payload), {
+            headers: { "X-Request-ID": "synthetic-wrong-conversation" },
+          }),
+        ),
+      );
+      const result =
+        operation === "submit"
+          ? api.submitChat("Consulta", "requested-A", "synthetic-request")
+          : operation === "poll"
+            ? api.chatStatus("synthetic-request", undefined, "requested-A")
+            : api.chat("Consulta", "requested-A");
+      await expect(result).rejects.toMatchObject({
+        code: "invalid_response",
+        requestId: "synthetic-wrong-conversation",
+      });
+    },
+  );
+
+  it("envía la conversación conocida al cancelar", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response('{"ok":true}'));
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(api.cancelChat("synthetic-request", "A")).resolves.toEqual({ ok: true });
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/v1/chat/requests/synthetic-request/cancel",
+      expect.objectContaining({
+        body: JSON.stringify({ conversation_id: "A" }),
+        method: "POST",
+      }),
+    );
+  });
+
+  it("rechaza un historial de otro hilo y conserva fuentes legacy del hilo correcto", async () => {
+    const history = {
+      id: "B",
+      title: "Sintético",
+      created_at: "2026-10-26",
+      updated_at: "2026-10-26",
+      messages: [
+        {
+          id: "synthetic-message",
+          role: "assistant",
+          content: "Historial ficticio",
+          model: null,
+          created_at: "2026-10-26",
+          sources: [{ source_id: "legacy#0" }],
+        },
+      ],
+      attachments: [],
+      next_before_seq: null,
+    };
+    const fetchMock = vi.fn().mockImplementation(
+      async () =>
+        new Response(JSON.stringify(history), {
+          headers: { "X-Request-ID": "synthetic-history" },
+        }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(api.getConversation("A")).rejects.toMatchObject({
+      code: "invalid_response",
+      requestId: "synthetic-history",
+    });
+    history.id = "A";
+    await expect(api.getConversation("A", undefined, 20)).resolves.toEqual(history);
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      "/api/v1/conversations/A?before_seq=20",
+      expect.any(Object),
+    );
+  });
+
+  it.each(contract.invalid_mutations)(
+    "rechaza $name sin perder la referencia",
+    async (mutation) => {
+      const payload = structuredClone(contract.completed);
+      let target: Record<string | number, unknown> = payload;
+      for (const key of mutation.path.slice(0, -1)) {
+        target = target[key] as Record<string | number, unknown>;
+      }
+      target[mutation.path[mutation.path.length - 1]] = mutation.value;
+      const fetchMock = vi.fn().mockImplementation(
+        async () =>
+          new Response(JSON.stringify(payload), {
+            status: 200,
+            headers: { "X-Request-ID": "synthetic-invalid-contract" },
+          }),
+      );
+      vi.stubGlobal("fetch", fetchMock);
+      for (const operation of [
+        () => api.submitChat("Consulta ficticia", "synthetic-conversation", "synthetic-request"),
+        () => api.chatStatus("synthetic-request"),
+      ]) {
+        await expect(operation()).rejects.toMatchObject({
+          code: "invalid_response",
+          status: 200,
+          requestId: "synthetic-invalid-contract",
+        });
+      }
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    },
+  );
+
+  it.each(["queued", "running", "completed", "failed", "cancelled", "expired"])(
+    "acepta el estado %s y conserva las métricas y metadatos opcionales",
+    async (status) => {
+      const payload = {
+        ...contract.completed,
+        status,
+        response: status === "completed" ? contract.completed.response : null,
+        error_code: status === "failed" ? "generation_failed" : null,
+      };
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify(payload))));
+      await expect(api.chatStatus("synthetic-request")).resolves.toEqual(payload);
+    },
+  );
+
+  it("mantiene la compatibilidad con respuestas antiguas sin campos opcionales", async () => {
+    const payload: Record<string, unknown> = structuredClone(contract.completed);
+    for (const field of ["operation_id", "error_code", "timing"]) delete payload[field];
+    const response = payload.response as Record<string, unknown>;
+    delete response.answer_basis;
+    const capacity = payload.capacity as Record<string, unknown>;
+    for (const field of ["inference_active", "inference_limit", "metrics"]) delete capacity[field];
+    const source = (response.sources as Record<string, unknown>[])[0];
+    delete source.provenance;
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify(payload))));
+    await expect(api.chatStatus("synthetic-legacy")).resolves.toEqual(payload);
+  });
+
+  it.each(["{}", "[]", "true", '"completed"', '{"status":"completed"}'])(
+    "rechaza JSON con forma incompleta: %s",
+    async (body) => {
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(body)));
+      await expect(api.chatStatus("synthetic-request")).rejects.toMatchObject({
+        code: "invalid_response",
+      });
+    },
+  );
+
+  it("rechaza un número JSON no finito en una fuente del chat síncrono", async () => {
+    const body = JSON.stringify(contract.completed.response).replace(
+      '"score":0.7',
+      '"score":1e309',
+    );
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(body)));
+    await expect(api.chat("Consulta", null)).rejects.toMatchObject({ code: "invalid_response" });
+  });
+
+  it("valida también las fuentes del chat síncrono", async () => {
+    const payload = { ...contract.completed.response, sources: [{ source_id: "incomplete" }] };
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify(payload))));
+    await expect(api.chat("Consulta", null)).rejects.toMatchObject({ code: "invalid_response" });
+  });
+
+  it.each([{ ok: false }, { ok: "true" }, { ok: 1 }, {}, []])(
+    "no confirma cancelación con una respuesta inválida: %j",
+    async (payload) => {
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify(payload))));
+      await expect(api.cancelChat("synthetic-request")).rejects.toMatchObject({
+        code: "invalid_response",
+      });
+    },
+  );
+
+  it("no confirma operaciones a partir de 204 sin cuerpo", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(null, {
+          status: 204,
+          headers: { "X-Request-ID": "synthetic-empty" },
+        }),
+      ),
+    );
+    await expect(api.submitChat("Consulta", null, "synthetic-request")).rejects.toMatchObject({
+      code: "invalid_response",
+      requestId: "synthetic-empty",
+    });
+  });
+
+  it("controla errores HTTP malformados sin enviar objetos a la interfaz", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            code: {},
+            message: [],
+            request_id: "synthetic-body-reference",
+          }),
+          { status: 500 },
+        ),
+      ),
+    );
+    await expect(api.chatStatus("synthetic-request")).rejects.toMatchObject({
+      code: "internal_error",
+      message: "No fue posible completar la operacion.",
+      requestId: "synthetic-body-reference",
+      status: 500,
+    });
+  });
 });
 
 describe("transporte de solicitudes aceptadas", () => {

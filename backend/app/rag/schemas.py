@@ -14,6 +14,7 @@ from datetime import datetime
 from typing import Any
 
 from app.common.ids import utcnow_naive
+from app.common.provenance import source_provenance
 
 #: Namespace logico de un chunk.
 SCOPE_CORPORATE = "corporate"
@@ -115,6 +116,12 @@ class Evidence:
     document_id: str
     chunk_id: str
     scope: str = SCOPE_CORPORATE
+    document_sha256: str = ""
+    generation: str = ""
+    index_fingerprint: str = ""
+    embedding_model: str = ""
+    embedding_dimension: int | None = None
+    ingestion_version: str = ""
 
     def citation_label(self) -> str:
         """Etiqueta legible mostrada en la UI."""
@@ -123,7 +130,7 @@ class Evidence:
 
     def to_public_dict(self) -> dict[str, Any]:
         """Vista enviada al frontend. Solo evidencia ya autorizada llega aqui."""
-        return {
+        result: dict[str, Any] = {
             "source_id": self.source_id,
             "category": self.category,
             "filename": self.filename,
@@ -133,3 +140,11 @@ class Evidence:
             "label": self.citation_label(),
             "scope": self.scope,
         }
+        provenance = source_provenance({
+            "document_sha256": self.document_sha256, "generation": self.generation,
+            "index_fingerprint": self.index_fingerprint, "embedding_model": self.embedding_model,
+            "embedding_dimension": self.embedding_dimension, "ingestion_version": self.ingestion_version,
+        })
+        if provenance:
+            result["provenance"] = provenance
+        return result

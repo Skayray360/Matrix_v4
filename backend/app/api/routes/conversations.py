@@ -22,9 +22,10 @@ from app.api.schemas import (
     MessageResponse,
 )
 from app.audit.service import AuditRecord, get_audit_service
+from app.auth.sessions import resolve_session_id
 from app.authorization.context import UserContext
 from app.authorization.policy import get_policy_engine
-from app.common.errors import ConversationCleanupPendingError, NotFoundError, ValidationFailedError
+from app.common.errors import ConversationCleanupPendingError, NotFoundError, UnauthorizedError, ValidationFailedError
 from app.common.logging import get_logger
 from app.config import get_settings
 from app.database.models import Document
@@ -216,8 +217,41 @@ def upload_attachments(
     get_chat_queue().ensure_owner(db)
     db.commit()
     service = get_ingestion_service()
-    results: list[DocumentStatusResponse] = []
+    # La cuota de TODO el lote incluye archivos huerfanos. Este control termina
+    # antes de extraer/embeber y se repite bajo lock durante la publicacion.
+    service.check_attachment_batch_quota(
+        db, owner_user_id=ctx.user_id, conversation_id=conversation_id,
+        incoming_bytes=sum(len(data) for data, _ in validated), incoming_documents=len(validated),
+    )
+    db.commit()
+    budget = min(settings.extraction_memory_mb * 1024 * 1024, 256 * 1024 * 1024)
+    remaining = budget - sum(len(data) for data, _ in validated)
+    prepared_batch = []
     for data, validation in validated:
+        # Revalidar entre archivos sin mantener la conexion durante el parser o IA.
+        db.expire_all()
+        _, current_user = resolve_session_id(db, ctx.session_id)
+        if current_user.id != ctx.user_id:
+            raise UnauthorizedError()
+        _memory.get_owned_conversation(db, ctx, conversation_id)
+        db.commit()
+        prepared = service.prepare_attachment(
+            data=data, filename=validation.safe_display_name, max_memory_bytes=remaining,
+        )
+        remaining -= prepared.estimated_memory_bytes
+        prepared_batch.append(prepared)
+
+    # Autorizacion actual, no el objeto cacheado antes de la inferencia.
+    db.expire_all()
+    _, current_user = resolve_session_id(db, ctx.session_id)
+    if current_user.id != ctx.user_id:
+        raise UnauthorizedError()
+    # Orden consistente con autenticacion/borrado: sesion -> conversacion ->
+    # usuario. Evita diferir last_seen hasta un autoflush bajo el lock conversacional.
+    # Conserva la misma transaccion de publicacion, sin abrir otra ventana de commit.
+    db.flush()
+    results: list[DocumentStatusResponse] = []
+    for (data, validation), prepared in zip(validated, prepared_batch, strict=True):
         outcome = service.ingest_conversation_attachment(
             db,
             data=data,
@@ -225,7 +259,8 @@ def upload_attachments(
             internal_filename=validation.internal_filename,
             mime_type=validation.mime_type,
             owner_user_id=ctx.user_id,
-            conversation_id=conversation.id,
+            conversation_id=conversation_id,
+            prepared=prepared,
         )
         document = db.get(Document, outcome.document_id)
         if document is not None:

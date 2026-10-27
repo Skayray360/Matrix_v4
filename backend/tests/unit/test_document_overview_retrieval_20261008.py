@@ -15,6 +15,7 @@ from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
 
 from app.agents.orchestrator import Orchestrator
+from app.common.errors import IndexUpdateRequiredError
 from app.common.ids import new_id, utcnow_naive
 from app.config.settings import Settings
 from app.database.models import Base, Document
@@ -44,7 +45,7 @@ def test_document_generation_filter_does_not_load_other_documents(corpus):
 
 
 @pytest.mark.parametrize("count", [1, 8])
-def test_document_reads_use_two_sql_queries_regardless_of_document_count(corpus, count):
+def test_document_reads_use_three_sql_queries_regardless_of_document_count(corpus, count):
     for number in range(count):
         corpus.publish(f"Document{number}.docx", count=2)
     options = {"scope": "conversation", "user_id": "owner", "conversation_id": "thread",
@@ -63,7 +64,7 @@ def test_document_reads_use_two_sql_queries_regardless_of_document_count(corpus,
     finally:
         event.remove(engine, "before_cursor_execute", capture)
     assert len(chunks) == count * 2 and not truncated
-    assert len(statements) == 2
+    assert len(statements) == 3  # Compatibilidad del alcance, generacion y visibilidad final; nunca N+1.
 
 
 def test_final_visibility_check_removes_document_deleted_during_later_scroll(corpus, monkeypatch):
@@ -291,12 +292,18 @@ def test_pending_old_deleted_and_wrong_embedding_generations_never_enter_summary
         chunk.metadata, chunk_id=new_id(), generation="unpublished-generation",
     )) for chunk in active]
     corpus.store.upsert_chunks(unpublished, [[1.0, 0.0, 0.0] for _ in unpublished])
-    corpus.publish("Guia anterior.docx", fingerprint_value="previous-embedding-revision")
+    old = corpus.publish("Guia anterior.docx", fingerprint_value="previous-embedding-revision")
     deleted = corpus.publish("Guia de Configuracion.docx")
     pending = corpus.publish("Guia pendiente.docx")
     with corpus.scope() as db:
         db.get(Document, deleted[0].metadata.document_id).deleted_at = utcnow_naive()
         db.get(Document, pending[0].metadata.document_id).status = "pending"
+    with pytest.raises(IndexUpdateRequiredError):
+        corpus.retriever.retrieve_attachment_summary(
+            ctx=corpus.ctx, conversation_id="thread", question="resume Guia de Configuracion.docx",
+        )
+    with corpus.scope() as db:
+        db.get(Document, old[0].metadata.document_id).status = "failed"
     result = corpus.retriever.retrieve_attachment_summary(
         ctx=corpus.ctx, conversation_id="thread", question="resume Guia de Configuracion.docx",
     )
@@ -316,6 +323,13 @@ def test_unavailable_own_attachment_never_becomes_a_summary_of_another_document(
             document.status = "pending"
             document.active_generation = None
     for question in ("dame un resumen", "explicame Guia de Configuracion.docx"):
+        if unavailable == "fingerprint":
+            with pytest.raises(IndexUpdateRequiredError):
+                corpus.retriever.retrieve(
+                    ctx=corpus.ctx, conversation_id="thread", question=question,
+                    authorized_categories=frozenset({"tecnologia"}), summary=True,
+                )
+            continue
         result = corpus.retriever.retrieve(
             ctx=corpus.ctx, conversation_id="thread", question=question,
             authorized_categories=frozenset({"tecnologia"}), summary=True,
@@ -323,13 +337,13 @@ def test_unavailable_own_attachment_never_becomes_a_summary_of_another_document(
         assert not result.has_evidence and "aun no esta disponible" in result.clarification
 
 
-def test_active_and_unavailable_private_documents_still_require_target_selection(corpus):
+def test_active_and_obsolete_private_documents_require_update_before_target_selection(corpus):
     corpus.publish("Guia activa.docx")
     corpus.publish("Guia anterior.docx", fingerprint_value="previous-revision")
-    result = corpus.retriever.retrieve_attachment_summary(
-        ctx=corpus.ctx, conversation_id="thread", question="dame un resumen",
-    )
-    assert result.clarification.startswith("Hay varios") and not result.has_evidence
+    with pytest.raises(IndexUpdateRequiredError):
+        corpus.retriever.retrieve_attachment_summary(
+            ctx=corpus.ctx, conversation_id="thread", question="dame un resumen",
+        )
 
 
 def test_scan_budget_samples_beginning_middle_end_with_explicit_truncation(corpus):

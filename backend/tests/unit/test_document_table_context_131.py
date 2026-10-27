@@ -6,7 +6,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from app.rag.chunking import TextBlock, chunk_blocks, estimate_tokens
+from app.rag.chunking import ChunkBudgetExceededError, TextBlock, chunk_blocks, estimate_tokens
 from app.rag.retriever import Retriever, deduplicate
 from app.rag.vector_store import ScoredPayload
 
@@ -25,6 +25,12 @@ def test_table_splits_preserve_each_row_column_unit_and_condition(row_count, bud
         TextBlock(condition, "Portabilidad", "pagina 9"),
         TextBlock("\n".join([header, separator, *rows]), "Portabilidad", "pagina 9", "table"),
     ]
+    if budget == 65:
+        # El presupuesto UTF-8/puntuacion detecta que las condiciones y el
+        # encabezado ya no caben. Nunca descartarlos para admitir las cifras.
+        with pytest.raises(ChunkBudgetExceededError):
+            chunk_blocks(blocks, chunk_size_tokens=budget, overlap_tokens=10)
+        return
     chunks = chunk_blocks(blocks, chunk_size_tokens=budget, overlap_tokens=10)
     tables = [chunk for chunk in chunks if header in chunk.text]
     assert tables

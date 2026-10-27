@@ -9,6 +9,7 @@ de ``source_id`` y admiten una sola regeneracion.
 
 from __future__ import annotations
 
+import json
 import re
 from collections import deque
 from dataclasses import dataclass, replace
@@ -16,7 +17,6 @@ from time import perf_counter
 
 from app.agents.documentary_output import (
     DOCUMENTARY_GENERATION_SCHEMA,
-    SCHEMA_BUDGET_CHARS,
     DocumentaryOutputError,
     render_documentary_output,
     structured_output_enabled,
@@ -39,6 +39,7 @@ from app.common.answers import answer_basis as classify_answer_basis
 from app.common.errors import AnswerValidationError
 from app.common.inference_errors import InferenceFailureError, InferenceFailureKind
 from app.common.logging import get_logger
+from app.common.text_budget import TextBudget, estimate_tokens
 from app.common.timing import timed_stage
 from app.config import get_settings
 from app.llm.model_policy import Intent, ModelChoice, ModelPolicy
@@ -62,7 +63,6 @@ logger = get_logger(__name__)
 MIN_COVERAGE_WITH_RICH_EVIDENCE = 0.34
 RICH_EVIDENCE_THRESHOLD = 3
 _PROMPT_OVERHEAD_TOKENS = 1400
-_CHARS_PER_TOKEN_BUDGET = 3
 # Margen estimado del mensaje system adicional; no sustituye al tokenizer real.
 _ADDITIONAL_SYSTEM_OVERHEAD_TOKENS = 32
 
@@ -615,7 +615,7 @@ class KnowledgeAgent:
         """
         choice = self._policy.resolve_choice(model_name, choice)
         profile = self._policy.generation_profile(model_name, intent=intent, retry=retry, choice=choice)
-        if self._messages_chars(messages) > self._input_budget_chars(model_name, intent, choice=choice):
+        if not self._messages_fit(messages, model_name, intent, choice=choice):
             raise InferenceFailureError(InferenceFailureKind.CONTEXT_LIMIT)
         return (
             self._chat_transport(
@@ -636,13 +636,17 @@ class KnowledgeAgent:
             question=question, evidences=evidences, structured=structured,
             memory=memory, scope_note=scope_note, document_summary=True, documentary_only=True,
         )
-        return self._messages_chars(messages) > self._input_budget_chars(
-            model_name, Intent.DOCUMENT_SUMMARY, choice=choice
-        )
+        return not self._messages_fit(messages, model_name, Intent.DOCUMENT_SUMMARY, choice=choice)
 
     def _input_budget_chars(
         self, model_name: str, intent: Intent, *, choice: ModelChoice | None = None
     ) -> int:
+        """Techo fisico informativo; la admision tambien verifica UTF-8 y estimacion."""
+        return self._input_budget(model_name, intent, choice=choice).max_chars
+
+    def _input_budget(
+        self, model_name: str, intent: Intent, *, choice: ModelChoice | None = None
+    ) -> TextBudget:
         profile = self._policy.generation_profile(model_name, intent=intent, choice=choice)
         prefix = get_settings().llm_system_prefix
         extra_overhead = _ADDITIONAL_SYSTEM_OVERHEAD_TOKENS if prefix else 0
@@ -651,14 +655,21 @@ class KnowledgeAgent:
         )
         # El adapter inserta el prefijo despues de construir los mensajes. Debe
         # reservarse antes de seleccionar fuentes y de comprobar cada llamada.
-        schema_chars = 0
+        schema_tokens = 0
         if intent in {Intent.DOCUMENTAL, Intent.MIXED, Intent.DOCUMENT_SUMMARY} and structured_output_enabled(
             document_summary=intent is Intent.DOCUMENT_SUMMARY, has_structured=False,
         ):
             # El schema tambien ocupa espacio en runtimes de salida restringida.
             # En MIXED se reserva conservadoramente aun si termina entrando SQL.
-            schema_chars = SCHEMA_BUDGET_CHARS
-        return max(0, usable_tokens * _CHARS_PER_TOKEN_BUDGET - len(prefix) - schema_chars)
+            schema_tokens = estimate_tokens(json.dumps(DOCUMENTARY_GENERATION_SCHEMA, ensure_ascii=False))
+        return TextBudget.from_tokens(usable_tokens - estimate_tokens(prefix) - schema_tokens)
+
+    def _messages_fit(
+        self, messages: list[dict[str, str]], model_name: str, intent: Intent,
+        *, choice: ModelChoice | None = None,
+    ) -> bool:
+        budget = self._input_budget(model_name, intent, choice=choice)
+        return budget.fits_parts(message["content"] for message in messages)
 
     @staticmethod
     def _messages_chars(messages: list[dict[str, str]]) -> int:
@@ -674,11 +685,11 @@ class KnowledgeAgent:
     ) -> tuple[tuple[Evidence, ...], tuple[StructuredEvidence, ...], ConversationContext | None, bool]:
         """Presupuesto agregado estimado; ninguna fuente se incluye parcialmente.
 
-        La estimacion de caracteres no sustituye al tokenizer del runtime. Se
-        reserva contexto para salida/protocolo y se mide el prompt serializado,
-        incluyendo pregunta, memoria, metadatos y resultados SQL.
+        La estimacion compartida no sustituye al tokenizer del runtime. Se
+        reservan salida/protocolo y se comprueban caracteres, bytes UTF-8 y costo
+        estimado de pregunta, memoria, metadatos y resultados SQL completos.
         """
-        budget = self._input_budget_chars(model_name, intent, choice=choice)
+        budget = self._input_budget(model_name, intent, choice=choice)
 
         def fits(documents: tuple[Evidence, ...], tables: tuple[StructuredEvidence, ...]) -> bool:
             messages = build_answer_messages(
@@ -688,7 +699,7 @@ class KnowledgeAgent:
                 documentary_only=documentary_only,
                 source_aliases=source_aliases,
             )
-            return self._messages_chars(messages) <= budget
+            return budget.fits_parts(message["content"] for message in messages)
 
         limited = False
         if memory is not None and not memory.is_empty and not fits(evidences, structured):
@@ -722,39 +733,33 @@ class KnowledgeAgent:
         )
         return chosen_documents, chosen_tables, memory, limited
 
-    @staticmethod
-    def _serialized_evidence_chars(evidences: tuple[Evidence, ...]) -> int:
-        return sum(len(e.text) + 320 for e in evidences)
-
     def _partition_summary_evidence(
         self, evidences: tuple[Evidence, ...], *, model_name: str, scope_note: str = "",
-        choice: ModelChoice | None = None,
+        choice: ModelChoice | None = None, question: str = "",
     ) -> tuple[tuple[Evidence, ...], ...]:
         settings = get_settings()
-        # Reservar la envoltura real y margen para la pregunta de cada parte;
-        # dividir solo por texto ignoraba el system prompt y podia omitir chunks.
-        empty_messages = build_answer_messages(
-            question=" ".join(["parte"] * 40), evidences=(),
-            scope_note=scope_note, document_summary=True,
-        )
-        budget = max(
-            0, self._input_budget_chars(model_name, Intent.DOCUMENT_SUMMARY, choice=choice)
-            - self._messages_chars(empty_messages)
-        )
+        # Medir la envoltura y pregunta reales, con el mayor numero de parte
+        # posible. Un bloque se admite completo o falla antes de iniciar mapas.
+        map_question = summary_map_question(question, part=len(evidences), total=len(evidences))
+
+        def fits(items: tuple[Evidence, ...]) -> bool:
+            messages = build_answer_messages(
+                question=map_question, evidences=items, scope_note=scope_note,
+                document_summary=True, documentary_only=True,
+            )
+            return self._messages_fit(messages, model_name, Intent.DOCUMENT_SUMMARY, choice=choice)
         batches: list[tuple[Evidence, ...]] = []
         current: list[Evidence] = []
-        current_chars = 0
         for evidence in evidences:
-            item_chars = len(evidence.text) + 320
+            if not fits((evidence,)):
+                raise InferenceFailureError(InferenceFailureKind.CONTEXT_LIMIT)
             if current and (
                 len(current) >= settings.rag_summary_max_chunks
-                or current_chars + item_chars > budget
+                or not fits((*current, evidence))
             ):
                 batches.append(tuple(current))
                 current = []
-                current_chars = 0
             current.append(evidence)
-            current_chars += item_chars
         if current:
             batches.append(tuple(current))
         return tuple(batches)
@@ -789,7 +794,7 @@ class KnowledgeAgent:
         reduce_model = model_name
         reduce_choice = ModelChoice.DEEP if deep_model_name == model_name else choice
         batches = self._partition_summary_evidence(
-            evidences, model_name=map_model, scope_note=scope_note, choice=map_choice
+            evidences, model_name=map_model, scope_note=scope_note, choice=map_choice, question=question
         )
 
         def summarize_batch(index_and_batch: tuple[int, tuple[Evidence, ...]]) -> SynthesisResult:
@@ -822,9 +827,7 @@ class KnowledgeAgent:
             question=question, partial_summaries=partials,
             source_aliases=aliases if use_schema else None,
         )
-        if self._messages_chars(reduce_messages) > self._input_budget_chars(
-            reduce_model, Intent.DOCUMENT_SUMMARY, choice=reduce_choice
-        ):
+        if not self._messages_fit(reduce_messages, reduce_model, Intent.DOCUMENT_SUMMARY, choice=reduce_choice):
             return self._extractive_summary(
                 evidences, model=reduce_model,
                 question=question,
@@ -876,9 +879,9 @@ class KnowledgeAgent:
             extractive_verified=all(result.grounding.extractive_verified for result in partial_results),
             reason="consolidacion de mapas con citas autorizadas; veracidad semantica no evaluada",
         )
-        combined_fits = len(combined) <= self._input_budget_chars(
+        combined_fits = self._input_budget(
             reduce_result.model, Intent.DOCUMENT_SUMMARY, choice=result_choice
-        )
+        ).fits(combined)
         if combined_report.grounded and combined_fits and not requested_summary_points(question):
             logger.info("agent.summary_recovered", extra={
                 "recovery_method": "validated_sections", "evidence_count": len(evidences),
@@ -923,8 +926,7 @@ class KnowledgeAgent:
         lines = ["Resumen extractivo del contenido disponible:"]
         cited: list[str] = []
         extractive_limit = get_settings().rag_summary_max_chunks
-        budget = self._input_budget_chars(model, Intent.DOCUMENT_SUMMARY, choice=choice)
-        total_chars = len(lines[0])
+        budget = self._input_budget(model, Intent.DOCUMENT_SUMMARY, choice=choice)
         units = [(item.source_id, item.text) for item in evidences]
         # Dar oportunidad a cada documento y a su principio/final antes de
         # consumir el presupuesto en los primeros parrafos de un solo archivo.
@@ -951,7 +953,8 @@ class KnowledgeAgent:
         for index in order:
             source_id, text = units[index]
             block = f"{text.strip()} [[{source_id}]]"
-            if not text.strip() or len(selected) >= extractive_limit or total_chars + len(block) + 2 > budget:
+            if (not text.strip() or len(selected) >= extractive_limit
+                    or not budget.fits("\n\n".join([lines[0], *selected.values(), block]))):
                 continue
             # Verificar tambien las copias: IDs ambiguos o citas incrustadas en
             # un documento no pueden saltarse el contrato por esta ruta.
@@ -959,7 +962,6 @@ class KnowledgeAgent:
             if not report.extractive_verified:
                 continue
             selected[index] = block
-            total_chars += len(block) + 2
         points = requested_summary_points(question)
         for index, block in sorted(selected.items()):
             lines.append(block)

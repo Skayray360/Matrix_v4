@@ -65,9 +65,9 @@ cases:
     question: "Cuando se paga el aguinaldo a mas tardar?"
     expected_category: prestaciones
     expected_source_ids:
-      - 'prestaciones/fondo-de-ahorro-y-aguinaldo.md#2'
+      - 'prestaciones/fondo-de-ahorro-y-aguinaldo.md#3'
     expected_source_quotes:
-      'prestaciones/fondo-de-ahorro-y-aguinaldo.md#2':
+      'prestaciones/fondo-de-ahorro-y-aguinaldo.md#3':
         - 'El aguinaldo se paga a mas tardar el **15 de diciembre** de cada año.'
     expected_keywords: ["15", "diciembre"]
 
@@ -77,9 +77,9 @@ cases:
     question: "Cuantos dias de aguinaldo corresponden con mas de un anio de antiguedad?"
     expected_category: prestaciones
     expected_source_ids:
-      - 'prestaciones/fondo-de-ahorro-y-aguinaldo.md#1'
+      - 'prestaciones/fondo-de-ahorro-y-aguinaldo.md#2'
     expected_source_quotes:
-      'prestaciones/fondo-de-ahorro-y-aguinaldo.md#1':
+      'prestaciones/fondo-de-ahorro-y-aguinaldo.md#2':
         - 'El aguinaldo equivale a **30 dias** de salario para el personal con un año o mas de antiguedad.'
     expected_keywords: ["30"]
 
@@ -101,9 +101,9 @@ cases:
     question: "Con cuanta anticipacion se solicita un periodo vacacional?"
     expected_category: prestaciones
     expected_source_ids:
-      - 'prestaciones/politica-vacaciones.md#2'
+      - 'prestaciones/politica-vacaciones.md#3'
     expected_source_quotes:
-      'prestaciones/politica-vacaciones.md#2':
+      'prestaciones/politica-vacaciones.md#3':
         - 'La persona trabajadora solicita el periodo con al menos 15 dias naturales de anticipacion a traves del portal interno.'
     expected_keywords: ["15"]
 
@@ -138,9 +138,9 @@ cases:
     question: "En cuantos dias habiles se resuelve una aclaracion de nomina?"
     expected_category: nomina
     expected_source_ids:
-      - 'nomina/politica-de-nomina.md#2'
+      - 'nomina/politica-de-nomina.md#4'
     expected_source_quotes:
-      'nomina/politica-de-nomina.md#2':
+      'nomina/politica-de-nomina.md#4':
         - 'Las aclaraciones de nomina se levantan en el portal interno y se resuelven en un plazo maximo de **5 dias habiles**.'
     expected_keywords: ["5"]
 
@@ -150,9 +150,9 @@ cases:
     question: "Cual es el tope de descuento por prestamos personales sobre el neto?"
     expected_category: nomina
     expected_source_ids:
-      - 'nomina/politica-de-nomina.md#1'
+      - 'nomina/politica-de-nomina.md#2'
     expected_source_quotes:
-      'nomina/politica-de-nomina.md#1':
+      'nomina/politica-de-nomina.md#2':
         - 'Prestamos personales autorizados, con tope del 30% del neto'
     expected_keywords: ["30"]
 
@@ -175,9 +175,9 @@ cases:
     question: "Cuantas etapas tiene el proceso de reclutamiento y seleccion?"
     expected_category: reclutamiento
     expected_source_ids:
-      - 'reclutamiento/proceso-de-reclutamiento.md#1'
+      - 'reclutamiento/proceso-de-reclutamiento.md#2'
     expected_source_quotes:
-      'reclutamiento/proceso-de-reclutamiento.md#1':
+      'reclutamiento/proceso-de-reclutamiento.md#2':
         - '1. **Publicacion interna** durante 5 dias habiles.'
         - '9. **Oferta economica** y carta oferta firmada.'
     expected_keywords: ["9"]
@@ -188,9 +188,9 @@ cases:
     question: "Cuantos dias habiles es el objetivo para cubrir una posicion directiva?"
     expected_category: reclutamiento
     expected_source_ids:
-      - 'reclutamiento/proceso-de-reclutamiento.md#2'
+      - 'reclutamiento/proceso-de-reclutamiento.md#3'
     expected_source_quotes:
-      'reclutamiento/proceso-de-reclutamiento.md#2':
+      'reclutamiento/proceso-de-reclutamiento.md#3':
         - '| Directiva | 60 |'
     expected_keywords: ["60"]
 
@@ -200,9 +200,9 @@ cases:
     question: "Cuanto dura la publicacion interna de una vacante?"
     expected_category: reclutamiento
     expected_source_ids:
-      - 'reclutamiento/proceso-de-reclutamiento.md#1'
+      - 'reclutamiento/proceso-de-reclutamiento.md#2'
     expected_source_quotes:
-      'reclutamiento/proceso-de-reclutamiento.md#1':
+      'reclutamiento/proceso-de-reclutamiento.md#2':
         - '1. **Publicacion interna** durante 5 dias habiles.'
     expected_keywords: ["5"]
 
@@ -225,9 +225,9 @@ cases:
     question: "Cuantos minutos de tolerancia hay antes de considerar un retardo?"
     expected_category: relaciones_laborales
     expected_source_ids:
-      - 'relaciones_laborales/reglamento-interior.md#0'
+      - 'relaciones_laborales/reglamento-interior.md#1'
     expected_source_quotes:
-      'relaciones_laborales/reglamento-interior.md#0':
+      'relaciones_laborales/reglamento-interior.md#1':
         - 'Se otorga una tolerancia de **10 minutos**. A partir del minuto 11 se considera retardo;'
     expected_keywords: ["10"]
 
@@ -237,9 +237,9 @@ cases:
     question: "En cuantos dias habiles concluye una investigacion por queja?"
     expected_category: relaciones_laborales
     expected_source_ids:
-      - 'relaciones_laborales/reglamento-interior.md#3'
+      - 'relaciones_laborales/reglamento-interior.md#5'
     expected_source_quotes:
-      'relaciones_laborales/reglamento-interior.md#3':
+      'relaciones_laborales/reglamento-interior.md#5':
         - 'La investigacion concluye en un maximo de **20 dias habiles**.'
     expected_keywords: ["20"]
 
@@ -249,9 +249,9 @@ cases:
     question: "Cuantos retardos en un mes equivalen a una falta injustificada?"
     expected_category: relaciones_laborales
     expected_source_ids:
-      - 'relaciones_laborales/reglamento-interior.md#0'
+      - 'relaciones_laborales/reglamento-interior.md#1'
     expected_source_quotes:
-      'relaciones_laborales/reglamento-interior.md#0':
+      'relaciones_laborales/reglamento-interior.md#1':
         - 'tres retardos en un mes calendario equivalen a una falta injustificada para efectos del bono de puntualidad.'
     expected_keywords: ["tres", "3"]
 
@@ -274,9 +274,9 @@ cases:
     question: "Con que frecuencia se realizan los simulacros de emergencia?"
     expected_category: salud_ambiental
     expected_source_ids:
-      - 'salud_ambiental/seguridad-higiene-y-ambiente.md#2'
+      - 'salud_ambiental/seguridad-higiene-y-ambiente.md#3'
     expected_source_quotes:
-      'salud_ambiental/seguridad-higiene-y-ambiente.md#2':
+      'salud_ambiental/seguridad-higiene-y-ambiente.md#3':
         - 'Los simulacros se realizan de forma **trimestral** y su asistencia es obligatoria.'
     expected_keywords: ["trimestral"]
 
@@ -286,9 +286,9 @@ cases:
     question: "Que equipo de proteccion personal se usa en laboratorio?"
     expected_category: salud_ambiental
     expected_source_ids:
-      - 'salud_ambiental/seguridad-higiene-y-ambiente.md#0'
+      - 'salud_ambiental/seguridad-higiene-y-ambiente.md#1'
     expected_source_quotes:
-      'salud_ambiental/seguridad-higiene-y-ambiente.md#0':
+      'salud_ambiental/seguridad-higiene-y-ambiente.md#1':
         - '| Laboratorio | Bata, lentes, guantes de nitrilo |'
     expected_keywords: ["bata", "guantes"]
 
@@ -298,9 +298,9 @@ cases:
     question: "En cuantas horas se debe reportar un incidente sin lesion?"
     expected_category: salud_ambiental
     expected_source_ids:
-      - 'salud_ambiental/seguridad-higiene-y-ambiente.md#1'
+      - 'salud_ambiental/seguridad-higiene-y-ambiente.md#2'
     expected_source_quotes:
-      'salud_ambiental/seguridad-higiene-y-ambiente.md#1':
+      'salud_ambiental/seguridad-higiene-y-ambiente.md#2':
         - 'Todo incidente, aun sin lesion, se reporta dentro de las **24 horas** siguientes al supervisor y al area de Seguridad.'
     expected_keywords: ["24"]
 
@@ -323,12 +323,12 @@ cases:
     question: "Compara los plazos de respuesta de una aclaracion de nomina frente a una queja laboral."
     expected_category: nomina
     expected_source_ids:
-      - 'nomina/politica-de-nomina.md#2'
-      - 'relaciones_laborales/reglamento-interior.md#3'
+      - 'nomina/politica-de-nomina.md#4'
+      - 'relaciones_laborales/reglamento-interior.md#5'
     expected_source_quotes:
-      'nomina/politica-de-nomina.md#2':
+      'nomina/politica-de-nomina.md#4':
         - 'Las aclaraciones de nomina se levantan en el portal interno y se resuelven en un plazo maximo de **5 dias habiles**.'
-      'relaciones_laborales/reglamento-interior.md#3':
+      'relaciones_laborales/reglamento-interior.md#5':
         - 'La investigacion concluye en un maximo de **20 dias habiles**.'
     expected_keywords: ["5"]
     comparative: true
@@ -339,10 +339,10 @@ cases:
     question: "Compara los dias de aguinaldo con los dias de vacaciones de 5 anios de antiguedad."
     expected_category: prestaciones
     expected_source_ids:
-      - 'prestaciones/fondo-de-ahorro-y-aguinaldo.md#1'
+      - 'prestaciones/fondo-de-ahorro-y-aguinaldo.md#2'
       - 'prestaciones/politica-vacaciones.md#1'
     expected_source_quotes:
-      'prestaciones/fondo-de-ahorro-y-aguinaldo.md#1':
+      'prestaciones/fondo-de-ahorro-y-aguinaldo.md#2':
         - 'El aguinaldo equivale a **30 dias** de salario para el personal con un año o mas de antiguedad.'
       'prestaciones/politica-vacaciones.md#1':
         - '| 5 años | 20 |'
@@ -398,9 +398,9 @@ cases:
     question: "¿Qué pasa si tengo 3 retardos?"
     expected_category: relaciones_laborales
     expected_source_ids:
-      - 'relaciones_laborales/reglamento-interior.md#0'
+      - 'relaciones_laborales/reglamento-interior.md#1'
     expected_source_quotes:
-      'relaciones_laborales/reglamento-interior.md#0':
+      'relaciones_laborales/reglamento-interior.md#1':
         - 'tres retardos en un mes calendario equivalen a una falta injustificada para efectos del bono de puntualidad.'
     expected_keywords: ["tres", "3"]
 

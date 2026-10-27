@@ -5,9 +5,9 @@ Coordina, en este orden:
 
 1. lint (``ruff``)
 2. typing (``mypy``)
-3. pruebas unitarias
-4. pruebas de integracion
-5. pruebas de seguridad
+3. coleccion de toda la raiz tests; grupo standalone sin servicios
+4. grupo de integracion con DB/servicios reales en entorno desechable
+5. seguridad incluida en ambos grupos segun dependencias, sin duplicados
 6. auditoria de dependencias (``pip-audit``)
 7. analisis estatico de seguridad (``bandit``)
 8. escaneo de secretos (propio + ``detect-secrets`` si esta disponible)
@@ -23,13 +23,17 @@ Uso:
     python -m scripts.run_quality_gate
     python -m scripts.run_quality_gate --fast          # sin RAG completo ni E2E
     python -m scripts.run_quality_gate --with-e2e
+    python -m scripts.run_quality_gate --standalone  # sin servicios/modelos; no certifica el gate completo
 """
 
 from __future__ import annotations
 
 import argparse
+import hashlib
 import importlib.metadata
 import json
+import math
+import os
 import re
 import shutil
 import subprocess  # noqa: S404 - se invocan herramientas de calidad conocidas
@@ -37,6 +41,7 @@ import sys
 import time
 import xml.etree.ElementTree as ET
 from dataclasses import asdict, dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 
 from app.config import PROJECT_ROOT
@@ -63,6 +68,7 @@ class GateResult:
     duration_s: float = 0.0
     detail: str = ""
     blocking: bool = True
+    collection: dict[str, object] | None = None
 
 
 def _run(
@@ -76,7 +82,11 @@ def _run(
     if require_complete_junit is not None:
         require_complete_junit.unlink(missing_ok=True)
     try:
-        completed = subprocess.run(command, cwd=str(cwd), check=False)  # noqa: S603
+        environment = os.environ.copy()
+        if "pytest" in command:
+            # A caller's --ignore/-k/-m cannot silently narrow required coverage.
+            environment.pop("PYTEST_ADDOPTS", None)
+        completed = subprocess.run(command, cwd=str(cwd), check=False, env=environment)  # noqa: S603
     except FileNotFoundError:
         return GateResult(name=name, status=SKIPPED, detail="herramienta no instalada", blocking=blocking)
     duration = round(time.perf_counter() - started, 2)
@@ -88,7 +98,11 @@ def _run(
             suites = [root] if root.tag == "testsuite" else list(root.iter("testsuite"))
             count = sum(int(suite.get("tests", "0")) for suite in suites)
             skipped = sum(int(suite.get("skipped", "0")) for suite in suites)
-            if skipped or not count:
+            failures = sum(int(suite.get("failures", "0")) + int(suite.get("errors", "0")) for suite in suites)
+            if failures or min(count, skipped, failures) < 0 or skipped > count:
+                status = FAIL
+                detail = "JUnit declara fallos o recuentos invalidos, incluso con salida cero"
+            elif skipped or not count:
                 status = INCOMPLETE
                 detail = f"{count} casos recopilados, {skipped} omitidos; no certifica la suite completa"
         except (OSError, ET.ParseError, ValueError):
@@ -106,6 +120,110 @@ def _run(
 
 def _python() -> str:
     return sys.executable
+
+
+def provenance() -> dict[str, object]:
+    """Public configuration fingerprints only; never settings, dotenv or URLs with credentials."""
+    paths = (
+        "backend/pyproject.toml", "backend/uv.lock", "frontend/package.json", "frontend/package-lock.json",
+        "backend/config/runtime-manifest.json", "backend/scripts/run_quality_gate.py",
+        "backend/scripts/quality_gate_pytest.py", "backend/scripts/rag_eval.py",
+    )
+    hashes = {}
+    for relative in paths:
+        path = PROJECT_ROOT / relative
+        if path.is_file() and not path.is_symlink():
+            hashes[relative] = hashlib.sha256(path.read_bytes()).hexdigest()
+    source: dict[str, object] = {"commit": None, "worktree_dirty": None}
+    git = shutil.which("git")
+    if not git:
+        return {"source": source, "configuration_sha256": hashes, "python": sys.version.split()[0]}
+    try:
+        head = subprocess.run(  # noqa: S603 - fixed read-only Git arguments.
+            [git, "rev-parse", "HEAD"], cwd=PROJECT_ROOT, check=False, capture_output=True, text=True, timeout=5,
+        )
+        status = subprocess.run(  # noqa: S603
+            [git, "status", "--porcelain"], cwd=PROJECT_ROOT, check=False, capture_output=True, text=True, timeout=5,
+        )
+        changes = subprocess.run(  # noqa: S603
+            [git, "diff", "--no-ext-diff", "--no-textconv", "--binary", "HEAD"],
+            cwd=PROJECT_ROOT, check=False, capture_output=True, timeout=5,
+        )
+        if head.returncode == 0 and re.fullmatch(r"[0-9a-f]{40,64}", head.stdout.strip()):
+            source["commit"] = head.stdout.strip()
+        if status.returncode == 0:
+            source["worktree_dirty"] = bool(status.stdout.strip())
+        if changes.returncode == 0:
+            source["tracked_changes_sha256"] = hashlib.sha256(changes.stdout).hexdigest()
+    except (OSError, subprocess.TimeoutExpired):
+        pass  # An exported source ZIP has no Git metadata; report unknown.
+    return {"source": source, "configuration_sha256": hashes, "python": sys.version.split()[0]}
+
+
+def _backend_tests(py: str, group: str) -> GateResult:
+    junit = TEST_REPORTS / f"{group}-junit.xml"
+    collection = TEST_REPORTS / f"{group}-collection.json"
+    collection.unlink(missing_ok=True)
+    command = [py, "-m", "pytest", "tests", "-q", "-p", "scripts.quality_gate_pytest",
+               "--matrix-test-group", group, "--matrix-collection-report", str(collection),
+               "--junitxml", str(junit)]
+    if group == "standalone":
+        command += ["--cov=app", "--cov-report", f"xml:{TEST_REPORTS / 'coverage-standalone.xml'}"]
+    result = _run(command, cwd=BACKEND_ROOT, name=f"pruebas backend ({group})", require_complete_junit=junit)
+    if result.status not in (PASS, INCOMPLETE):
+        return result
+    try:
+        inventory = json.loads(collection.read_text(encoding="utf-8"))
+        counts = inventory["groups"]
+        if (inventory["group"] != group or set(counts) != {"standalone", "integration_services"}
+                or any(type(value) is not int or value < 0 for value in counts.values())
+                or sum(counts.values()) != inventory["collected_total"]
+                or counts[group] != inventory["selected"]
+                or not re.fullmatch(r"[0-9a-f]{64}", inventory["nodeids_sha256"])):
+            raise ValueError("Invalid collection evidence")
+        result.collection = inventory
+    except (OSError, ValueError, KeyError, TypeError):
+        result.status = FAIL
+        result.detail = "falta inventario valido de la coleccion raiz de esta ejecucion"
+    return result
+
+
+def _rag_gate(py: str, *, fast: bool) -> GateResult:
+    output = TEST_REPORTS / "rag_eval.json"
+    output.unlink(missing_ok=True)
+    command = [py, "-m", "scripts.rag_eval", "--output", str(output), "--split", "holdout",
+               "--retrieval" if fast else "--full"]
+    result = _run(command, cwd=BACKEND_ROOT, name="evaluacion RAG (modelos reales, holdout)")
+    if result.status != PASS:
+        return result
+    if fast:
+        result.status = INCOMPLETE
+        result.detail = "solo recuperacion; generacion con modelos reales no evaluada"
+        return result
+    try:
+        report = json.loads(output.read_text(encoding="utf-8"))
+        verdict = report["quality_gate"]["passed"]
+        metrics = report["metrics"]
+        if verdict is not True:
+            result.status = FAIL
+            result.detail = "la evaluacion externa no supera sus criterios"
+        elif not all(
+            isinstance(metrics[key], int | float) and not isinstance(metrics[key], bool)
+            and math.isfinite(metrics[key])
+            for key in ("external_coverage_pct", "external_accuracy_measured_cases", "external_accuracy_pct",
+                        "product_contract_pass_rate_pct", "acl_leakage_count")
+        ):
+            result.status = INCOMPLETE
+            result.detail = "metricas externas ausentes o no numericas"
+        elif (metrics["external_coverage_pct"] != 100 or metrics["external_accuracy_measured_cases"] <= 0
+              or metrics["external_accuracy_pct"] < 98 or metrics["external_accuracy_pct"] > 100
+              or metrics["product_contract_pass_rate_pct"] < 98 or metrics["acl_leakage_count"] != 0):
+            result.status = INCOMPLETE
+            result.detail = "sin cobertura externa completa y exactitud medida suficiente"
+    except (OSError, ValueError, KeyError, TypeError):
+        result.status = INCOMPLETE
+        result.detail = "falta evidencia externa valida de esta ejecucion"
+    return result
 
 
 def _resolve_tool(name: str) -> str | None:
@@ -213,27 +331,18 @@ def build_gates(args: argparse.Namespace) -> list[GateResult]:
     results.append(_run([py, "-m", "scripts.verify_documentation"], cwd=BACKEND_ROOT,
                         name="enlaces de documentacion distribuida"))
 
-    # 3. unit
-    results.append(_run(
-        [py, "-m", "pytest", "tests/unit", "-q",
-         "--junitxml", str(TEST_REPORTS / "unit-junit.xml"),
-         "--cov=app", "--cov-report", f"xml:{TEST_REPORTS / 'coverage-unit.xml'}"],
-        cwd=BACKEND_ROOT, name="pruebas unitarias",
-        require_complete_junit=TEST_REPORTS / "unit-junit.xml"))
-
-    # 4. integration
-    results.append(_run(
-        [py, "-m", "pytest", "tests/integration", "-q",
-         "--junitxml", str(TEST_REPORTS / "integration-junit.xml")],
-        cwd=BACKEND_ROOT, name="pruebas de integracion",
-        require_complete_junit=TEST_REPORTS / "integration-junit.xml"))
-
-    # 5. security tests
-    results.append(_run(
-        [py, "-m", "pytest", "tests/security", "-q",
-         "--junitxml", str(TEST_REPORTS / "security-junit.xml")],
-        cwd=BACKEND_ROOT, name="pruebas de seguridad",
-        require_complete_junit=TEST_REPORTS / "security-junit.xml"))
+    # Root collection includes tests/test_chat_queue.py and future root suites.
+    # Security cases are partitioned by dependencies, never by their folder.
+    results.append(_backend_tests(py, "standalone"))
+    if getattr(args, "standalone", False):
+        results.append(GateResult("pruebas backend (integration_services)", SKIPPED,
+                                  detail="requiere entorno desechable con servicios; --standalone"))
+    else:
+        results.append(_backend_tests(py, "integration_services"))
+        collections = [item.collection for item in results if item.collection is not None]
+        if len(collections) == 2 and collections[0]["nodeids_sha256"] != collections[1]["nodeids_sha256"]:
+            results.append(GateResult("coleccion backend estable", INCOMPLETE,
+                                      detail="los grupos no observaron la misma suite raiz"))
 
     # 6. Todas las dependencias instaladas (runtime y desarrollo) son bloqueantes.
     # El codigo propio se comprueba con las suites, Bandit y el escaner de secretos.
@@ -318,13 +427,11 @@ def build_gates(args: argparse.Namespace) -> list[GateResult]:
                                   detail="use --with-e2e con el backend arriba"))
 
     # 11. RAG
-    rag_args = [py, "-m", "scripts.rag_eval", "--output", str(TEST_REPORTS / "rag_eval.json")]
-    rag_args.append("--retrieval" if args.fast else "--full")
-    rag_result = _run(rag_args, cwd=BACKEND_ROOT, name="evaluacion RAG (golden set)")
-    if args.fast and rag_result.status == PASS:
-        rag_result.status = INCOMPLETE
-        rag_result.detail = "solo recuperacion; generacion con modelos reales no evaluada"
-    results.append(rag_result)
+    if getattr(args, "standalone", False):
+        results.append(GateResult("evaluacion RAG (modelos reales, holdout)", SKIPPED,
+                                  detail="modelos y corpus de evaluacion no ejecutados; --standalone"))
+    else:
+        results.append(_rag_gate(py, fast=args.fast))
 
     return results
 
@@ -335,10 +442,18 @@ def main(argv: list[str] | None = None) -> int:
                         help="RAG solo en modo recuperacion (sin generacion)")
     parser.add_argument("--with-e2e", action="store_true",
                         help="incluye Playwright (requiere el backend arriba)")
+    parser.add_argument("--standalone", action="store_true",
+                        help="sin DB/servicios ni modelos; auditorias online siguen activas; global incompleto")
     parser.add_argument("--output", default=str(REPORTS / "quality-gate.json"))
     args = parser.parse_args(argv)
 
+    before = provenance()
+    started_at = datetime.now(UTC).isoformat()
     results = build_gates(args)
+    after = provenance()
+    if before != after:
+        results.append(GateResult("provenance estable", INCOMPLETE,
+                                  detail="fuente/configuracion cambio durante la ejecucion"))
 
     blocking_failures = [r for r in results if r.status == FAIL and r.blocking]
     incomplete_gates = [r for r in results if r.status in (SKIPPED, INCOMPLETE) and r.blocking]
@@ -346,6 +461,11 @@ def main(argv: list[str] | None = None) -> int:
 
     payload = {
         "project": "Matrix RH",
+        "scope": "standalone" if args.standalone else "complete_requested",
+        "started_at_utc": started_at,
+        "finished_at_utc": datetime.now(UTC).isoformat(),
+        "provenance": {"before": before, "after": after},
+        "production_certified": False,
         "overall": FAIL if blocking_failures else INCOMPLETE if incomplete_gates else PASS,
         "blocking_failures": [r.name for r in blocking_failures],
         "incomplete_gates": [r.name for r in incomplete_gates],
