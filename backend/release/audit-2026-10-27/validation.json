@@ -1329,5 +1329,10 @@
     "original_junit_scanner_matches": 4,
     "corrected_junit_scanner_matches": 0,
     "local_full_suite_note": "Full local execution predates the descriptive parameter-ID change; application source and test assertions are unchanged."
+  },
+  "followup": {
+    "report": "vectors-followup.md",
+    "validation": "vectors-followup-validation.json",
+    "note": "The initial counts and open_risks in this file are a historical audit snapshot. The two requested residuals are superseded by this follow-up."
   }
 }

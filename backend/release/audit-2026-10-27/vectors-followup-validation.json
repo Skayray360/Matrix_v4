@@ -1,0 +1,103 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-27",
+  "scope": "PDF branch history cleanup and durable vector generation recovery",
+  "source_base_commit": "99c7c575c7de8259ecdc86a8d4113cedc3a19a28",
+  "status": "CODE_IMPLEMENTED; LOCAL_AND_FOCUSED_CHECKS_PASSED; FINAL_HEAD_CI_IN_PR_CHECKS",
+  "history_evidence": "history-cleanup.json",
+  "local_full_run": {
+    "parent_cases": 3562,
+    "successful_subtests": 40,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "duration_seconds": 465.594,
+    "collection": {
+      "group": "standalone",
+      "collected_total": 3744,
+      "groups": {
+        "standalone": 3562,
+        "integration_services": 182
+      },
+      "selected": 3562,
+      "nodeids_sha256": "a1dd5d3faee4108f2aa1f29c82a474ccfe36b0ad6be50381afe0af7207f86f60"
+    },
+    "qualification": "Run started before final cursor normalization/type narrowing and fixture corrections; three cursor cases were added later. Not presented as exact-final-head acceptance. Final published-head CI executes the complete final collection.",
+    "coverage_qualification": "Do not compare coverage with the earlier audit: source files changed during this local run. The final-head CI produces a new coverage report."
+  },
+  "focused_final_rag": {
+    "passed": 95,
+    "new_journal_cases": 17,
+    "new_legacy_cleanup_cases": 8,
+    "failed": 0,
+    "skipped": 0
+  },
+  "focused_persistence": {
+    "passed": 48,
+    "new_document_lock_cases": 8,
+    "new_backup_restore_cases": 2,
+    "note": "Groups overlap; do not add these totals to infer distinct test coverage."
+  },
+  "independent_adversarial_review": {
+    "passed": 14,
+    "product_files_modified_by_reviewer": false,
+    "includes_abrupt_child_process_exit": true,
+    "live_data_accessed": false
+  },
+  "static_checks": {
+    "ruff": "PASS",
+    "mypy": "PASS: 116 app source files",
+    "headers": "PASS: 423 files",
+    "documentation_links": "PASS: 4 Markdown files",
+    "release_integrity": "PASS: 204 source files",
+    "secret_scan": {
+      "verdict": "PASS",
+      "real_secrets": 0
+    }
+  },
+  "final_head_ci": {
+    "url": "https://github.com/Skayray360/Matrix_v4/pull/3/checks",
+    "policy": "Consult the check for the published head SHA; supersedes earlier local run for full-suite acceptance."
+  },
+  "release_integrity": {
+    "source_files": 204,
+    "manifest_sha256": "19817c47710d6ea1f8704d0cfeb95bce154c597962d9a3c1b0ac1e919067a008"
+  },
+  "not_executed": [
+    "Operational SQL/Qdrant vector cleanup",
+    "Live MySQL or Qdrant server",
+    "Distributed failover, power loss, storage corruption",
+    "Production installation or deployment",
+    "GitHub-managed PR/cache purge"
+  ],
+  "runtime_requirements": [
+    "SQL and Qdrant available again",
+    "Global reconciler runs; manual execution if scheduler is disabled",
+    "Back up the complete Qdrant storage, including generation intents"
+  ],
+  "database_migrations_added": false,
+  "manual_legacy_cleanup": {
+    "default": "preview only",
+    "scope_required": true,
+    "page_size_max": 128,
+    "apply_requires_expected_manifest_count": true,
+    "empty_sql_requires_explicit_allow_empty_manifest": true,
+    "content_or_embeddings_read": false
+  },
+  "final_collection": {
+    "group": "standalone",
+    "collected_total": 3747,
+    "groups": {
+      "standalone": 3565,
+      "integration_services": 182
+    },
+    "selected": 3565,
+    "nodeids_sha256": "801db912786c54a45ae9c5117b77ba876fa9ddbff5545b69b3437899ba899020"
+  },
+  "package_validation": {
+    "files": 463,
+    "manifest_entries_verified_against_archive_bytes": 204,
+    "operational_data_included": false,
+    "note": "Intermediate package validation of source integrity; release documents may subsequently gain validation metadata."
+  }
+}

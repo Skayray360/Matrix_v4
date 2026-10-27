@@ -567,8 +567,12 @@ def reconcile_with_lock(
             from app.rag.vector_store import get_vector_store
 
             if allowed_categories is None:
-                from app.ingestion.pending_generation_cleanup import retry_pending_generation_cleanup
+                from app.ingestion.pending_generation_cleanup import (
+                    retry_generation_write_intents,
+                    retry_pending_generation_cleanup,
+                )
 
+                retry_generation_write_intents(db)
                 retry_pending_generation_cleanup(db)
             if not new_only and allowed_categories is None:
                 # La limpieza global tambien incluye otros dominios y privados;

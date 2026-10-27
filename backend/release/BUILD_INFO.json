@@ -71,9 +71,10 @@
   "corpus_distribution": "No operational documents; synthetic test fixtures only",
   "current_remediation": {
     "date": "2026-10-27",
-    "base_commit": "d057889aa85f1690576e2d65d19729a91cf06da4",
-    "validation": "backend/release/audit-2026-10-27/validation.json",
-    "status": "ISOLATED_VALIDATION_PASSED; production acceptance pending"
+    "base_commit": "99c7c575c7de8259ecdc86a8d4113cedc3a19a28",
+    "validation": "backend/release/audit-2026-10-27/vectors-followup-validation.json",
+    "report": "backend/release/audit-2026-10-27/vectors-followup.md",
+    "status": "PDF_BRANCH_HISTORY_PURGED; VECTOR_RECOVERY_IMPLEMENTED; final-head CI in PR checks; production acceptance pending"
   },
   "audit_history": [
     {

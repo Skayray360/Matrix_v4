@@ -137,8 +137,25 @@ La [auditoría del 27 de octubre de 2026](backend/release/audit-2026-10-27/repor
 
 - Los modelos y sus revisiones deben corresponder a los digests privados de la instalación. Cambiar embeddings requiere reconstruir y validar el índice.
 - Los índices anteriores a esta auditoría no acreditan cobertura completa de extracción. Ejecute una reconciliación completa para incorporar los nuevos metadatos; el alta incremental de archivos nuevos no actualiza documentos existentes. Las omisiones conocidas conservan una advertencia de respuesta parcial.
+- La ingesta registra una intención persistente antes de escribir los vectores. El mantenimiento global recupera las candidatas pendientes después de un rollback o una interrupción de la ingesta y conserva la generación confirmada en SQL. Requiere que Qdrant y SQL vuelvan a estar disponibles y que se ejecute el reconciliador.
+- Respalde y restaure el almacenamiento Qdrant completo, incluida la colección `<colección corporativa>__generation_intents`. Restaurar únicamente las colecciones de contenido pierde las intenciones pendientes. Los respaldos nativo y preparado del proyecto conservan el árbol completo.
 - Para exposición a red se requieren HTTPS, cookies seguras y un proveedor de identidad configurado. No convierta el perfil local en publicación LAN cambiando únicamente `APP_HOST`.
 - Las políticas de categorías rechazan campos desconocidos, nombres repetidos y claves YAML duplicadas: corrija la configuración si el arranque la rechaza.
 - El perfil Docker usa otra copia Linux y estado separado; no comparte un datadir activo con la instalación Windows. Su build y arranque necesitan validación específica en el entorno destino.
+
+Los seis PDF retirados del árbol también se eliminaron del historial de las cuatro ramas. Consulte la [evidencia y los pasos pendientes de caché/PR en GitHub](backend/release/audit-2026-10-27/history-cleanup.md). Un clon anterior debe actualizarse sin fusionar la historia retirada.
+
+### Revisar vectores anteriores a la recuperación automática
+
+Las candidatas generadas antes de incorporar el registro de intenciones requieren una revisión explícita. Desde `backend`, use el Python del entorno de Matrix y compruebe primero que la configuración apunta a su SQL e índice correctos. Para Qdrant embedded, detenga Matrix antes de abrir su almacenamiento.
+
+```bash
+python -m scripts.cleanup_vector_generations --scope corporate
+python -m scripts.cleanup_vector_generations --scope conversation
+```
+
+Estos comandos sólo diagnostican: consultan identificadores y generaciones, sin recuperar texto ni embeddings. Cada lote revisa como máximo 128 puntos y devuelve `manifest_count`, generaciones candidatas y `next_offset`. Revise el resultado; para aplicar repita el mismo ámbito y offset añadiendo `--apply --expected-manifest-count N`, sustituyendo `N` por el conteo SQL observado. Después continúe con `--offset` y el `next_offset` devuelto hasta que sea nulo. El número de generaciones no equivale al número de puntos borrados.
+
+Una base SQL vacía bloquea el borrado salvo que el operador añada `--allow-empty-manifest` después de verificar que ese vacío es intencional. Un error SQL o bloqueo impide borrar el candidato afectado; los lotes parciales se pueden reintentar. Las generaciones activas se preservan y los metadatos inválidos requieren revisión, sin borrado automático. Esta herramienta no se ejecuta por el scheduler.
 
 Creado por Aldo Garcia.

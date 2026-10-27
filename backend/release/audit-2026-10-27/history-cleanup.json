@@ -1,0 +1,43 @@
+{
+  "repository": "Skayray360/Matrix_v4",
+  "date": "2026-10-27",
+  "pdf_blobs_removed_from_branch_history": 6,
+  "remote_branches_verified": 4,
+  "fresh_clone_reachable_pdf_count": 0,
+  "removed_blob_objects_present_in_fresh_clone": 0,
+  "code_at_all_branch_tips_unchanged": true,
+  "tags": 0,
+  "branches": {
+    "refs/heads/audit/hardening-2026-10-27": {
+      "before": "e80445be0cf2e2a52ef3a554028ed36c99b9b2b3",
+      "after": "99c7c575c7de8259ecdc86a8d4113cedc3a19a28"
+    },
+    "refs/heads/codex/audit-matrix-2026-10-25": {
+      "before": "2e0a09f998076823e461812d6b8db34a27bf6991",
+      "after": "98578aa5f2f0e4b30e82d7eba0e0d5fbf9c1bc0e"
+    },
+    "refs/heads/codex/external-audit-remediation": {
+      "before": "ecb4a739882bce97247aabe903ad15fc38c5db83",
+      "after": "ae9ed8133e54da2fbbd29509f31efec7fd798655"
+    },
+    "refs/heads/main": {
+      "before": "d057889aa85f1690576e2d65d19729a91cf06da4",
+      "after": "5400884de3797719c7ef17dab1e82484689e4d84"
+    }
+  },
+  "commits_rewritten": 13,
+  "first_changed_commit": "f6969a182119516db9bf64d68b72e8ad59cd23a8",
+  "pull_requests_affected": [
+    1,
+    2,
+    3
+  ],
+  "github_managed_pull_refs": {
+    "refs/pull/1/head": "2e0a09f998076823e461812d6b8db34a27bf6991",
+    "refs/pull/2/head": "ecb4a739882bce97247aabe903ad15fc38c5db83",
+    "refs/pull/3/head": "99c7c575c7de8259ecdc86a8d4113cedc3a19a28",
+    "refs/pull/3/merge": "594a547d9f82fc1ae66334da1bd1c4c0ba50c501"
+  },
+  "provider_cache_purge": "NOT_EXECUTED_REQUIRES_GITHUB_SUPPORT",
+  "author_and_date_preservation": "Original identity and dates retained in commit trailers; rewritten commits use authenticated account metadata; graph and full messages retained."
+}

@@ -30,6 +30,7 @@ from app.common.errors import ConversationCleanupPendingError, IngestionFailedEr
 from app.common.ids import new_id, sha256_bytes, utcnow_naive
 from app.common.logging import get_logger
 from app.config import get_settings
+from app.database.document_locks import lock_document
 from app.database.models import Document, DocumentAccessPolicy, DocumentVersion, User
 from app.ingestion.isolated_extraction import extract_document
 from app.ingestion.loaders import mime_for_extension
@@ -38,6 +39,7 @@ from app.llm.provider import InferenceClient
 from app.memory.service import MemoryService
 from app.rag.chunking import ChunkDraft, chunk_blocks
 from app.rag.embedding_prompts import document_embedding_title, format_document
+from app.rag.generation_journal import SESSION_WRITE_TRANSACTION, GenerationIntent
 from app.rag.index_manifest import PIPELINE_VERSION, indexing_fingerprint
 from app.rag.schemas import SCOPE_CONVERSATION, SCOPE_CORPORATE, Chunk, ChunkMetadata
 from app.rag.vector_store import VectorStore, get_vector_store
@@ -506,6 +508,13 @@ class IngestionService:
         prepared: PreparedAttachment | None = None,
     ) -> IngestionOutcome:
         """Extrae, chunkea, embebe e indexa. Actualiza el manifest."""
+        # El bloqueo pertenece a la transaccion del llamador, no a esta funcion.
+        # Antes de registrar una intencion, el INSERT de un documento nuevo ya
+        # debe existir en SQL y un limpiador no puede observarlo como ausente.
+        locked_document = lock_document(db, document.id)
+        if locked_document is None:
+            raise IngestionFailedError("El documento ya no existe para su indexacion.")
+        document = locked_document
         settings = self._settings
         try:
             if prepared is None:
@@ -594,6 +603,11 @@ class IngestionService:
         # Un flush fallido expira el estado ORM y deja la Session en rollback
         # obligatorio. La compensacion no puede leer atributos de esa Session.
         document_id, document_scope = document.id, document.scope
+        db.info[SESSION_WRITE_TRANSACTION] = db.get_transaction()
+        self._store.generation_journal.record(GenerationIntent(
+            document_id=document_id, generation=generation, scope=document_scope,
+            collection=self._store.collection_for(document_scope),
+        ))
 
         def compensate_generation() -> None:
             try:
@@ -773,6 +787,10 @@ class IngestionService:
         commit perdia evidencia aunque SQL hiciera rollback. El filtro de
         generaciones la oculta tras el commit y cleanup_generations la elimina.
         """
+        locked_document = lock_document(db, document.id)
+        if locked_document is None:
+            return
+        document = locked_document
         document.deleted_at = utcnow_naive()
         document.status = "deleted"
         document.chunk_count = 0
