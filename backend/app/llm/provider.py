@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import json
-import math
 import re
 import time
 from contextlib import contextmanager
@@ -20,6 +19,7 @@ from jsonschema import Draft202012Validator
 from app.common.errors import ConfigurationError, EmbeddingDimensionMismatchError
 from app.common.inference_errors import InferenceFailureError, InferenceFailureKind
 from app.common.logging import get_logger
+from app.common.vectors import valid_cosine_vector
 from app.config import Settings, get_settings
 from app.llm.http_transport import request_json
 from app.llm.ollama_client import ChatResult, ModelInventory, OllamaClient, _metric
@@ -629,7 +629,7 @@ class ModelClient(OllamaClient):
         if len(vectors) != len(texts) or any(
             not isinstance(v, list)
             or len(v) != self.expected_dimension
-            or any(isinstance(n, bool) or not isinstance(n, float | int) or not math.isfinite(n) for n in v)
+            or not valid_cosine_vector(v)
             for v in vectors
         ):
             raise EmbeddingDimensionMismatchError()

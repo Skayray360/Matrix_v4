@@ -34,6 +34,7 @@ from qdrant_client import QdrantClient, models
 
 from app.common.errors import QdrantUnavailableError
 from app.common.logging import get_logger
+from app.common.vectors import valid_cosine_vector
 from app.config import QdrantMode, get_settings
 from app.rag.schemas import SCOPE_CONVERSATION, SCOPE_CORPORATE, Chunk, Evidence, document_source_id
 
@@ -77,7 +78,12 @@ class VectorStore:
         try:
             if settings.qdrant_mode is QdrantMode.SERVER:
                 api_key = settings.qdrant_api_key.get_secret_value() or None
-                return QdrantClient(url=settings.qdrant_url, api_key=api_key, timeout=30)
+                # No heredar proxies del host para documentos ni credenciales.
+                # El SDK 1.20 consulta la version con otro httpx.get que ignora
+                # trust_env; desactivar ese sondeo auxiliar (ambos lados estan
+                # fijados por version). Las operaciones usan el transporte local.
+                return QdrantClient(url=settings.qdrant_url, api_key=api_key, timeout=30,
+                                    trust_env=False, check_compatibility=False)
             path = settings.qdrant_storage_path
             path.mkdir(parents=True, exist_ok=True)
             return QdrantClient(path=str(path))
@@ -115,6 +121,11 @@ class VectorStore:
                 vectors = info.config.params.vectors
                 if getattr(vectors, "size", None) != self._dimension:
                     raise ValueError("La dimension de la coleccion no coincide; cree una coleccion nueva.")
+                if getattr(vectors, "distance", None) != models.Distance.COSINE:
+                    # MMR y el umbral de recuperacion utilizan similitud coseno.
+                    # La misma dimension no hace compatible un indice DOT/L2.
+                    # No recrear ni reinterpretar silenciosamente datos existentes.
+                    raise ValueError("La metrica de la coleccion no es coseno; cree una coleccion nueva.")
                 if self._settings.qdrant_mode is QdrantMode.SERVER:
                     for field in (
                         "scope",
@@ -263,13 +274,18 @@ class VectorStore:
         if len(chunks) != len(vectors):
             raise QdrantUnavailableError(detail="chunks y vectors tienen distinta longitud")
 
-        # Validar todas las dimensiones antes de escribir; materializar los puntos
+        # Validar todos los vectores antes de escribir; materializar los puntos
         # solo por lote para acotar memoria y tamano de cada peticion.
         by_collection: dict[str, list[int]] = {}
         for index, (chunk, vector) in enumerate(zip(chunks, vectors, strict=True)):
             if len(vector) != self._dimension:
                 raise QdrantUnavailableError(
                     detail=f"vector de dimension {len(vector)}, esperada {self._dimension}"
+                )
+            if not valid_cosine_vector(vector):
+                raise QdrantUnavailableError(
+                    "El embedding no permite una comparacion coseno valida.",
+                    detail="El vector y su norma deben ser finitos y no nulos en precision float32.",
                 )
             collection = self.collection_for(chunk.metadata.scope)
             by_collection.setdefault(collection, []).append(index)

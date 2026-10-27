@@ -35,8 +35,9 @@ from tests.conftest import make_context
 
 pytestmark = pytest.mark.unit
 
-KERBEROS_FILENAME = "Guia_configuracion_Kerberos_AD_PENOLEST_MX.docx"
-KERBEROS_STEM = KERBEROS_FILENAME.removesuffix(".docx")
+# Documentos creados por las pruebas; dominios .test e IP TEST-NET reservados.
+SYNTHETIC_FILENAME = "Guia_ficticia_Constelacion_Azul.docx"
+SYNTHETIC_STEM = SYNTHETIC_FILENAME.removesuffix(".docx")
 FOREIGN_SOURCE = "conversation/foreign-document/private.txt#9"
 
 
@@ -45,7 +46,7 @@ def _mediumtext_in_sqlite(_type, _compiler, **_kwargs):
     return "TEXT"
 
 
-def source(text, *, index=0, filename=KERBEROS_FILENAME, document_id="technical-guide"):
+def source(text, *, index=0, filename=SYNTHETIC_FILENAME, document_id="technical-guide"):
     return Evidence(
         source_id=f"conversation/{document_id}/{filename}#{index}", text=text, score=0.8,
         category="adjuntos", filename=filename, section=f"Apartado {index + 1}",
@@ -56,7 +57,7 @@ def source(text, *, index=0, filename=KERBEROS_FILENAME, document_id="technical-
 
 TECHNICAL_SOURCES = (
     source("La guía describe la configuración de Kerberos para autenticar un servicio ante Active Directory."),
-    source("Compruebe el ticket con klist y solicite el ticket con kinit usuario@EJEMPLO.MX.", index=1),
+    source("Compruebe el ticket con klist y solicite el ticket con kinit usuario@EXAMPLE.TEST.", index=1),
     source("Para Kerberos habilite el puerto 88 TCP y UDP; para DNS habilite el puerto 53 TCP y UDP.", index=2),
     source("La revisión del documento es del 8 de octubre de 2026.", index=3),
 )
@@ -145,9 +146,9 @@ def recovered(evidences=TECHNICAL_SOURCES, *, truncated=False):
 
 @pytest.mark.parametrize("structured", [False, True], ids=["text", "json"])
 @pytest.mark.parametrize("question", [
-    f"explicame sobre este documento {KERBEROS_STEM}.",
-    f"Explícame el documento {KERBEROS_FILENAME}",
-    "Explica este documento Guía configuración Kerberos AD PENOLEST MX.",
+    f"explicame sobre este documento {SYNTHETIC_STEM}.",
+    f"Explícame el documento {SYNTHETIC_FILENAME}",
+    "Explica este documento Guía ficticia Constelación Azul.",
     "¿De qué trata este archivo?",
     "dame un resumen",
 ])
@@ -161,7 +162,7 @@ def test_complete_document_request_reaches_summary_and_persists_cited_answer(wor
     assert not result.regenerated
     assert result.cited_source_ids == (TECHNICAL_SOURCES[0].source_id,)
     assert len(result.public_sources()) == 1
-    assert result.public_sources()[0]["filename"] == KERBEROS_FILENAME
+    assert result.public_sources()[0]["filename"] == SYNTHETIC_FILENAME
     assert result.public_sources()[0]["page_or_sheet"] == "pagina 1"
     assert workflow.stored_assistant_answers() == [result.answer]
     assert '"claims"' not in result.answer
@@ -171,9 +172,9 @@ def test_complete_document_request_reaches_summary_and_persists_cited_answer(wor
 
 
 @pytest.mark.parametrize("question", [
-    f"Explica el párrafo sobre tickets del documento {KERBEROS_FILENAME}.",
-    f"Explica la sección de verificación del documento {KERBEROS_FILENAME}.",
-    f"¿Qué comando recomienda el documento {KERBEROS_FILENAME} para consultar tickets?",
+    f"Explica el párrafo sobre tickets del documento {SYNTHETIC_FILENAME}.",
+    f"Explica la sección de verificación del documento {SYNTHETIC_FILENAME}.",
+    f"¿Qué comando recomienda el documento {SYNTHETIC_FILENAME} para consultar tickets?",
 ])
 def test_specific_passage_keeps_targeted_retrieval_and_documentary_schema(workflow, question):
     workflow.retriever.retrieve.return_value = recovered((TECHNICAL_SOURCES[1],))
@@ -181,7 +182,7 @@ def test_specific_passage_keeps_targeted_retrieval_and_documentary_schema(workfl
     result = workflow.chat(question)
     assert result.intent == Intent.DOCUMENTAL.value
     assert result.cited_source_ids == (TECHNICAL_SOURCES[1].source_id,)
-    assert "klist" in result.answer and "usuario@EJEMPLO.MX" in result.answer
+    assert "klist" in result.answer and "usuario@EXAMPLE.TEST" in result.answer
     assert not result.regenerated
     workflow.retriever.retrieve_attachment_summary.assert_not_called()
     assert "response_schema" in workflow.llm.calls[0]
@@ -212,10 +213,10 @@ def test_bad_generated_summary_recovers_only_complete_authorized_evidence(workfl
 
 
 @pytest.mark.parametrize("text", [
-    "El servidor de prueba utiliza la dirección 10.20.30.40.",
+    "El servidor de prueba utiliza la dirección 192.0.2.40.",
     "El componente de prueba requiere la versión 1.2.3.",
-    "Ejecute klist en DC01 y solicite el ticket con kinit usuario@EJEMPLO.MX.",
-    r"El archivo de prueba se encuentra en C:\Kerberos\config2\krb5.ini.",
+    "Ejecute klist en FIXTURE01 y solicite el ticket con kinit usuario@EXAMPLE.TEST.",
+    r"El archivo de prueba se encuentra en C:\Fixture\config2\synthetic.ini.",
     "La configuración de prueba usa AES256-SHA1.",
     "La revisión del documento es del 8 de octubre de 2026.",
 ])
@@ -232,8 +233,8 @@ def test_exact_technical_identifiers_survive_generation_and_validation(workflow,
 
 @pytest.mark.parametrize("actual,invented", [
     ("La configuración utiliza AES256-SHA1.", "La configuración utiliza AES512-SHA1."),
-    ("El servidor es DC01.", "El servidor es DC02."),
-    (r"El archivo es C:\Kerberos\config2\krb5.ini.", r"El archivo es C:\Kerberos\config9\krb5.ini."),
+    ("El servidor es FIXTURE01.", "El servidor es FIXTURE02."),
+    (r"El archivo es C:\Fixture\config2\synthetic.ini.", r"El archivo es C:\Fixture\config9\synthetic.ini."),
     ("El puerto de Kerberos es 88.", "El puerto de Kerberos es 89."),
     ("La versión requerida es 1.2.3.", "La versión requerida es 1.2.4."),
 ])
@@ -321,16 +322,16 @@ def test_other_owner_cannot_reach_retrieval_memory_or_generation(workflow):
 def test_summary_followup_keeps_named_document_from_authorized_memory(workflow):
     workflow.retriever.retrieve_attachment_summary.return_value = recovered()
     workflow.llm.responses = [generated(TECHNICAL_SOURCES[0].text)] * 2
-    workflow.chat(f"Resume este documento {KERBEROS_FILENAME}.")
+    workflow.chat(f"Resume este documento {SYNTHETIC_FILENAME}.")
     result = workflow.chat("dame un resumen")
     assert result.grounded and len(workflow.llm.calls) == 2
     call = workflow.retriever.retrieve_attachment_summary.call_args.kwargs
-    assert KERBEROS_STEM in call["question"]
+    assert SYNTHETIC_STEM in call["question"]
     last_user = list(workflow.db.scalars(select(ConversationMessage).where(
         ConversationMessage.role == "user",
     ).order_by(ConversationMessage.seq)))[-1]
     assert last_user.content == "dame un resumen"
-    assert KERBEROS_STEM in last_user.context_query
+    assert SYNTHETIC_STEM in last_user.context_query
 
 
 @pytest.mark.parametrize("followup,needs_selection", [
@@ -351,10 +352,10 @@ def test_second_upload_requires_selection_unless_followup_identifies_the_previou
         ))
         workflow.db.flush()
 
-    attach("technical-guide", KERBEROS_FILENAME)
+    attach("technical-guide", SYNTHETIC_FILENAME)
     workflow.retriever.retrieve_attachment_summary.return_value = recovered()
     workflow.llm.responses = [generated(TECHNICAL_SOURCES[0].text, structured=False)] * (1 if needs_selection else 2)
-    workflow.chat(f"Resume este documento {KERBEROS_FILENAME}.")
+    workflow.chat(f"Resume este documento {SYNTHETIC_FILENAME}.")
     initial_calls = len(workflow.retriever.mock_calls)
     attach("backup-manual", "Manual_Respaldos.docx")
     result = workflow.chat(followup)
@@ -369,7 +370,7 @@ def test_second_upload_requires_selection_unless_followup_identifies_the_previou
         assert result.grounded and result.answer_basis == "documented"
         assert result.cited_source_ids == (TECHNICAL_SOURCES[0].source_id,)
         assert len(workflow.llm.calls) == 2
-        assert KERBEROS_STEM in workflow.retriever.retrieve_attachment_summary.call_args.kwargs["question"]
+        assert SYNTHETIC_STEM in workflow.retriever.retrieve_attachment_summary.call_args.kwargs["question"]
 
 
 def test_new_named_document_replaces_previous_document_in_summary_followup(workflow):
@@ -377,10 +378,10 @@ def test_new_named_document_replaces_previous_document_in_summary_followup(workf
                    document_id="backup-manual")
     workflow.retriever.retrieve_attachment_summary.side_effect = [recovered(), recovered((other,))]
     workflow.llm.responses = [generated(TECHNICAL_SOURCES[0].text), generated(other.text)]
-    workflow.chat(f"Resume este documento {KERBEROS_FILENAME}.")
+    workflow.chat(f"Resume este documento {SYNTHETIC_FILENAME}.")
     result = workflow.chat("Explícame este documento Manual_Respaldos.docx.")
     question = workflow.retriever.retrieve_attachment_summary.call_args.kwargs["question"]
-    assert "Manual_Respaldos" in question and KERBEROS_STEM not in question
+    assert "Manual_Respaldos" in question and SYNTHETIC_STEM not in question
     assert result.cited_source_ids == (other.source_id,)
     assert {item["filename"] for item in result.public_sources()} == {"Manual_Respaldos.docx"}
 
@@ -388,18 +389,18 @@ def test_new_named_document_replaces_previous_document_in_summary_followup(workf
 def test_new_conversation_does_not_reuse_another_chats_document_anchor(workflow):
     workflow.retriever.retrieve_attachment_summary.return_value = recovered()
     workflow.llm.responses = [generated(TECHNICAL_SOURCES[0].text), "¿Qué documento desea consultar?"]
-    workflow.chat(f"Resume este documento {KERBEROS_FILENAME}.")
+    workflow.chat(f"Resume este documento {SYNTHETIC_FILENAME}.")
     other_thread = workflow.memory.create_conversation(workflow.db, workflow.ctx)
     workflow.retriever.retrieve_attachment_summary.return_value = RetrievalResult()
     result = workflow.chat("Dame un resumen de ese documento.", thread=other_thread)
     question = workflow.retriever.retrieve_attachment_summary.call_args.kwargs["question"]
-    assert KERBEROS_STEM not in question
+    assert SYNTHETIC_STEM not in question
     assert result.answer_basis == "insufficient" and not result.cited_source_ids
-    assert KERBEROS_FILENAME not in workflow.llm.calls[-1]["messages"][-1]["content"]
+    assert SYNTHETIC_FILENAME not in workflow.llm.calls[-1]["messages"][-1]["content"]
 
 
 def test_ambiguous_private_summary_requests_selection_without_model_generation(workflow):
-    clarification = "¿Qué documento deseas resumir: Guía Kerberos.docx o Manual Respaldos.docx?"
+    clarification = "¿Qué documento deseas resumir: Guía ficticia Constelación Azul.docx o Manual Respaldos.docx?"
     workflow.retriever.retrieve_attachment_summary.return_value = RetrievalResult(clarification=clarification)
     result = workflow.chat("Dame un resumen del documento adjunto.")
     assert result.answer == clarification
@@ -426,7 +427,7 @@ def test_multi_document_summary_cannot_silently_omit_a_selected_document(workflo
     workflow.llm.responses = [generated(TECHNICAL_SOURCES[0].text)] * 2
     result = workflow.chat("Resume los documentos adjuntos.")
     assert result.grounded and result.regenerated
-    assert {item["filename"] for item in result.public_sources()} == {KERBEROS_FILENAME, "Manual_Respaldos.docx"}
+    assert {item["filename"] for item in result.public_sources()} == {SYNTHETIC_FILENAME, "Manual_Respaldos.docx"}
     assert TECHNICAL_SOURCES[0].text in result.answer and other.text in result.answer
     assert len(workflow.llm.calls) == 2
 
@@ -456,7 +457,7 @@ def test_eighty_five_chunk_summary_preserves_validated_maps_when_reduction_is_in
 
     monkeypatch.setattr(workflow.llm, "chat", map_then_invalid_reduce)
     workflow.retriever.retrieve_attachment_summary.return_value = recovered(evidences)
-    result = workflow.chat(f"Explícame este documento {KERBEROS_FILENAME}.")
+    result = workflow.chat(f"Explícame este documento {SYNTHETIC_FILENAME}.")
     assert result.grounded and result.regenerated
     assert len(map_citations) > 1 and len(reduce_calls) == 1
     assert set(result.cited_source_ids) == set(map_citations)
@@ -487,7 +488,7 @@ def test_cross_batch_source_collision_cannot_be_published_as_validated_sections(
 def test_recovered_summary_does_not_truncate_a_technical_command(monkeypatch):
     monkeypatch.setattr(get_settings(), "answer_evidence_mode", "cited")
     monkeypatch.setattr(get_settings(), "answer_structured_output", True)
-    command = "Ejecute setspn -S HTTP/servidor.ejemplo.mx EJEMPLO\\servicio_web con permisos delegados."
+    command = "Ejecute setspn -S HTTP/servidor.example.test EJEMPLO\\servicio_web con permisos delegados."
     item = source(command)
     llm = ProgrammedLlm()
     llm.responses = ["salida sin contrato", "segunda salida sin contrato"]

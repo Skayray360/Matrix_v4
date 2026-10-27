@@ -1,13 +1,13 @@
 {
   "schema": 1,
-  "verified_at": "2026-10-20",
+  "verified_at": "2026-10-25",
   "platform": "windows-x86_64",
   "uv": {
-    "version": "0.12.23",
-    "url": "https://github.com/astral-sh/uv/releases/download/0.12.23/uv-x86_64-pc-windows-msvc.zip",
-    "sha256": "75d05de6762778c31ee183398de7dd15093fad0ed90b1f236d8205ea5ec00c90",
-    "size": 18043715,
-    "provenance": "https://api.github.com/repos/astral-sh/uv/releases/tags/0.12.23"
+    "version": "0.13.5",
+    "url": "https://github.com/astral-sh/uv/releases/download/0.13.5/uv-x86_64-pc-windows-msvc.zip",
+    "sha256": "a38b8d1902b7cfbc76b423ba1bb456f623f42064cdc72628b6075b89afd1019a",
+    "size": 15264056,
+    "provenance": "https://github.com/astral-sh/uv/releases/download/0.13.5/uv-x86_64-pc-windows-msvc.zip.sha256"
   },
   "ollama": {
     "management": "external_local",
@@ -22,11 +22,17 @@
   },
   "python": {
     "version": "3.12.15",
-    "build": "20261003",
+    "build": "20261021",
     "provisioner": "uv managed Python; checksum verified by pinned uv download registry",
-    "url": "https://github.com/astral-sh/python-build-standalone/releases/download/20261003/cpython-3.12.15%2B20261003-x86_64-pc-windows-msvc-install_only_stripped.tar.gz",
-    "sha256": "6fba7f2ae506facf41d457ea8293c7497910a675c69a4e954875169410a50402",
-    "provenance": "https://raw.githubusercontent.com/astral-sh/uv/0.12.23/crates/uv-python/download-metadata.json"
+    "url": "https://github.com/astral-sh/python-build-standalone/releases/download/20261021/cpython-3.12.15%2B20261021-x86_64-pc-windows-msvc-install_only_stripped.tar.gz",
+    "sha256": "aac5d331fc3307343f95928fdbea4583f0d53973d08c7e1d081884fbd229a0e1",
+    "provenance": "https://raw.githubusercontent.com/astral-sh/uv/0.13.5/crates/uv-python-managed/download-metadata.json",
+    "security_followup": {
+      "version": "3.12.16",
+      "status": "pending_windows_build",
+      "source": "https://www.python.org/downloads/release/python-31216/",
+      "note": "Released 2026-10-25 as source only; no matching Windows binary in pinned uv registry. Build 20261021 is the latest available; not a claim that 3.12.15 includes the 3.12.16 security fixes."
+    }
   },
   "mysql": {
     "version": "8.4.13",
@@ -49,15 +55,15 @@
     "security_advisory": "https://www.oracle.com/security-alerts/cpuoct2026.html"
   },
   "node": {
-    "version": "24.22.0",
+    "version": "24.22.1",
     "npm_version": "11.19.1",
     "package_manager": "npm@11.19.1+sha512.cedb312b1b7f92421a02cfb68b4194e88f8346651dacd6acc5364a25ef5309d4a32b19616a1ff8aff865e7280c0fa5c0835a99f5cd93368991e2a80ec9da75d2",
-    "archive_root": "node-v24.22.0-win-x64",
-    "url": "https://nodejs.org/dist/v24.22.0/node-v24.22.0-win-x64.zip",
-    "sha256": "f9683a19877e12a9b167305c8db71040d812876359de21f0d2e97c3f321f80c3",
-    "size": 37733703,
-    "provenance": "https://nodejs.org/dist/v24.22.0/SHASUMS256.txt",
-    "executable_sha256": "ba93f9a70bd86fce3ebbb39ec758501458453467aa92a34a0a3602d1e3fc2b9c",
+    "archive_root": "node-v24.22.1-win-x64",
+    "url": "https://nodejs.org/dist/v24.22.1/node-v24.22.1-win-x64.zip",
+    "sha256": "d2046d28c2c3dcd211ac5145c0bf30e2047ef9dfb306693c8c6e2eccd8b95fa5",
+    "size": 37748064,
+    "provenance": "https://nodejs.org/dist/v24.22.1/SHASUMS256.txt",
+    "executable_sha256": "d702daa815eabbff763c7d3808e235cf031cf2ca70211b56847bc72f51e240e5",
     "npm_tree_sha256": "769e985272f8757f88790ceb590c189becc0e5e93df8c10f17f16f69963faf55"
   },
   "vcredist": {

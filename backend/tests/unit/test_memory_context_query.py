@@ -23,7 +23,7 @@ pytestmark = [pytest.mark.unit, pytest.mark.security]
 isolated_api = security_fixtures.isolated_api
 
 BASE_QUESTION = (
-    "Según el documento sintético de prestaciones, si ingresé en mayo de 2016 y "
+    "Según el documento sintético de prestaciones, si ingresé en mayo de 2032 y "
     "tengo 7 años y 6 meses de antigüedad antes de jubilarme, ¿qué porcentaje corresponde?"
 )
 

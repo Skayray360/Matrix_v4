@@ -1,7 +1,7 @@
 # Creado por Aldo Garcia.
 """Regresion del resumen de portabilidad: alcance y formato son contratos distintos.
 
-El PDF de la entrega se extrae localmente; las inferencias son dobles finitos y
+Un PDF ficticio se genera en tmp_path y se extrae localmente; las inferencias son dobles finitos y
 Qdrant/SQL usan memoria temporal. No se conecta a los servicios del operador.
 """
 from __future__ import annotations
@@ -9,9 +9,10 @@ from __future__ import annotations
 import json
 import re
 from dataclasses import replace
-from pathlib import Path
 
 import pytest
+from pypdf import PdfWriter
+from pypdf.generic import DecodedStreamObject, DictionaryObject, NameObject
 
 from app.agents.knowledge_agent import KnowledgeAgent
 from app.common.errors import AnswerValidationError
@@ -31,7 +32,7 @@ from tests.unit import test_document_overview_retrieval_20261008 as overview
 
 pytestmark = pytest.mark.unit
 QUESTION = (
-    'Según “Plática del Plan de Pensiones por Jubilación de diciembre de 2022”, '
+    'Según “Guía del Programa Horizonte por Jubilación de diciembre de 2041”, '
     'resume la sección de portabilidad en cinco puntos. Indica las páginas utilizadas.'
 )
 
@@ -42,9 +43,43 @@ def corpus(monkeypatch):
 
 
 @pytest.fixture
-def pension_pdf():
-    path = next((Path(__file__).resolve().parents[3] / "knowledge-base/documents").rglob("*PENSIONES*.pdf"))
-    return path.name, chunk_blocks(extract_pdf(path.read_bytes()).blocks, chunk_size_tokens=900, overlap_tokens=120)
+def synthetic_program_pdf(tmp_path):
+    """Corpus inventado con capítulos, continuación y localizadores reales de PDF."""
+    pages = [
+        "Antecedentes\nEste programa ficticio sirve para probar el alcance de resúmenes.",
+        "Fondo Prueba Verde\nEste capítulo ajeno no pertenece a portabilidad.",
+        *[f"Capítulo ficticio {number}\nMaterial de ejemplo del apartado {number}." for number in range(3, 9)],
+        "Portabilidad del Programa Horizonte\nLa cuenta de ejemplo conserva las unidades consolidadas.\n"
+        "Las unidades pendientes siguen sujetas al calendario ficticio.",
+        "Portabilidad del Programa Horizonte\nEl saldo ilustrativo puede trasladarse al Fondo Prueba Azul.\n"
+        "La solicitud de ejemplo requiere un formato firmado por el participante.",
+    ]
+    writer = PdfWriter()
+    for text in pages:
+        page = writer.add_blank_page(width=600, height=800)
+        font = DictionaryObject({
+            NameObject("/Type"): NameObject("/Font"), NameObject("/Subtype"): NameObject("/Type1"),
+            NameObject("/BaseFont"): NameObject("/Helvetica"), NameObject("/Encoding"): NameObject("/WinAnsiEncoding"),
+        })
+        page[NameObject("/Resources")] = DictionaryObject({
+            NameObject("/Font"): DictionaryObject({NameObject("/F1"): font}),
+        })
+        content = bytearray(b"BT /F1 11 Tf 40 750 Td 16 TL\n")
+        for line in text.splitlines():
+            # Octales para los bytes no ASCII y metacaracteres del literal PDF.
+            escaped = "".join(
+                chr(value) if 32 <= value <= 126 and chr(value) not in "()\\" else f"\\{value:03o}"
+                for value in line.encode("cp1252")
+            )
+            content.extend(f"({escaped}) Tj T*\n".encode("ascii"))
+        content.extend(b"ET")
+        stream = DecodedStreamObject()
+        stream.set_data(bytes(content))
+        page[NameObject("/Contents")] = stream
+    filename = "Guía del Programa Horizonte por Jubilación de diciembre de 2041.pdf"
+    path = tmp_path / filename
+    writer.write(path)
+    return filename, chunk_blocks(extract_pdf(path.read_bytes()).blocks, chunk_size_tokens=900, overlap_tokens=120)
 
 
 def evidence(text, index=0, *, section="Portabilidad", page=None):
@@ -91,8 +126,8 @@ def test_exact_request_has_explicit_section_and_five_points():
 
 
 @pytest.mark.parametrize("scope", ["corporate", "conversation"])
-def test_real_pdf_section_retrieval_excludes_unrequested_pages(corpus, pension_pdf, scope):
-    filename, blocks = pension_pdf
+def test_synthetic_pdf_section_retrieval_excludes_unrequested_pages(corpus, synthetic_program_pdf, scope):
+    filename, blocks = synthetic_program_pdf
     chunks = corpus.publish(filename, scope_name=scope, blocks=blocks)
     # Mismo titulo fuera del alcance: ni siquiera entra a las identidades.
     corpus.publish(filename, scope_name=scope, user="other-owner", category="restricted", blocks=blocks)
@@ -107,8 +142,8 @@ def test_real_pdf_section_retrieval_excludes_unrequested_pages(corpus, pension_p
     assert result.fetched > len(result.evidences)
 
 
-def test_whole_pdf_summary_still_contains_all_pages(corpus, pension_pdf):
-    filename, blocks = pension_pdf
+def test_whole_pdf_summary_still_contains_all_pages(corpus, synthetic_program_pdf):
+    filename, blocks = synthetic_program_pdf
     chunks = corpus.publish(filename, scope_name="corporate", blocks=blocks)
     result = corpus.retriever.retrieve(
         ctx=corpus.ctx, question=f"Resume {filename}", authorized_categories=frozenset({"tecnologia"}),
@@ -146,7 +181,7 @@ def test_section_names_are_generic_and_keep_internal_prepositions(question, titl
 def test_maps_keep_scope_and_remove_only_final_point_count():
     question = summary_map_question(QUESTION, part=1, total=2)
     assert "portabilidad" in question
-    assert "Pensiones" in question
+    assert "Horizonte" in question
     assert requested_summary_section(question) == "portabilidad"
     assert requested_summary_points(question) is None
 
@@ -173,15 +208,15 @@ def test_incorrect_point_count_is_retried_before_it_is_published():
     assert len(re.findall(r"(?m)^\d+\. ", result.answer)) == 5
 
 
-def test_failed_model_discloses_fewer_extracts_and_never_dumps_unrequested_pages(pension_pdf, monkeypatch):
-    filename, blocks = pension_pdf
+def test_failed_model_discloses_fewer_extracts_and_never_dumps_unrequested_pages(synthetic_program_pdf, monkeypatch):
+    filename, blocks = synthetic_program_pdf
     sources = tuple(replace(evidence(block.text, index, section=block.section, page=block.page_or_sheet),
                             filename=filename) for index, block in enumerate(blocks))
     client = Client("{}", "{}")
     result = synthesize(client, sources, monkeypatch=monkeypatch)
     assert "No pude validar una sintesis en 5 puntos. Presento 2 extractos completos" in result.answer
     assert result.grounding.extractive_verified and result.regenerated
-    assert "Antecedentes" not in result.answer and "Fondos Proviva" not in result.answer
+    assert "Antecedentes" not in result.answer and "Fondo Prueba Verde" not in result.answer
     assert set(result.cited_source_ids) == {item.source_id for item in sources
                                            if item.page_or_sheet in {"pagina 9", "pagina 10"}}
     assert all("Antecedentes" not in str(call["messages"]) for call in client.calls)

@@ -558,6 +558,9 @@ img { display: block; max-width: 100%; }
   margin-left: 1px; cursor: help;
 }
 
+.citation a { display: inline-flex; align-items: center; justify-content: center; min-width: 24px; min-height: 24px; color: inherit; text-decoration: underline; text-underline-offset: 2px; }
+.sources li:focus { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 10px; }
+
 .sources { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; margin-top: 12px; }
 .sources h4 {
   margin: 0; color: var(--muted);

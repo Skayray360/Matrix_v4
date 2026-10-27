@@ -15,6 +15,9 @@ from app.database.models import JobLock
 
 @pytest.mark.parametrize("state", ["own", "foreign", "expired", "missing"])
 def test_readiness_requires_current_dispatcher_lease_without_renewing(monkeypatch, state):
+    from app.api.routes import health
+
+    monkeypatch.setattr(health, "_ready_cache", health.ReadinessCache())
     monkeypatch.setattr("app.database.engine.check_database", lambda: (True, "synthetic"))
     monkeypatch.setattr("app.database.migrator.pending_migrations", lambda: [])
     monkeypatch.setattr("app.agents.chat_queue.get_chat_queue", lambda: SimpleNamespace(owner="synthetic-owner"))

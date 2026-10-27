@@ -59,7 +59,7 @@ def firmar(rsa_key, provider: EntraIdentityProvider, **overrides):  # noqa: ANN0
         "iat": ahora,
         "exp": ahora + 600,
         "nonce": "nonce-correcto",
-        "preferred_username": "empleado@corporativo.mx",
+        "preferred_username": "empleado@example.test",
         "name": "Empleado Demo",
         "groups": ["grupo-prestaciones"],
     }

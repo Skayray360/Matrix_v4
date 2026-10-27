@@ -43,6 +43,10 @@ WARN = "WARN"
 FAIL = "FAIL"
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 CORE_PREFIXES = ("backend/app/", "backend/scripts/", "backend/seeds/", "backend/migrations/")
+SOURCE_SUFFIXES = frozenset({
+    ".py", ".ps1", ".sql", ".ts", ".tsx", ".js", ".jsx", ".json", ".css", ".html",
+    ".png", ".jpg", ".jpeg", ".svg", ".webp", ".ico", ".woff", ".woff2", ".ttf",
+})
 OPERATOR_BATCH_FILES = frozenset({
     "instalar.bat", "iniciar.bat", "detener.bat", "diagnosticar.bat",
 })
@@ -94,6 +98,21 @@ class PreflightReport:
 def _core_file(relative: str) -> bool:
     return relative in CORE_FILES or (
         relative.startswith(CORE_PREFIXES) and Path(relative).suffix.lower() in {".py", ".ps1", ".sql"}
+    )
+
+
+def release_integrity_file(relative: str) -> bool:
+    """Fuente operativa de la entrega nativa, sin corpus, fixtures ni informes.
+
+    Assert-Release tambien comprueba fuentes y configuracion del frontend.
+    El preflight del contenedor solo requiere el backend: en esa imagen el
+    frontend ya esta compilado y las fuentes TypeScript no se distribuyen.
+    """
+    return _core_file(relative) or relative in {
+        "frontend/.npmrc", "frontend/vite.config.ts", "frontend/tsconfig.json", "frontend/index.html",
+    } or (
+        relative.startswith((*CORE_PREFIXES, "frontend/src/", "frontend/public/"))
+        and Path(relative).suffix.lower() in SOURCE_SUFFIXES
     )
 
 

@@ -18,10 +18,14 @@ import subprocess
 import sys
 from pathlib import Path
 
+import yaml
+
 LINUX_FILESYSTEMS = frozenset({"ext2", "ext3", "ext4", "xfs", "btrfs", "zfs", "overlay", "overlayfs"})
 STATE_DIRECTORIES = ("mysql", "qdrant", "qdrant-snapshots", "ollama", "uploads", "run", "tls")
 SECRET_FILES = ("mysql-root-password.txt", "bootstrap-admin-password.txt")
 PIN_KEYS = ("LLM_FAST_DIGEST", "LLM_DEEP_DIGEST", "LLM_EMBEDDING_DIGEST")
+STORAGE_SERVICES = ("mysql", "qdrant", "ollama")
+STORAGE_RECEIPT = "knowledge-base/state/docker/images.json"
 
 
 def _checked_path(root: Path, relative: str) -> Path:
@@ -29,6 +33,60 @@ def _checked_path(root: Path, relative: str) -> Path:
     if target.absolute() != target.resolve() or not target.resolve().is_relative_to(root):
         raise ValueError("No se admiten enlaces ni rutas fuera de esta copia Linux.")
     return target
+
+
+def expected_storage_images(root: Path) -> dict[str, str]:
+    """Compara referencias inmutables, no tags que puedan cambiar en el registro."""
+    try:
+        compose = yaml.safe_load(_checked_path(root, "docker-compose.yml").read_text(encoding="utf-8"))
+    except yaml.YAMLError as exc:
+        raise ValueError("El Compose no contiene YAML valido.") from exc
+    try:
+        images = {name: compose["services"][name]["image"] for name in STORAGE_SERVICES}
+    except (KeyError, TypeError) as exc:
+        raise ValueError("El Compose no declara las imagenes de almacenamiento esperadas.") from exc
+    if any(not isinstance(image, str) or not re.fullmatch(r"[^\s@]+@sha256:[a-f0-9]{64}", image)
+           for image in images.values()):
+        raise ValueError("Las imagenes de almacenamiento deben estar fijadas por digest SHA256.")
+    if compose["services"].get("model-download", {}).get("image") != images["ollama"]:
+        raise ValueError("La descarga y la inferencia deben usar la misma imagen de Ollama.")
+    return images
+
+
+def check_storage_images(root: Path) -> dict[str, object]:
+    """Guard de solo lectura, ejecutado ANTES de abrir MySQL, Qdrant u Ollama.
+
+    Un recibo no acredita una migracion: solo impide abrir datos con una imagen
+    diferente a la que preparo una instalacion limpia. Un cambio requiere una
+    restauracion/migracion ensayada en otra copia; nunca se reescribe aqui.
+    """
+    expected = expected_storage_images(root)
+    receipt = _checked_path(root, STORAGE_RECEIPT)
+    if not receipt.is_file():
+        raise ValueError("Falta el recibo de imagenes Docker. Prepare una instalacion limpia; "
+                         "para datos existentes, respalde y ensaye la migracion en otra copia.")
+    try:
+        recorded = json.loads(receipt.read_text(encoding="utf-8"))
+    except (ValueError, UnicodeError) as exc:
+        raise ValueError("El recibo de imagenes Docker no es valido; restaure el respaldo.") from exc
+    if not isinstance(recorded, dict) or recorded.get("schema") != 1 or recorded.get("images") != expected:
+        raise ValueError("Cambio de imagen de almacenamiento bloqueado: respalde y pruebe una migracion "
+                         "o reindexacion en otra copia antes de actualizar. No sobrescriba el recibo "
+                         "ni abra directamente el datadir anterior con la imagen nueva.")
+    return {"ok": True, "storage_images_verified": True, "data_deleted": False}
+
+
+def _check_initial_storage(root: Path) -> dict[str, str]:
+    images = expected_storage_images(root)
+    if _checked_path(root, STORAGE_RECEIPT).exists():
+        check_storage_images(root)
+        return images
+    for name in (*STORAGE_SERVICES, "qdrant-snapshots", "uploads"):
+        target = _checked_path(root, f"knowledge-base/state/docker/{name}")
+        if target.exists() and any(target.iterdir()):
+            raise ValueError("Datos existentes sin recibo de imagenes: no se actualizan automaticamente. "
+                             "Respalde y ensaye una migracion o reindexacion en una copia limpia.")
+    return images
 
 
 def filesystem_type(path: Path, *, mountinfo: Path = Path("/proc/self/mountinfo")) -> str:
@@ -137,6 +195,7 @@ def prepare(root: Path, *, uid: int | None = None, gid: int | None = None) -> di
             target = _checked_path(root, f"knowledge-base/state/docker/{name}")
             if target.exists() and any(target.iterdir()):
                 raise ValueError("Hay datos Docker sin su configuracion. Restaure docker.env y sus secretos juntos.")
+    storage_images = _check_initial_storage(root)
     for relative in ("knowledge-base/documents", "backend/config/secrets/docker",
                      *(f"knowledge-base/state/docker/{name}" for name in STATE_DIRECTORIES)):
         _checked_path(root, relative).mkdir(parents=True, exist_ok=True, mode=0o700)
@@ -180,6 +239,8 @@ def prepare(root: Path, *, uid: int | None = None, gid: int | None = None) -> di
         values.update(dict.fromkeys(PIN_KEYS, ""))
         _private_file(env_file, "# Privado. Perfil Docker local Linux; conservar con el respaldo.\n"
                       + "\n".join(f"{key}={value}" for key, value in values.items()))
+    _private_file(_checked_path(root, STORAGE_RECEIPT),
+                  json.dumps({"schema": 1, "images": storage_images}, sort_keys=True, indent=2))
     # No imprime valores, claves, contrasenas ni el contenido de documentos.
     return {"ok": True, "mode": "docker_local", "configuration_created": not existing,
             "filesystem": filesystem, "admin_username": values.get("MATRIX_DOCKER_ADMIN", "Matrix"),
@@ -190,10 +251,13 @@ def prepare(root: Path, *, uid: int | None = None, gid: int | None = None) -> di
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path, default=Path(__file__).resolve().parents[2])
+    parser.add_argument("--check-storage", action="store_true",
+                        help="Valida el recibo sin crear ni modificar archivos.")
     args = parser.parse_args(argv)
     previous_umask = os.umask(0o077)
     try:
-        print(json.dumps(prepare(args.root), ensure_ascii=False))
+        result = check_storage_images(args.root) if args.check_storage else prepare(args.root)
+        print(json.dumps(result, ensure_ascii=False))
         return 0
     except (OSError, ValueError, subprocess.SubprocessError) as exc:
         detail = str(exc) if isinstance(exc, ValueError) else type(exc).__name__

@@ -9,7 +9,7 @@ from app.rag.grounding import verify_grounding
 from app.rag.schemas import Evidence
 
 pytestmark = pytest.mark.unit
-TOPIC = "Plan de Pensiones por Fallecimiento e Invalidez"
+TOPIC = "Programa Horizonte de Protección y Bienestar"
 LENSES = Evidence(
     source_id="lentes#0", text="Lentes y Anteojos\nEl apoyo está documentado.",
     score=0.9, category="prestaciones", filename="lentes.pdf", section="pagina 1",
@@ -48,8 +48,8 @@ def test_explicit_transition_heading_persists_for_the_next_cited_unit():
     f"**Lentes y Anteojos:**\nRespecto al {TOPIC}, es una prestación documentada.",
     f"## Lentes y Anteojos\nRespecto al {TOPIC}, es una prestación documentada.",
     "Respecto a Lentes y Anteojos, es una prestación documentada.",
-    "Respecto al Plan de Pensiones, es una prestación documentada.",
-    "Respecto al Otro Plan de Pensiones por Fallecimiento e Invalidez, es una prestación documentada.",
+    "Respecto al Programa Horizonte, es una prestación documentada.",
+    "Respecto al Otro Programa Horizonte de Protección y Bienestar, es una prestación documentada.",
     f"Los Lentes y Anteojos son equivalentes. Respecto al {TOPIC}, es una prestación documentada.",
     f"Es una prestación documentada respecto al {TOPIC}.",
 ])

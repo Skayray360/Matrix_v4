@@ -84,6 +84,7 @@ try {
     function Test-StartConservation([bool]$ExistingBackend) {
         $script:StartEvents=[Collections.Generic.List[string]]::new()
         function Assert-Release { $script:StartEvents.Add('integrity') }
+        function Assert-PythonRuntime { }
         function Assert-LocalConfiguration { $script:StartEvents.Add('configuration') }
         function Start-MySql { param([switch]$AllowInitialize); Assert (-not $AllowInitialize) 'start must not opt into initialization'; $script:StartEvents.Add('mysql') }
         function Assert-InstalledModels { $script:StartEvents.Add('ollama') }
