@@ -124,7 +124,8 @@ def test_imagenes_fijadas_y_build_sin_secretos_ni_estado():
     for line in dockerfile.splitlines():
         if line.startswith("FROM "):
             assert re.search(r"@sha256:[0-9a-f]{64}(?: AS \w+)?$", line)
-    assert "uv==0.12.23" in dockerfile
+    assert "uv==0.13.5" in dockerfile
+    assert "pip==26.2.2" in dockerfile
     assert "--locked --no-dev --no-install-project --no-build" in dockerfile
     assert dockerfile.index("RUN uv audit ") < dockerfile.index("RUN uv sync ")
     assert "RUN corepack npm audit signatures" in dockerfile
@@ -133,3 +134,20 @@ def test_imagenes_fijadas_y_build_sin_secretos_ni_estado():
     exclusions = (ROOT / "backend/Dockerfile.dockerignore").read_text().splitlines()
     for relative in ("knowledge-base", "backend/config/secrets", "**/docker.env", "**/.env", "backend/runtime"):
         assert relative in exclusions
+
+
+def test_storage_guard_precedes_every_writer_and_has_no_datadir_or_credentials():
+    services = _compose()["services"]
+    guard = services["storage-guard"]
+    for name in ("mysql", "qdrant", "ollama", "model-download"):
+        assert services[name]["depends_on"]["storage-guard"] == {"condition": "service_completed_successfully"}
+    assert guard["network_mode"] == "none" and guard["read_only"] is True
+    assert not guard.get("env_file") and not guard.get("secrets") and not guard.get("ports")
+    assert guard["entrypoint"] == ["python", "-m", "scripts.docker_prepare"]
+    assert guard["command"] == ["--check-storage", "--root", "/app"]
+    assert {v["source"] for v in guard["volumes"]} == {
+        "./knowledge-base/state/docker/images.json", "./docker-compose.yml",
+    }
+    assert all(v["read_only"] and not v["bind"]["create_host_path"] for v in guard["volumes"])
+    assert services["qdrant"]["environment"]["QDRANT__CLUSTER__ENABLED"] == "false"
+    assert services["qdrant"]["environment"]["QDRANT__SERVICE__ENFORCE_INTERNAL_AUTH"] == "true"

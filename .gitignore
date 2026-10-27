@@ -2,8 +2,8 @@
 # Local configuration, secrets and installation state
 # Los documentos operativos nuevos no deben publicarse por un git add general.
 # Esto NO retira archivos ya versionados ni elimina su historial publico.
-/knowledge-base/documents/**
-/knowledge-base/unclassified/**
+/knowledge-base/**
+!/knowledge-base/.gitkeep
 .env
 .env.*
 .env-*

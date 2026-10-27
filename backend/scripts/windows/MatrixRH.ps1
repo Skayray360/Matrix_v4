@@ -235,29 +235,69 @@ function Expand-Pinned([string]$Archive, [string]$Destination) {
     } finally { $zip.Dispose() }
     [IO.Compression.ZipFile]::ExtractToDirectory($Archive,$Destination)
 }
-function Install-ZipRuntime([string]$Name, $Pin, [string]$Executable) {
+function Install-ZipRuntime([string]$Name, $Pin, [string]$Executable, [switch]$AllowUpgrade) {
+    # Only these stateless, private tools may be replaced. MySQL has its own
+    # data-aware installer and must never enter this upgrade path.
+    if ($Name -notin @('node','uv')) { throw 'Este instalador solo administra Node y uv propios.' }
     $target=Join-Path $script:Runtime $Name
+    Assert-PlainPath $target
+    $prefix=[IO.Path]::GetFullPath($target) + [IO.Path]::DirectorySeparatorChar
+    $executablePath=[IO.Path]::GetFullPath($Executable)
+    if (-not $executablePath.StartsWith($prefix,[StringComparison]::OrdinalIgnoreCase)) { throw 'Ejecutable fuera del runtime propio.' }
+    $relative=$executablePath.Substring($prefix.Length)
     $receipt=Join-Path $target '.matrix-package.json'
-    if (Test-Path -LiteralPath $Executable) {
-        if (-not (Test-Path -LiteralPath $receipt)) { throw ('Runtime ' + $Name + ' sin registro de procedencia. No se reemplaza automaticamente.') }
+    $upgrade=$false
+    if (Test-Path -LiteralPath $target) {
+        if (-not (Test-Path -LiteralPath $receipt -PathType Leaf)) { throw ('Runtime ' + $Name + ' incompleto o sin registro de procedencia. No se reemplaza automaticamente.') }
         $stored=[IO.File]::ReadAllText($receipt) | ConvertFrom-Json
-        if ($stored.sha256 -ne $Pin.sha256 -or (Get-FileHash -LiteralPath $Executable -Algorithm SHA256).Hash -ne $stored.executable_sha256) { throw ('Integridad o version inesperada de ' + $Name + '; conserve la carpeta para revisar.') }
-        if ($null -ne $stored.PSObject.Properties['files']) { Assert-TreeHashes $target $stored.files }
-        Say ($Name + ' ya instalado y verificado'); return
+        if ($null -eq $stored.PSObject.Properties['files']) { throw ('Runtime ' + $Name + ' sin recibo completo de integridad. Conserve la carpeta para revisar.') }
+        Assert-TreeHashes $target $stored.files
+        if ($stored.sha256 -eq $Pin.sha256) {
+            if (-not (Test-Path -LiteralPath $Executable -PathType Leaf) -or (Get-FileHash -LiteralPath $Executable -Algorithm SHA256).Hash -ne $stored.executable_sha256) { throw ('Integridad inesperada de ' + $Name + '; conserve la carpeta para revisar.') }
+            Say ($Name + ' ya instalado y verificado'); return
+        }
+        $oldVersion=$null; $newVersion=$null
+        if (-not $AllowUpgrade -or -not [version]::TryParse([string]$stored.version,[ref]$oldVersion) -or
+            -not [version]::TryParse([string]$Pin.version,[ref]$newVersion) -or $newVersion -le $oldVersion) {
+            throw ('Cambio de version no autorizado de ' + $Name + '; no se degrada ni reemplaza un runtime inesperado.')
+        }
+        $upgrade=$true
     }
-    if (Test-Path -LiteralPath $target) { throw ('Directorio de runtime incompleto: ' + $Name + '. Conservelo y revise el fallo anterior.') }
     $archive=Join-Path $script:Runtime ('downloads\' + $Name + '-' + $Pin.version + '.zip')
     Step ('Descargando ' + $Name + ' ' + $Pin.version + ' desde su proveedor oficial; espere a que termine...')
     Download-Pinned $Pin.url $Pin.sha256 $archive
     $staging=$target + '.staging-' + [guid]::NewGuid().ToString('N')
-    Expand-Pinned $archive $staging
+    $backup=$target + '.previous-' + [guid]::NewGuid().ToString('N')
+    $movedPrevious=$false; $published=$false
     try {
-        $relative=$Executable.Substring($target.Length+1)
-        if (-not (Test-Path -LiteralPath (Join-Path $staging $relative))) { throw ('El ZIP ' + $Name + ' no contiene el ejecutable esperado.') }
-        $record=@{version=$Pin.version;url=$Pin.url;sha256=$Pin.sha256;executable_sha256=(Get-FileHash -LiteralPath (Join-Path $staging $relative) -Algorithm SHA256).Hash;files=(Get-TreeHashes $staging)}
+        Expand-Pinned $archive $staging
+        $stagedExecutable=Join-Path $staging $relative
+        if (-not (Test-Path -LiteralPath $stagedExecutable -PathType Leaf)) { throw ('El ZIP ' + $Name + ' no contiene el ejecutable esperado.') }
+        $record=@{version=$Pin.version;url=$Pin.url;sha256=$Pin.sha256;executable_sha256=(Get-FileHash -LiteralPath $stagedExecutable -Algorithm SHA256).Hash;files=(Get-TreeHashes $staging)}
         Write-Text (Join-Path $staging '.matrix-package.json') ($record | ConvertTo-Json -Depth 6)
-        Move-Item -LiteralPath $staging -Destination $target
-    } catch { throw ('No se pudo publicar ' + $Name + '. Se conserva la extraccion temporal. ' + $_.Exception.Message) }
+        Assert-TreeHashes $staging $record.files
+        if ($upgrade) {
+            # Check again immediately before the rename; never replace a modified
+            # or running installation silently. A failed rename preserves it.
+            Assert-TreeHashes $target $stored.files
+            Move-Item -LiteralPath $target -Destination $backup -ErrorAction Stop
+            $movedPrevious=$true
+        }
+        Move-Item -LiteralPath $staging -Destination $target -ErrorAction Stop
+        $published=$true
+        Assert-TreeHashes $target $record.files
+    } catch {
+        $failure=$_.Exception.Message
+        if ($movedPrevious) {
+            try {
+                if ($published) { Move-Item -LiteralPath $target -Destination $staging -ErrorAction Stop }
+                Move-Item -LiteralPath $backup -Destination $target -ErrorAction Stop
+                Assert-TreeHashes $target $stored.files
+            } catch { throw ('No se pudo restaurar ' + $Name + '; conserve ' + $backup + ' y ' + $staging + '. ' + $_.Exception.Message) }
+        }
+        throw ('No se pudo publicar ' + $Name + '. El runtime anterior se conserva; revise la extraccion temporal. ' + $failure)
+    }
+    if ($movedPrevious) { Say ($Name + ' actualizado; respaldo anterior conservado en ' + $backup) }
 }
 function MySql-Version([string]$Executable) {
     if (-not (Test-Path -LiteralPath $Executable -PathType Leaf)) { throw 'El paquete MySQL esta incompleto: falta un ejecutable. No se inicializan datos.' }
@@ -495,14 +535,20 @@ function Stop-Backend {
     throw 'El backend no termino la parada cooperativa; los servicios de datos siguen activos para evitar perdida de trabajo.'
 }
 function Find-Apache([string]$Wamp) {
-    $services=@(Get-CimInstance Win32_Service | Where-Object { $_.PathName -match 'httpd\.exe' -and $_.PathName.IndexOf($Wamp,[StringComparison]::OrdinalIgnoreCase) -ge 0 })
-    if ($services.Count -ne 1) { throw 'No se identifico un unico servicio Apache de WAMP. Compruebe que WAMP esta instalado y su servicio registrado.' }
-    $service=$services[0]
-    if ($service.PathName -match '^\s*"([^"]+httpd\.exe)"') { $exe=$Matches[1] }
-    elseif ($service.PathName -match '^\s*(\S+httpd\.exe)') { $exe=$Matches[1] }
-    else { throw 'No se pudo resolver el ejecutable Apache registrado.' }
-    $base=Split-Path -Parent (Split-Path -Parent $exe)
-    return @{executable=$exe;config=(Join-Path $base 'conf\httpd.conf');base=$base;service=$service.Name}
+    $prefix=[IO.Path]::GetFullPath($Wamp).TrimEnd([IO.Path]::DirectorySeparatorChar,[IO.Path]::AltDirectorySeparatorChar) + [IO.Path]::DirectorySeparatorChar
+    $candidates=@(foreach ($service in Get-CimInstance Win32_Service) {
+        $exe=''
+        if ($service.PathName -match '^\s*"([^"]+httpd\.exe)"(?:\s|$)') { $exe=$Matches[1] }
+        elseif ($service.PathName -match '^\s*(\S+httpd\.exe)(?:\s|$)') { $exe=$Matches[1] }
+        if (-not $exe) { continue }
+        $exe=[IO.Path]::GetFullPath($exe)
+        if (-not $exe.StartsWith($prefix,[StringComparison]::OrdinalIgnoreCase)) { continue }
+        Assert-PlainPath $exe
+        $base=Split-Path -Parent (Split-Path -Parent $exe)
+        @{executable=$exe;config=(Join-Path $base 'conf\httpd.conf');base=$base;service=$service.Name}
+    })
+    if ($candidates.Count -ne 1) { throw 'No se identifico un unico servicio Apache de WAMP. Compruebe que WAMP esta instalado y su servicio registrado.' }
+    return $candidates[0]
 }
 function Configure-Apache([string]$Wamp) {
     $apache=Find-Apache $Wamp
@@ -545,6 +591,7 @@ function Configure-Apache([string]$Wamp) {
 function Start-Stack {
     Assert-Release
     Assert-LocalConfiguration
+    Assert-PythonRuntime
     Assert-InstalledModels
     Start-MySql
     Invoke-Python @('-m','scripts.installation_state','--root',$script:Root,'--guard-install')
@@ -640,7 +687,7 @@ function Get-TreeHashes([string]$Directory) {
 }
 function Assert-TreeHashes([string]$Directory, $Expected) {
     $actual=Get-TreeHashes $Directory
-    $names=if ($Expected -is [Collections.IDictionary]) { @($Expected.Keys) } else { @($Expected.PSObject.Properties.Name) }
+    $names=@(if ($Expected -is [Collections.IDictionary]) { $Expected.Keys } else { $Expected.PSObject.Properties.Name })
     if ($actual.Count -eq 0 -or $actual.Count -ne $names.Count) { throw 'Arbol incompleto o con archivos fuera de su recibo de integridad.' }
     foreach ($name in $names) {
         if (-not $actual.ContainsKey($name) -or $actual[$name] -ne $Expected.$name) { throw ('Integridad incorrecta del archivo: ' + $name) }
@@ -770,7 +817,7 @@ function Install-Node {
         $script:NpmCli=Join-Path $external 'node_modules\npm\bin\npm-cli.js'
         Say 'Se reutiliza el Node/npm existente: sus archivos coinciden con la distribucion aprobada'
     } else {
-        Install-ZipRuntime 'node' $pin $script:Node
+        Install-ZipRuntime 'node' $pin $script:Node -AllowUpgrade
         $record=[IO.File]::ReadAllText((Join-Path $script:Runtime 'node\.matrix-package.json')) | ConvertFrom-Json
         if ($null -eq $record.PSObject.Properties['files']) { throw 'Node/npm no tiene recibo completo de integridad. No se ejecuta.' }
         Assert-TreeHashes (Join-Path $script:Runtime 'node') $record.files
@@ -848,6 +895,68 @@ function Build-Frontend {
     } finally { $env:PATH=$previousPath; $env:NODE_ENV=$previousNodeEnv }
 }
 
+function Assert-PythonRuntime($Pin=$null) {
+    if ($null -eq $Pin) { $Pin=([IO.File]::ReadAllText((Join-Path $script:Config 'runtime-manifest.json')) | ConvertFrom-Json).python }
+    $managed=Join-Path $script:Runtime ('python\cpython-' + $Pin.version + '-windows-x86_64-none')
+    $build=Join-Path $managed 'BUILD'
+    if (-not (Test-Path -LiteralPath $build -PathType Leaf) -or [IO.File]::ReadAllText($build).Trim() -ne $Pin.build) { throw 'Python propio no corresponde al build fijado. Ejecute instalar.bat para reconstruir runtime y entorno juntos.' }
+    $probe=(& $script:Python -I -c "import json,sys,struct;print(json.dumps({'version':'.'.join(map(str,sys.version_info[:3])),'bits':struct.calcsize('P')*8,'base':sys.base_prefix}))" | Out-String).Trim()
+    if ($LASTEXITCODE -ne 0) { throw 'No se pudo verificar el Python propio.' }
+    $info=$probe | ConvertFrom-Json
+    if ($info.version -ne $Pin.version -or $info.bits -ne 64 -or [IO.Path]::GetFullPath($info.base) -ne [IO.Path]::GetFullPath($managed)) { throw 'El entorno Python no coincide con la version x64 y runtime propios fijados. Ejecute instalar.bat.' }
+}
+function Install-PythonRuntime($Pin) {
+    Set-InstallStage 'runtime_python'
+    $uv=Join-Path $script:Runtime 'uv\uv.exe'
+    $backup=Join-Path $script:Runtime ('python-previous-' + [guid]::NewGuid().ToString('N'))
+    $failed=Join-Path $script:Runtime ('python-incomplete-' + [guid]::NewGuid().ToString('N'))
+    $previousDirectories=[Collections.Generic.List[string]]::new()
+    $prepared=$false
+    $uvEnvironment=@{UV_PYTHON_INSTALL_DIR=(Join-Path $script:Runtime 'python');UV_PYTHON_BIN_DIR=(Join-Path $script:Runtime 'python-bin');UV_CACHE_DIR=(Join-Path $script:Runtime 'cache');UV_PYTHON_CACHE_DIR=(Join-Path $script:Runtime 'cache\python');UV_PROJECT_ENVIRONMENT=(Join-Path $script:Runtime 'venv');UV_PYTHON_INSTALL_BIN='0';UV_PYTHON_CPYTHON_BUILD=$Pin.build}
+    $previous=@{}
+    try {
+        # Recreate the managed interpreter and venv as one unit. Relocating a
+        # staged venv would leave absolute paths in pyvenv.cfg and launchers.
+        foreach ($name in @('venv','python')) {
+            $path=Join-Path $script:Runtime $name
+            Assert-PlainPath $path
+            if (Test-Path -LiteralPath $path) {
+                Ensure-Directory $backup
+                Move-Item -LiteralPath $path -Destination (Join-Path $backup $name) -ErrorAction Stop
+                $previousDirectories.Add($name)
+            }
+        }
+        $prepared=$true
+        foreach ($key in $uvEnvironment.Keys) { $previous[$key]=[Environment]::GetEnvironmentVariable($key,'Process'); [Environment]::SetEnvironmentVariable($key,$uvEnvironment[$key],'Process') }
+        Step ('Instalando Python propio ' + $Pin.version + ' build ' + $Pin.build + ' y dependencias fijadas por uv.lock...')
+        Invoke-Checked $uv @('python','install',$Pin.version,'--no-config')
+        Set-InstallStage 'auditoria_python'
+        Step 'Auditando dependencias Python antes de instalar; sin omitir avisos conocidos...'
+        Invoke-Checked $uv @('audit','--project',(Join-Path $script:Root 'backend'),'--locked','--no-dev','--no-extra','dev','--no-extra','vertex','--no-extra','oracle','--no-extra','mssql','--no-extra','postgres','--python-version',$Pin.version,'--python-platform','x86_64-pc-windows-msvc','--no-python-downloads','--no-config')
+        Set-InstallStage 'runtime_python'
+        Invoke-Checked $uv @('sync','--project',(Join-Path $script:Root 'backend'),'--frozen','--no-dev','--no-editable','--no-build','--no-install-project','--python',$Pin.version,'--managed-python','--no-python-downloads','--no-config')
+        Invoke-Checked $uv @('pip','check','--python',$script:Python,'--no-config')
+        Assert-PythonRuntime $Pin
+    } catch {
+        $failure=$_.Exception.Message
+        try {
+            if ($prepared) {
+                foreach ($name in @('venv','python')) {
+                    $path=Join-Path $script:Runtime $name
+                    if (Test-Path -LiteralPath $path) { Ensure-Directory $failed; Move-Item -LiteralPath $path -Destination (Join-Path $failed $name) -ErrorAction Stop }
+                }
+            }
+            foreach ($name in $previousDirectories) { Move-Item -LiteralPath (Join-Path $backup $name) -Destination (Join-Path $script:Runtime $name) -ErrorAction Stop }
+        } catch { throw ('No se pudo restaurar la pareja Python/venv. Conserve ' + $backup + ' y ' + $failed + '. ' + $_.Exception.Message) }
+        throw ('Fallo al preparar Python; se restauro la pareja anterior sin modificar datos. ' + $failure)
+    } finally {
+        foreach ($key in $previous.Keys) {
+            if ($null -eq $previous[$key]) { Remove-Item -LiteralPath ('Env:' + $key) -ErrorAction SilentlyContinue }
+            else { [Environment]::SetEnvironmentVariable($key,$previous[$key],'Process') }
+        }
+    }
+    if ($previousDirectories.Count -gt 0) { Say ('Python y entorno actualizados juntos; respaldo anterior conservado en ' + $backup) }
+}
 function Install-Stack {
     $principal=New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
     if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) { throw 'La integracion con Apache requiere permisos de servicio. Cierre esta ventana y use clic derecho > Ejecutar como administrador en instalar.bat.' }
@@ -888,26 +997,12 @@ function Install-Stack {
     Write-Text (Join-Path $script:Secrets 'mysql-client.ini') ([string]::Join([Environment]::NewLine,@('[client]','user=matrix_owner',('password=' + $rootSecret),'host=127.0.0.1',('port=' + $mysqlPort),'protocol=tcp','connect-timeout=5')))
     $pins=[IO.File]::ReadAllText((Join-Path $script:Config 'runtime-manifest.json')) | ConvertFrom-Json
     Set-InstallStage 'runtime_uv'
-    Install-ZipRuntime 'uv' $pins.uv (Join-Path $script:Runtime 'uv\uv.exe')
+    Install-ZipRuntime 'uv' $pins.uv (Join-Path $script:Runtime 'uv\uv.exe') -AllowUpgrade
     Set-InstallStage 'runtime_vcredist'
     Install-VcRuntime
     Set-InstallStage 'runtime_mysql'
     Install-MySql
-    Set-InstallStage 'runtime_python'
-    $uv=Join-Path $script:Runtime 'uv\uv.exe'
-    $uvEnvironment=@{UV_PYTHON_INSTALL_DIR=(Join-Path $script:Runtime 'python');UV_PYTHON_BIN_DIR=(Join-Path $script:Runtime 'python-bin');UV_CACHE_DIR=(Join-Path $script:Runtime 'cache');UV_PYTHON_CACHE_DIR=(Join-Path $script:Runtime 'cache\python');UV_PROJECT_ENVIRONMENT=(Join-Path $script:Runtime 'venv');UV_PYTHON_INSTALL_BIN='0';UV_PYTHON_CPYTHON_BUILD=$pins.python.build}
-    $previous=@{}
-    try {
-        foreach ($key in $uvEnvironment.Keys) { $previous[$key]=[Environment]::GetEnvironmentVariable($key,'Process'); [Environment]::SetEnvironmentVariable($key,$uvEnvironment[$key],'Process') }
-        Step ('Instalando Python propio ' + $pins.python.version + ' y dependencias fijadas por uv.lock...')
-        Invoke-Checked $uv @('python','install',$pins.python.version,'--no-config')
-        Set-InstallStage 'auditoria_python'
-        Step 'Auditando dependencias Python antes de instalar; sin omitir avisos conocidos...'
-        Invoke-Checked $uv @('audit','--project',(Join-Path $script:Root 'backend'),'--locked','--no-dev','--no-extra','dev','--no-extra','vertex','--no-extra','oracle','--no-extra','mssql','--no-extra','postgres','--python-version',$pins.python.version,'--python-platform','x86_64-pc-windows-msvc','--no-python-downloads','--no-config')
-        Set-InstallStage 'runtime_python'
-        Invoke-Checked $uv @('sync','--project',(Join-Path $script:Root 'backend'),'--frozen','--no-dev','--no-editable','--no-build','--no-install-project','--python',$pins.python.version,'--managed-python','--no-python-downloads','--no-config')
-    } finally { foreach ($key in $previous.Keys) { [Environment]::SetEnvironmentVariable($key,$previous[$key],'Process') } }
-    Invoke-Checked $uv @('pip','check','--python',$script:Python,'--no-config')
+    Install-PythonRuntime $pins.python
     Invoke-Python @('-m','scripts.preflight','--integrity-only')
     Set-InstallStage 'runtime_node'
     Install-Node
@@ -975,7 +1070,7 @@ function Diagnose {
     Check 'Apache WAMP instalado' { Find-Apache (Get-Wamp) | Out-Null }
     if ($configured -and (Test-InstalledRuntimes)) {
         Show-InstallStage
-        Check 'Python propio' { Invoke-Python @('-c','import sys; print(sys.version.split()[0]); assert sys.version_info[:2] == (3, 12)') }
+        Check 'Python propio (version, build y entorno fijados)' { Assert-PythonRuntime }
         Check 'MySQL propio y puerto' { if ($null -eq (Owned-Process 'mysql') -or -not (MySql-Client 'status')) { throw 'Servicio detenido o no disponible.' } }
         Check 'Backend listo (SQL, cola, RAG e identidad)' { if ($null -eq (Backend-Process)) { throw 'No existe un backend propio activo.' }; Wait-Http ('http://127.0.0.1:' + (Setting 'APP_PORT') + '/ready') 5 }
         Check 'Apache WAMP y acceso a la aplicacion' { Wait-Http ((Setting 'APP_BASE_URL').TrimEnd('/') + '/health') 5 }

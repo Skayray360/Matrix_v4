@@ -28,7 +28,7 @@ def project(tmp_path, monkeypatch):
     shutil.copyfile(ROOT / "backend/config/env.example", tmp_path / "backend/config/env.example")
     (tmp_path / "frontend").mkdir()
     (tmp_path / "frontend/package.json").write_text("{}")
-    (tmp_path / "docker-compose.yml").write_text("services: {}")
+    shutil.copyfile(ROOT / "docker-compose.yml", tmp_path / "docker-compose.yml")
     monkeypatch.setattr(prepare, "filesystem_type", lambda _: "ext4")
     monkeypatch.setattr(prepare, "prepare_certificates", lambda _: None)
     return tmp_path
@@ -59,6 +59,87 @@ def test_prepare_idempotent_preserves_credentials_models_and_documents(project):
     assert values["APP_SECRET_KEY"] not in json.dumps(second)
     assert all(values[key] == "" for key in prepare.PIN_KEYS)
     assert not (project / "backend/config/.env").exists()
+
+
+def test_storage_receipt_is_pinned_and_preserved_after_writes(project):
+    initialize(project)
+    receipt = project / prepare.STORAGE_RECEIPT
+    before = receipt.read_bytes()
+    for service in prepare.STORAGE_SERVICES:
+        (project / f"knowledge-base/state/docker/{service}/synthetic.bin").write_bytes(b"fixture")
+    initialize(project)
+    assert receipt.read_bytes() == before
+    assert json.loads(before)["images"] == prepare.expected_storage_images(project)
+    assert prepare.check_storage_images(project)["storage_images_verified"] is True
+
+
+@pytest.mark.parametrize("service", [*prepare.STORAGE_SERVICES, "qdrant-snapshots", "uploads"])
+def test_legacy_state_without_receipt_blocks_without_creating_or_changing_files(project, service):
+    initialize(project)
+    receipt = project / prepare.STORAGE_RECEIPT
+    receipt.unlink()
+    data = project / f"knowledge-base/state/docker/{service}/synthetic.bin"
+    data.write_bytes(b"preserve this legacy fixture")
+    env = project / "backend/config/docker.env"
+    before = env.read_bytes()
+    with pytest.raises(ValueError, match="sin recibo"):
+        initialize(project)
+    assert not receipt.exists()
+    assert data.read_bytes() == b"preserve this legacy fixture"
+    assert env.read_bytes() == before
+
+
+@pytest.mark.parametrize("service", prepare.STORAGE_SERVICES)
+def test_changed_storage_image_is_blocked_before_datadir_is_opened(project, service):
+    initialize(project)
+    receipt = project / prepare.STORAGE_RECEIPT
+    before = receipt.read_bytes()
+    expected = prepare.expected_storage_images(project)[service]
+    compose = project / "docker-compose.yml"
+    compose.write_text(compose.read_text().replace(expected, expected.split("@sha256:")[0] + "@sha256:" + "0" * 64))
+    with pytest.raises(ValueError, match="Cambio de imagen"):
+        prepare.check_storage_images(project)
+    with pytest.raises(ValueError, match="Cambio de imagen"):
+        initialize(project)
+    assert receipt.read_bytes() == before
+
+
+def test_readonly_storage_guard_never_manufactures_missing_receipt(project):
+    with pytest.raises(ValueError, match="Falta el recibo"):
+        prepare.check_storage_images(project)
+    assert not (project / prepare.STORAGE_RECEIPT).exists()
+    assert not (project / "backend/config/docker.env").exists()
+
+
+def test_model_downloader_cannot_open_weights_with_a_different_image(project):
+    initialize(project)
+    compose = project / "docker-compose.yml"
+    text = compose.read_text()
+    model_download = text.index("  model-download:")
+    changed = text[model_download:].replace("ollama/ollama:0.40.11", "ollama/ollama:0.34.0", 1)
+    compose.write_text(text[:model_download] + changed)
+    with pytest.raises(ValueError, match="misma imagen"):
+        prepare.check_storage_images(project)
+
+
+def test_receipt_symlink_cannot_bypass_storage_guard(project, tmp_path_factory):
+    initialize(project)
+    receipt = project / prepare.STORAGE_RECEIPT
+    target = tmp_path_factory.mktemp("external-receipt") / "images.json"
+    receipt.rename(target)
+    receipt.symlink_to(target)
+    with pytest.raises(ValueError, match="enlaces"):
+        prepare.check_storage_images(project)
+
+
+@pytest.mark.parametrize("content", ["not json", "[]", '{"schema":2}', '{"schema":1,"images":{}}'])
+def test_invalid_receipt_fails_closed_and_is_preserved(project, content):
+    initialize(project)
+    receipt = project / prepare.STORAGE_RECEIPT
+    receipt.write_text(content)
+    with pytest.raises(ValueError):
+        prepare.check_storage_images(project)
+    assert receipt.read_text() == content
 
 
 def test_prepare_missing_project_identity_never_regenerates_over_existing_state(project):

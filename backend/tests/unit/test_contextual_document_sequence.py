@@ -11,12 +11,12 @@ from app.rag.claim_context import declared_case
 
 pytestmark = pytest.mark.unit
 
-TITLE = "Plática del Plan de Pensiones por Jubilación de diciembre de 2022"
+TITLE = "Guía del Programa Horizonte por Jubilación de diciembre de 2041"
 QUESTIONS = (
     f'Según “{TITLE}”, resume la sección de portabilidad en cinco puntos. Indica las páginas utilizadas.',
     "Según ese documento, ¿qué porcentaje corresponde a los empleados que ingresaron a partir del "
-    "1 de abril de 2016 y tienen entre 7 y 7.99 años de antigüedad? ¿A cuáles aportaciones aplica? Cita la página.",
-    "Ingresé en mayo de 2016 y termino mi relación laboral antes de jubilarme, con 7 años y 6 meses de antigüedad. "
+    "1 de abril de 2032 y tienen entre 7 y 7.99 años de antigüedad? ¿A cuáles aportaciones aplica? Cita la página.",
+    "Ingresé en mayo de 2032 y termino mi relación laboral antes de jubilarme, con 7 años y 6 meses de antigüedad. "
     "Según ese documento, ¿qué porcentaje me corresponde? Explica cómo ubicas mi antigüedad en la tabla "
     "y cita la página.",
     "Mantén mi fecha de ingreso y las demás condiciones del caso anterior, pero cambia la antigüedad "
@@ -43,7 +43,7 @@ def test_exact_five_question_sequence_preserves_source_and_current_case_only():
     assert "resume" not in queries[1] and "cinco puntos" not in queries[1]
     third = declared_case(queries[2])
     assert third.tenure == Fraction(15, 2)
-    assert third.entry.first.year == 2016 and third.entry.first.month == 5
+    assert third.entry.first.year == 2032 and third.entry.first.month == 5
     assert third.before_retirement
     assert "7.99" not in queries[2]
     fourth = declared_case(queries[3])

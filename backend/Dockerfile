@@ -1,6 +1,6 @@
 # Creado por Aldo Garcia.
 # Docker es una alternativa Linux; instalar.bat no usa esta imagen.
-FROM node:24.22.0-alpine@sha256:44fce696f38ba8c987c4db89954051000bbd05ffd8d8659ba15ed4a8602e937f AS frontend
+FROM node:24.22.1-alpine@sha256:06d7adf3e0ef61a13f1d28682726366f97a15aa1888c934d3ecec86c33918b53 AS frontend
 WORKDIR /build/frontend
 RUN apk add --no-cache python3 py3-yaml
 COPY backend/scripts/verify_supply_chain.py /checks/backend/scripts/verify_supply_chain.py
@@ -17,13 +17,14 @@ COPY frontend/ ./
 RUN python3 /checks/backend/scripts/verify_supply_chain.py --frontend /build/frontend
 RUN corepack npm run build
 
-FROM python:3.12-slim@sha256:a6e34c598f2467ed0e9a8d349809fcd8b5c603269512df273a0bb1784edc11b1 AS runtime
+FROM python:3.12.15-slim@sha256:a0f57064cbdcd6285fa45f51237ab0b35ea8ebaed06a1f5973e89e19dfb86704 AS runtime
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1 \
     PYTHONPATH=/app/backend PATH="/app/backend/.venv/bin:$PATH"
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates openssl \
     && rm -rf /var/lib/apt/lists/* \
-    && python -m pip install --no-cache-dir uv==0.12.23
+    && python -m pip install --no-cache-dir --upgrade pip==26.2.2 \
+    && python -m pip install --no-cache-dir uv==0.13.5
 RUN groupadd --gid 10001 matrixrh \
     && useradd --uid 10001 --gid 10001 --no-create-home --home-dir /tmp matrixrh
 WORKDIR /app
