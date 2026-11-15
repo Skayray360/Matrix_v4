@@ -166,7 +166,7 @@ async function noOverflow(page: Page) {
   ).toBe(0);
 }
 
-/** Candidata mas estricta que la desplegada: evalua CSSOM antes de retirar unsafe-inline. */
+/** Aplica la politica de produccion al servidor Vite de pruebas y comprueba CSSOM. */
 async function strictStylePolicy(page: Page) {
   await page.addInitScript(() => {
     const violations: string[] = [];

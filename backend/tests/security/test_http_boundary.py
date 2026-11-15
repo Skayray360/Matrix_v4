@@ -65,7 +65,10 @@ def test_unsafe_cross_origin_request_is_rejected_even_without_session(client, or
 
 def test_same_origin_and_non_browser_clients_remain_supported(client):
     assert client.post("/__security/echo", json={}, headers={"Origin": "http://testserver"}).status_code == 200
-    assert client.post("/__security/echo", json={}).status_code == 200
+    response = client.post("/__security/echo", json={})
+    assert response.status_code == 200
+    assert "style-src 'self';" in response.headers["Content-Security-Policy"]
+    assert "unsafe-inline" not in response.headers["Content-Security-Policy"]
 
 
 def test_security_headers_and_correlation_survive_unhandled_errors(client):
@@ -75,6 +78,8 @@ def test_security_headers_and_correlation_survive_unhandled_errors(client):
     assert response.headers["X-Content-Type-Options"] == "nosniff"
     assert response.headers["Cache-Control"] == "no-store"
     assert response.headers["X-Request-ID"] == response.json()["request_id"]
+    assert "style-src 'self';" in response.headers["Content-Security-Policy"]
+    assert "unsafe-inline" not in response.headers["Content-Security-Policy"]
 
 
 @pytest.mark.asyncio

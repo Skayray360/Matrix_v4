@@ -147,9 +147,42 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
-        with:
-          python-version: "3.12.16"
+      - name: Python Windows exacto del manifiesto, verificado antes de extraer
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $pin = (Get-Content -LiteralPath 'backend/config/runtime-manifest.json' -Raw | ConvertFrom-Json).python
+          if ($pin.sha256 -notmatch '^[0-9a-f]{64}$' -or [long]$pin.size -le 0 -or
+              $pin.version -notmatch '^\d+\.\d+\.\d+$' -or $pin.build -notmatch '^\d{8}$') {
+              throw 'Pin Python incompleto o no valido.'
+          }
+          $origin = 'https://github.com/astral-sh/python-build-standalone/releases/download/'
+          if (-not $pin.url.StartsWith($origin + $pin.build + '/', [StringComparison]::Ordinal)) {
+              throw 'Origen Python fuera de la release fijada.'
+          }
+          $runtime = Join-Path $env:RUNNER_TEMP ('matrix-python-' + [guid]::NewGuid().ToString('N'))
+          New-Item -ItemType Directory -Path $runtime | Out-Null
+          $archive = Join-Path $runtime 'python.tar.gz'
+          [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+          Invoke-WebRequest -UseBasicParsing -Uri $pin.url -OutFile $archive -TimeoutSec 120
+          if ((Get-Item -LiteralPath $archive).Length -ne [long]$pin.size -or
+              (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant() -cne $pin.sha256) {
+              throw 'El archivo Python no coincide con el tamano y SHA256 fijados; no se extrae.'
+          }
+          $tar = Join-Path $env:SystemRoot 'System32/tar.exe'
+          & $tar -xzf $archive -C $runtime
+          if ($LASTEXITCODE -ne 0) { throw 'No se pudo extraer el runtime Python verificado.' }
+          # install_only usa python/ como raiz; no elegir launchers de Lib/venv.
+          $python = Join-Path $runtime 'python/python.exe'
+          if (-not (Test-Path -LiteralPath $python -PathType Leaf)) { throw 'Falta el interprete del runtime fijado.' }
+          $version = & $python --version
+          if ($LASTEXITCODE -ne 0 -or $version.Trim() -cne ('Python ' + $pin.version)) {
+              throw 'La version ejecutada no coincide con el manifiesto Python.'
+          }
+          & $python -I -c "import os, struct; assert os.name == 'nt' and struct.calcsize('P') == 8"
+          if ($LASTEXITCODE -ne 0) { throw 'Se requiere el runtime Windows x64 fijado.' }
+          [IO.File]::AppendAllText($env:GITHUB_PATH, (Split-Path -Parent $python) + [Environment]::NewLine,
+                                  [Text.UTF8Encoding]::new($false))
+          Write-Output ($version + '; artefacto ' + $pin.build + ' verificado por tamano y SHA256.')
       - name: Nueve fixtures aisladas, sin instalar ni arrancar servicios
         env:
           MATRIX_EXPECTED_PS_MAJOR: ${{ matrix.major }}
