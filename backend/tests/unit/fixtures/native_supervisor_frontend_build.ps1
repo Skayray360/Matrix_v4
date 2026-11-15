@@ -11,12 +11,18 @@ $script:Root=Join-Path ([IO.Path]::GetTempPath()) ('matrix build test ' + [guid]
 $script:Runtime=Join-Path $script:Root 'backend/runtime'
 $script:Config=Join-Path $script:Root 'backend/config'
 $script:Utf8=[Text.UTF8Encoding]::new($false)
-$script:Node=(Get-Process -Id $PID).Path
-$script:NodeRoot=Split-Path -Parent $script:Node
+$script:Node='Synthetic-Node'
+$script:NodeRoot=Join-Path $script:Runtime 'node'
 $script:Events=[Collections.Generic.List[string]]::new()
 $script:CiCount=0; $script:BuildCount=0
 $script:FailAudit=$false; $script:FailBuild=$false; $script:FailReceipt=$false
 function Assert([bool]$Condition,[string]$Message) { if (-not $Condition) { throw $Message } }
+function Synthetic-Node {
+    # powershell.exe 5.1 no admite --version; simular Node sin ejecutar otro runtime.
+    Assert ($args.Count -eq 1 -and $args[0] -eq '--version') 'Unexpected Node command'
+    $global:LASTEXITCODE=0
+    return 'v1.0.0-synthetic'
+}
 function Reject([scriptblock]$Body,[string]$Pattern) {
     $message=''
     try { & $Body | Out-Null } catch { $message=$_.Exception.Message }

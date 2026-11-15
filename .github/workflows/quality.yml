@@ -199,8 +199,13 @@ jobs:
           if ($fixtures.Count -ne 9) { throw "Inventario de fixtures inesperado; revise la cobertura del controlador." }
           foreach ($fixture in $fixtures) {
               # Cada fixture carga solo nodos AST de funciones y usa runtimes/servicios falsos.
-              $output = & $engine -NoLogo -NoProfile -NonInteractive -File $fixture.FullName -Controller $controller 2>&1
-              $code = $LASTEXITCODE
+              # PS5.1 convierte stderr nativo en ErrorRecord; capturarlo sin perder el diagnostico del hijo.
+              $previousPreference = $ErrorActionPreference
+              try {
+                  $ErrorActionPreference = 'Continue'
+                  $output = & $engine -NoLogo -NoProfile -NonInteractive -File $fixture.FullName -Controller $controller 2>&1
+                  $code = $LASTEXITCODE
+              } finally { $ErrorActionPreference = $previousPreference }
               $output | Write-Output
               if ($code -ne 0 -or ($output | Out-String) -notmatch 'SYNTHETIC PASS') {
                   throw "Fixture fallida: $($fixture.Name), exit=$code"
