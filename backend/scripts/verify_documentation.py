@@ -8,8 +8,10 @@ Los fragmentos #ancla no se validan; se comprueba el archivo de destino.
 from __future__ import annotations
 
 import argparse
+import ast
 import json
 import re
+import tomllib
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
@@ -74,6 +76,53 @@ def check_links(root: Path, files: list[Path], *, workspace: bool = False) -> li
     return errors
 
 
+def check_release_versions(root: Path) -> list[str]:
+    """Contrasta metadata activa sin importar la aplicacion ni reescribir historia.
+
+    El manifiesto de modelos describe la configuracion de esta entrega; alinear
+    su release no convierte el inventario declarado en evidencia del runtime.
+    Informes de auditoria anteriores conservan sus versiones y recuentos.
+    """
+    try:
+        project = tomllib.loads((root / "backend/pyproject.toml").read_text(encoding="utf-8"))["project"]
+        expected = project["version"]
+        if not isinstance(expected, str) or not re.fullmatch(r"\d+\.\d+\.\d+", expected):
+            raise ValueError("VersionInvalida")
+        tree = ast.parse((root / "backend/app/__init__.py").read_text(encoding="utf-8-sig"))
+        declarations = [
+            node.value.value for node in tree.body
+            if isinstance(node, ast.Assign) and isinstance(node.value, ast.Constant)
+            and any(isinstance(target, ast.Name) and target.id == "__version__" for target in node.targets)
+        ]
+        backend_lock = tomllib.loads((root / "backend/uv.lock").read_text(encoding="utf-8"))
+        locked_project = [package.get("version") for package in backend_lock["package"]
+                          if package.get("name") == project["name"]]
+        frontend = json.loads((root / "frontend/package.json").read_text(encoding="utf-8"))
+        frontend_lock = json.loads((root / "frontend/package-lock.json").read_text(encoding="utf-8"))
+        models = json.loads((root / "backend/config/model-manifest.json").read_text(encoding="utf-8"))
+        checks = {
+            "backend/app/__init__.py": declarations == [expected],
+            "backend/uv.lock": locked_project == [expected],
+            "frontend/package.json": frontend["version"] == expected,
+            "frontend/package-lock.json": (
+                frontend_lock["version"] == expected and frontend_lock["packages"][""]["version"] == expected
+            ),
+            "backend/config/model-manifest.json": models["release"] == expected,
+        }
+        errors = [f"{path}: version activa no coincide con pyproject.toml ({expected})."
+                  for path, matches in checks.items() if not matches]
+        runtime = json.loads((root / "backend/config/runtime-manifest.json").read_text(encoding="utf-8"))
+        dockerfile = (root / "backend/Dockerfile").read_text(encoding="utf-8")
+        for tool in ("node", "python"):
+            versions = re.findall(rf"(?m)^FROM {tool}:(\d+\.\d+\.\d+)[^\s]*", dockerfile)
+            if versions != [runtime[tool]["version"]]:
+                errors.append(f"backend/Dockerfile: {tool} no coincide con runtime-manifest.json.")
+        return errors
+    except (OSError, SyntaxError, ValueError, KeyError, TypeError) as exc:
+        # Los errores se limitan al tipo: no volcar contenido de archivos ajenos.
+        return [f"Metadata de version no verificable ({type(exc).__name__})."]
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path, default=ROOT)
@@ -86,7 +135,8 @@ def main(argv: list[str] | None = None) -> int:
 
     root = args.root.resolve()
     files = iter_package_files(root)
-    errors = check_readme_layout(root, files) + check_links(root, files, workspace=args.workspace)
+    errors = (check_readme_layout(root, files) + check_links(root, files, workspace=args.workspace)
+              + check_release_versions(root))
     markdown_files = sum(
         _project_markdown(root, p, workspace=args.workspace) for p in files
     )

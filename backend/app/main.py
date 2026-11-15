@@ -86,16 +86,17 @@ def create_app() -> FastAPI:
     """Construye la aplicacion FastAPI."""
     settings = get_settings()
     configure_logging(settings.app_log_level)
+    expose_docs = settings.app_env in {AppEnv.DEVELOPMENT, AppEnv.TEST}
 
     app = FastAPI(
         title=settings.app_name,
         version=__version__,
         lifespan=lifespan,
-        # La documentacion interactiva se expone solo fuera de produccion: en
-        # produccion es superficie de reconocimiento innecesaria.
-        docs_url="/api/docs" if settings.app_env is not AppEnv.PRODUCTION else None,
+        # Solo los perfiles de desarrollo/pruebas publican el esquema y Swagger.
+        # Standalone y staging tambien alojan datos de una instalacion real.
+        docs_url="/api/docs" if expose_docs else None,
         redoc_url=None,
-        openapi_url="/api/openapi.json" if settings.app_env is not AppEnv.PRODUCTION else None,
+        openapi_url="/api/openapi.json" if expose_docs else None,
     )
 
 

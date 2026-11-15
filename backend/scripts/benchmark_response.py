@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import Any
 
 from app.common.inference_errors import InferenceFailureError
+from app.common.text_budget import TEXT_BUDGET_VERSION, estimate_tokens
 from app.config import get_settings
 from app.llm.provider import ModelClient, inference_deadline
 from scripts.local_model_diagnostics import collect_report
@@ -28,12 +29,23 @@ SCHEMA = {
     "type": "object", "properties": {"unidades": {"type": "integer"}},
     "required": ["unidades"], "additionalProperties": False,
 }
+FIXTURE_PROMPT = (
+    'Fixture sintetico: el contenedor Alfa tiene 17 unidades y se retiran 5. '
+    'Devuelve solo el JSON con la propiedad "unidades" y la cantidad restante.'
+)
 METRICS = (
     "latency_ms", "client_queue_ms", "wall_ms", "generation_attempts",
     "prompt_eval_count", "eval_count", "prompt_eval_cached_count",
     "total_duration_ns", "load_duration_ns", "prompt_eval_duration_ns",
     "eval_duration_ns", "generation_tokens_per_second",
+    "estimated_input_text_tokens", "actual_to_estimate_ratio",
 )
+
+
+def estimated_input_text_tokens(system_prefix: str) -> int:
+    """Texto de la primera solicitud, sin template ni tokens especiales del runtime."""
+    schema_text = json.dumps(SCHEMA, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return sum(estimate_tokens(text) for text in (system_prefix, FIXTURE_PROMPT, schema_text))
 
 
 def percentile(values: list[float], quantile: float) -> float | None:
@@ -66,6 +78,7 @@ def _sample(profile: str, submitted: float) -> dict[str, Any]:
     try:
         settings = get_settings()
         client = ModelClient()
+        sample["estimated_input_text_tokens"] = estimated_input_text_tokens(settings.llm_system_prefix)
         model = settings.ollama_deep_model if profile == "deep" else settings.ollama_fast_model
         context = settings.ollama_deep_num_ctx if profile == "deep" else settings.ollama_fast_num_ctx
         configured_output = settings.ollama_deep_max_tokens if profile == "deep" else settings.ollama_fast_max_tokens
@@ -74,14 +87,17 @@ def _sample(profile: str, submitted: float) -> dict[str, Any]:
                 model=model, execution_profile=profile, num_ctx=context,
                 max_tokens=min(128, configured_output), temperature=0,
                 response_schema=SCHEMA,
-                messages=[{"role": "user", "content": (
-                    'Fixture sintetico: el contenedor Alfa tiene 17 unidades y se retiran 5. '
-                    'Devuelve solo el JSON con la propiedad "unidades" y la cantidad restante.'
-                )}],
+                messages=[{"role": "user", "content": FIXTURE_PROMPT}],
             )
         metrics = {"latency_ms": result.latency_ms, **result.performance_metrics()}
         sample.update({key: value for key, value in metrics.items() if key in METRICS
                        and type(value) in (int, float) and math.isfinite(value) and value >= 0})
+        # Una regeneracion agrega instrucciones: el contador devuelto describe
+        # ese otro prompt, por lo que no se compara contra la primera solicitud.
+        if result.generation_attempts == 1 and type(sample.get("prompt_eval_count")) is int:
+            sample["actual_to_estimate_ratio"] = round(
+                sample["prompt_eval_count"] / sample["estimated_input_text_tokens"], 6,
+            )
         try:
             answer = json.loads(result.content)
             valid = isinstance(answer, dict) and set(answer) == {"unidades"} and type(answer["unidades"]) is int
@@ -106,6 +122,7 @@ def run_benchmark(*, profile: str = "fast", samples: int = 5, concurrency: int =
     report: dict[str, Any] = {
         "schema_version": 1, "observed_at_utc": datetime.now(UTC).isoformat(),
         "scope": "synthetic_local_model_benchmark", "profile": profile,
+        "token_estimator_version": TEXT_BUDGET_VERSION,
         "requested_samples": samples, "concurrency": concurrency, "status": "blocked",
         "samples": [], "errors": [], "corporate_rag_validated": False,
         "limitations": [
@@ -114,6 +131,9 @@ def run_benchmark(*, profile: str = "fast", samples: int = 5, concurrency: int =
             "No forced unload or warmup; the first sample may include model loading.",
             "Runtime token/timing metrics describe the returned completion; retry totals may be incomplete.",
             "Generation attempts are reported only when returned by the adapter; failed attempts are unknown.",
+            "Input estimate includes message text, system prefix and JSON schema; excludes runtime chat templates.",
+            "Token ratio uses prompt_eval_count only for one-attempt completions; absent metrics remain unknown.",
+            "A synthetic token ratio does not establish tokenizer accuracy, truncation or corpus budget safety.",
             "No prompts, generated answers, documents, endpoint URLs or raw exceptions are retained.",
         ],
     }

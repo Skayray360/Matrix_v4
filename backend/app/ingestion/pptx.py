@@ -7,7 +7,9 @@ import io
 import posixpath
 import re
 import zipfile
-from xml.etree import ElementTree
+
+# Solo _xml() usa el parser tras validar DTD/tamano; test_sast_mitigations.py.
+from xml.etree import ElementTree  # nosec B405
 
 from app.common.errors import ExtractionFailedError
 from app.rag.chunking import TextBlock
@@ -32,10 +34,11 @@ def _xml(archive: zipfile.ZipFile, name: str):
         raise ExtractionFailedError("Una parte XML de la presentacion excede el limite permitido.")
     raw = archive.read(entry)
     # ElementTree no consulta recursos externos, pero una entidad interna puede
-    # expandir memoria. OOXML no necesita DTD; rechazarla tambien en UTF-16.
+    # expandir memoria. OOXML no necesita DTD; rechazarla tambien en UTF-16/32.
+    # Guardas antes del parser y limite de parte: test_sast_mitigations.py.
     if re.search(br"<!\s*(?:DOCTYPE|ENTITY)\b", raw.replace(b"\x00", b""), re.IGNORECASE):
         raise ExtractionFailedError("La presentacion contiene declaraciones XML no permitidas.")
-    return ElementTree.fromstring(raw)  # noqa: S314 - DTD/entidades rechazadas arriba
+    return ElementTree.fromstring(raw)  # noqa: S314 # nosec B314
 
 
 def _paragraphs(body) -> list[str]:

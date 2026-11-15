@@ -166,6 +166,84 @@ async function noOverflow(page: Page) {
   ).toBe(0);
 }
 
+/** Candidata mas estricta que la desplegada: evalua CSSOM antes de retirar unsafe-inline. */
+async function strictStylePolicy(page: Page) {
+  await page.addInitScript(() => {
+    const violations: string[] = [];
+    Object.assign(window, { matrixCspViolations: violations });
+    document.addEventListener("securitypolicyviolation", (event) =>
+      violations.push(event.effectiveDirective),
+    );
+  });
+  await page.route("**/*", async (route) => {
+    if (route.request().resourceType() !== "document") return route.fallback();
+    const response = await route.fetch();
+    await route.fulfill({
+      response,
+      headers: {
+        ...response.headers(),
+        "content-security-policy":
+          "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; " +
+          "font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; " +
+          "form-action 'self'; object-src 'none'",
+      },
+    });
+  });
+}
+
+test("CSP estricta mantiene TracePanel y autosize de Composer", async ({ page }) => {
+  await strictStylePolicy(page);
+  const api = await mockApi(page);
+  const documentResponse = page.waitForResponse(
+    (response) => response.request().resourceType() === "document",
+  );
+  await login(page);
+  expect((await documentResponse).headers()["content-security-policy"]).toContain(
+    "style-src 'self';",
+  );
+  const composer = page.getByTestId("composer-input");
+  await composer.fill(Array.from({ length: 15 }, () => "Linea sintetica").join("\n"));
+  await expect(composer).toHaveCSS("height", "180px");
+  await composer.fill("Consulta sintetica de prestaciones");
+  await page.getByTestId("send-button").click();
+  await expect(page.getByTestId("message-assistant")).toContainText("respuesta sintética");
+  await page.getByRole("button", { name: "Mostrar u ocultar trazabilidad" }).click();
+  await expect(page.locator(".inspector")).toBeVisible();
+  const fraction = await page.locator(".evidence-score .fill").evaluate((element) => {
+    return (
+      element.getBoundingClientRect().width / element.parentElement!.getBoundingClientRect().width
+    );
+  });
+  expect(fraction).toBeCloseTo(0.9, 2);
+  expect(await page.evaluate(() => Reflect.get(window, "matrixCspViolations"))).toEqual([]);
+  expect(api.errors).toEqual([]);
+  expect(api.unexpected).toEqual([]);
+});
+
+test("CSP estricta bloquea un atributo style inyectado", async ({ page }) => {
+  await strictStylePolicy(page);
+  await mockApi(page);
+  await login(page);
+  await page.evaluate(() => {
+    const injected = document.createElement("div");
+    injected.id = "csp-inline-style-probe";
+    injected.setAttribute("style", "background-color: rgb(1, 2, 3)");
+    document.body.append(injected);
+  });
+  await expect(page.locator("#csp-inline-style-probe")).not.toHaveCSS(
+    "background-color",
+    "rgb(1, 2, 3)",
+  );
+  await expect
+    .poll(async () => {
+      const directives = await page.evaluate(
+        () => Reflect.get(window, "matrixCspViolations") as string[],
+      );
+      return directives.some((directive) => directive.startsWith("style-src"));
+    })
+    .toBe(true);
+});
+
 test("un perfil malformado se rechaza antes de renderizar y permite reintentar", async ({
   page,
 }, testInfo) => {

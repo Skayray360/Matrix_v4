@@ -6,6 +6,9 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+  # Reconsulta avisos de seguridad aunque el codigo no cambie. Se activa en main.
+  schedule:
+    - cron: "23 6 * * 1"
 
 permissions:
   contents: read
@@ -43,10 +46,21 @@ jobs:
         run: |
           python -m pip install --only-binary=:all: uv==0.13.6
           uv sync --locked --extra dev --no-install-project --no-build
+      - name: Inventario SBOM offline de ambos lockfiles
+        run: .venv/bin/python -m scripts.generate_sbom --output var/reports/sbom.cdx.json
+      - name: Conservar SBOM del commit probado
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: sbom-${{ github.sha }}
+          path: backend/var/reports/sbom.cdx.json
+          if-no-files-found: error
+          retention-days: 30
       - name: Lint y documentacion
         run: |
           .venv/bin/python -m ruff check app scripts seeds tests
           .venv/bin/python -m mypy app
+          # Alcance app; excepciones por linea respaldadas por tests/security/test_sast_mitigations.py.
+          .venv/bin/python -m bandit -q -r app
           .venv/bin/python -m scripts.verify_headers
           .venv/bin/python -m scripts.verify_documentation
           .venv/bin/python -m scripts.preflight --integrity-only
@@ -107,10 +121,62 @@ jobs:
           corepack npm run build
           corepack npm audit --audit-level=low
           corepack npm audit signatures
+      - name: Dist distribuido reproducible byte a byte
+        run: python ../backend/scripts/verify_frontend_dist.py
       - name: Navegador real con API sintetica
         run: |
           node node_modules/@playwright/test/cli.js install --with-deps --only-shell chromium
           node node_modules/@playwright/test/cli.js test --config=playwright.visual.config.ts
+
+  windows_controller:
+    name: Controlador Windows (${{ matrix.shell }}, sintetico)
+    runs-on: windows-2022
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - shell: powershell
+            major: 5
+          - shell: pwsh
+            major: 7
+    defaults:
+      run:
+        shell: ${{ matrix.shell }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12.16"
+      - name: Nueve fixtures aisladas, sin instalar ni arrancar servicios
+        env:
+          MATRIX_EXPECTED_PS_MAJOR: ${{ matrix.major }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $version = $PSVersionTable.PSVersion
+          if ($version.Major -ne [int]$env:MATRIX_EXPECTED_PS_MAJOR -or -not [Environment]::Is64BitProcess) {
+              throw "La prueba requiere el PowerShell x64 indicado por la matriz."
+          }
+          if ($version.Major -eq 5 -and $version.Minor -ne 1) { throw "Se requiere PowerShell 5.1." }
+          $engine = (Get-Process -Id $PID).Path
+          $controller = Join-Path $PWD 'backend/scripts/windows/MatrixRH.ps1'
+          $fixtures = @(Get-ChildItem 'backend/tests/unit/fixtures/native_supervisor_*.ps1' -File | Sort-Object Name)
+          if ($fixtures.Count -ne 9) { throw "Inventario de fixtures inesperado; revise la cobertura del controlador." }
+          foreach ($fixture in $fixtures) {
+              # Cada fixture carga solo nodos AST de funciones y usa runtimes/servicios falsos.
+              $output = & $engine -NoLogo -NoProfile -NonInteractive -File $fixture.FullName -Controller $controller 2>&1
+              $code = $LASTEXITCODE
+              $output | Write-Output
+              if ($code -ne 0 -or ($output | Out-String) -notmatch 'SYNTHETIC PASS') {
+                  throw "Fixture fallida: $($fixture.Name), exit=$code"
+              }
+          }
+          "Controlador PS $version x64: **9/9 PASS**; datos sinteticos. No acredita instalacion WAMP/Ollama, servicios reales ni inferencia." |
+              Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8 -Append
+      - name: DACL privada real en exportaciones sinteticas
+        run: python backend/scripts/verify_chunk_export_acl.py --require-windows
 
   vector_recovery:
     name: Recuperacion vectorial (MySQL y Qdrant reales)

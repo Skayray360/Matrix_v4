@@ -20,7 +20,9 @@ import zipfile
 from dataclasses import dataclass
 from io import BytesIO
 from pathlib import Path, PurePosixPath, PureWindowsPath
-from xml.etree import ElementTree
+
+# Parser solo despues de guardas XML/limite; test_sast_mitigations.py.
+from xml.etree import ElementTree  # nosec B405
 
 from app.common.errors import FileTooLargeError, UnsupportedFileError, ValidationFailedError
 from app.common.ids import new_id, sha256_bytes
@@ -176,7 +178,8 @@ def _check_ooxml_bomb(data: bytes, extension: str) -> None:
             # o UTF-32; el parser sigue recibiendo el XML original.
             if re.search(br"<!\s*(?:DOCTYPE|ENTITY)\b", raw.replace(b"\x00", b""), re.I):
                 raise UnsupportedFileError("El archivo Office contiene declaraciones XML no permitidas.")
-            root = ElementTree.fromstring(raw)  # noqa: S314 - XML <=1MB, DTD/entidades rechazadas arriba
+            # XML <=1MB sin DTD/entidades; regresion UTF8/16/32 en test_sast_mitigations.py.
+            root = ElementTree.fromstring(raw)  # noqa: S314 # nosec B314
             if root.tag != f"{_CONTENT_TYPES_NS}Types" or not any(
                 item.tag == f"{_CONTENT_TYPES_NS}Override"
                 and item.get("PartName") == f"/{main_part}"

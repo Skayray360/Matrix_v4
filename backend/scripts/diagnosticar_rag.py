@@ -1,8 +1,12 @@
 # Creado por Aldo Garcia.
 """Diagnostico RAG de solo lectura; puede ejecutarse con Matrix abierto.
 
-Lee metadatos SQL y el inventario de modelos de Ollama. No abre Qdrant,
-no genera embeddings/respuestas, no modifica documentos ni permisos.
+Por defecto lee metadatos SQL y el inventario de modelos de Ollama, sin abrir
+Qdrant. --export-chunks permite al operador local revisar un unico documento
+autorizado en un archivo privado nuevo dentro de var/. En modo embedded esa
+opcion requiere detener Matrix y usa una copia temporal privada de la coleccion
+(hasta 64 MiB, presupuesto de copia de 15 segundos). Nunca genera embeddings/respuestas ni modifica
+documentos, indices o permisos.
 No imprime prompts, contenido documental, credenciales ni identificadores
 de sesiones, conversaciones, fuentes o hashes.
 """
@@ -189,13 +193,64 @@ def collect(root: Path, *, username: str = "Matrix") -> dict:
     return report
 
 
+def collect_export(root: Path, *, destination: Path, username: str, document_id: str,
+                   conversation_id: str | None = None, max_chunks: int = 128) -> dict:
+    """Modo opt-in: no inventario de modelos, contenido ni identidad en stdout."""
+    report = {"read_only": True, "qdrant_opened": False, "inference_executed": False,
+              "semantic_retrieval_tested": False, "errors": []}
+    root = root.resolve()
+    if not (root / "backend" / "app" / "config").is_dir():
+        report["errors"].append({"component": "installation", "error_type": "InvalidProjectRoot"})
+        return report
+    os.chdir(root)
+    sys.path.insert(0, str(root / "backend"))
+    try:
+        from sqlalchemy import event
+        from sqlalchemy.orm import Session
+
+        from app.config import get_settings
+        from app.database.engine import get_engine
+        from scripts.rag_chunk_export import export_document, open_existing_store
+
+        def open_client(settings, *, collection):
+            client = open_existing_store(settings, collection=collection)
+            report["qdrant_opened"] = True
+            return client
+
+        with get_engine().connect() as connection:
+            event.listen(connection, "before_cursor_execute", select_only_guard)
+            with Session(bind=connection, autoflush=False, expire_on_commit=False) as db:
+                report["export"] = export_document(
+                    db, settings=get_settings(), root=root, destination=destination, username=username,
+                    document_id=document_id, conversation_id=conversation_id, max_chunks=max_chunks,
+                    client_factory=open_client,
+                )
+    except Exception as exc:
+        report["errors"].append({"component": "chunk_export", "error_type": type(exc).__name__})
+    return report
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", required=True, type=Path, help="Raiz de la instalacion Matrix RH")
-    parser.add_argument("--username", default="Matrix", help="Cuenta cuyos permisos se revisan")
+    parser.add_argument("--username", help="Cuenta cuyos permisos se revisan (diagnostico: Matrix)")
+    parser.add_argument("--export-chunks", type=Path, metavar="JSON", help="Exportacion privada explicita en var/")
+    parser.add_argument("--document-id", help="Unico documento publicado a revisar")
+    parser.add_argument("--conversation-id", help="Conversacion propia; obligatorio para adjuntos privados")
+    parser.add_argument("--max-chunks", type=int, default=128, help="Limite de exportacion: 1..2000 (128 por defecto)")
     args = parser.parse_args()
     logging.disable(logging.CRITICAL)
-    report = collect(args.root, username=args.username)
+    if args.export_chunks:
+        if not args.username or not args.document_id or not 1 <= args.max_chunks <= 2000:
+            parser.error("Exportar requiere --username, --document-id y --max-chunks entre 1 y 2000.")
+        report = collect_export(
+            args.root, destination=args.export_chunks, username=args.username, document_id=args.document_id,
+            conversation_id=args.conversation_id, max_chunks=args.max_chunks,
+        )
+    else:
+        if args.document_id or args.conversation_id or args.max_chunks != 128:
+            parser.error("Las opciones documentales requieren --export-chunks.")
+        report = collect(args.root, username=args.username or "Matrix")
     print(json.dumps(report, indent=2, ensure_ascii=True))
     return 1 if report["errors"] else 0
 

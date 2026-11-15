@@ -9,6 +9,8 @@ Copia el datadir MySQL real junto con SU runtime, configuracion privada,
 documentos, uploads, Qdrant, estado y codigo. Ollama externo no se copia. No abre SQL, no detiene procesos,
 no descarga, no restaura sobre una instalacion y no acredita recuperacion MySQL.
 Los hashes detectan alteraciones accidentales; no son una firma de autenticidad.
+--require-encrypted-destination exige BitLocker activo en el volumen local de
+destino antes de copiar. No cifra los archivos ni protege una copia reubicada.
 """
 
 from __future__ import annotations
@@ -21,6 +23,7 @@ import io
 import json
 import math
 import os
+import platform
 import re
 import stat
 import time
@@ -32,6 +35,8 @@ from urllib.parse import urlsplit
 
 import psutil
 from dotenv import dotenv_values
+
+from scripts.preflight import windows_encryption_status
 
 MANIFEST = "installation-backup.json"
 INCOMPLETE = "BACKUP-INCOMPLETE.txt"
@@ -137,6 +142,31 @@ def _safe_path(path: Path, *, exists: bool = True) -> Path:
     if os.name == "nt" and ctypes.windll.kernel32.GetDriveTypeW(str(result.anchor)) != 3:
         raise BackupError("El respaldo requiere un volumen local fijo; no se admite una unidad de red.")
     return result
+
+
+def _require_encrypted_destination(destination: Path) -> dict[str, object]:
+    """Exige una medicion del volumen real, sin activar ni configurar BitLocker."""
+    if platform.system() != "Windows":
+        raise BackupError("No se pudo verificar el cifrado del destino: esta opcion requiere Windows y BitLocker.")
+    destination = _safe_path(destination, exists=False)
+    # La sonda consulta el volumen del padre existente cuando el destino es
+    # nuevo. _safe_path ya rechaza UNC, enlaces, junctions y unidades de red.
+    try:
+        items = windows_encryption_status([destination])
+    except Exception:  # noqa: BLE001 - no publicar salidas de Windows ni rutas privadas
+        raise BackupError("No se pudo verificar BitLocker en el destino; no se copio el respaldo.") from None
+    if (len(items) != 1 or items[0].get("path") != str(destination)
+            or not re.fullmatch(r"[A-Za-z]:", str(items[0].get("mount", "")))
+            or items[0].get("status") != "FullyEncrypted" or items[0].get("protection") != "On"
+            or items[0].get("percentage") != 100):
+        raise BackupError(
+            "El destino requiere BitLocker FullyEncrypted al 100% y Protection On; no se copio el respaldo."
+        )
+    return {
+        "status": "verified_at_creation", "provider": "BitLocker",
+        "checked_at_utc": datetime.now(UTC).isoformat(), "mount": items[0]["mount"],
+        "file_encryption": "none; volume_protection_is_not_portable",
+    }
 
 
 def _read_json(path: Path, *, limit: int = 1_048_576) -> dict:
@@ -452,7 +482,10 @@ def verify_backup(backup: Path) -> dict:
     return _verify(backup)
 
 
-def create_backup(project_root: Path = PROJECT_ROOT, destination: Path | None = None) -> dict:
+def create_backup(
+    project_root: Path = PROJECT_ROOT, destination: Path | None = None, *,
+    require_encrypted_destination: bool = False,
+) -> dict:
     root = _safe_path(project_root)
     _regular(root, directory=True)
     configuration = _configuration(root)
@@ -470,6 +503,9 @@ def create_backup(project_root: Path = PROJECT_ROOT, destination: Path | None = 
     backup_root = root / "knowledge-base/backups"
     if destination is None:
         if not backup_root.exists():
+            _safe_path(backup_root, exists=False)
+            if require_encrypted_destination:
+                _require_encrypted_destination(backup_root)
             _safe_path(backup_root, exists=False).mkdir(mode=0o700)
         destination = backup_root / datetime.now(UTC).strftime("%Y%m%dT%H%M%S.%fZ")
     destination = _safe_path(destination, exists=False)
@@ -479,8 +515,11 @@ def create_backup(project_root: Path = PROJECT_ROOT, destination: Path | None = 
         raise BackupError("Dentro del proyecto solo se permite knowledge-base/backups/NombreNuevo.")
     if destination.exists():
         raise FileExistsError("El destino debe ser una carpeta nueva.")
+    destination_volume_check = (
+        _require_encrypted_destination(destination) if require_encrypted_destination else {"status": "not_checked"}
+    )
     assert_project_stopped(root, configuration)
-    destination.mkdir(mode=0o700)
+    _safe_path(destination, exists=False).mkdir(mode=0o700)
     marker = destination / INCOMPLETE
     with marker.open("x", encoding="utf-8") as output:
         output.write("Respaldo parcial: no restaurar ni activar. Solo un finalizado correcto elimina este marcador.\n")
@@ -500,6 +539,7 @@ def create_backup(project_root: Path = PROJECT_ROOT, destination: Path | None = 
         "consistency": "cold_native_datadir_and_matching_runtime; source_and_copy_sha256_verified",
         "mysql_runtime_version": configuration["mysql_runtime_version"], "mysql_recovery_tested": False,
         "runtime_binaries_included": True, "automatic_restore_supported": False,
+        "destination_volume_check": destination_volume_check,
         "configured_service_ports": configuration["ports"], "external_services": configuration["external_services"],
         "restore_instructions": RESTORE_INSTRUCTIONS,
     }
@@ -521,15 +561,22 @@ def main(argv: list[str] | None = None) -> int:
     backup = commands.add_parser("backup", help="Copiar una instalacion nativa completamente detenida.")
     backup.add_argument("--project-root", type=Path, default=PROJECT_ROOT)
     backup.add_argument("--destination", type=Path)
+    backup.add_argument(
+        "--require-encrypted-destination", action="store_true",
+        help="Rechazar la copia sin verificar BitLocker activo en el volumen de destino (solo Windows).",
+    )
     verify = commands.add_parser("verify", help="Verificar integridad sin iniciar servicios ni abrir SQL.")
     verify.add_argument("--backup", type=Path, required=True)
     args = parser.parse_args(argv)
     try:
-        result = (create_backup(args.project_root, args.destination) if args.action == "backup"
+        result = (create_backup(args.project_root, args.destination,
+                                require_encrypted_destination=args.require_encrypted_destination)
+                  if args.action == "backup"
                   else verify_backup(args.backup))
         print(json.dumps({"ok": True, "action": args.action, "file_count": len(result["files"]),
                           "backup_path": result.get("backup_path", str(args.backup) if args.action == "verify" else ""),
                           "mysql_recovery_tested": False, "activation": "not_performed",
+                          "destination_volume_check": result.get("destination_volume_check", {"status": "not_checked"}),
                           "restore": "manual_new_folder_only; see restore_instructions in installation-backup.json"}))
         return 0
     except (OSError, ValueError, TypeError, configparser.Error, psutil.Error) as error:

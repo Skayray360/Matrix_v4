@@ -5,7 +5,9 @@ from __future__ import annotations
 
 import re
 import shutil
-import subprocess  # nosec B404 - ejecutables locales fijos, sin shell
+
+# Ejecutables locales fijos, sin shell; contratos en test_sast_mitigations.py.
+import subprocess  # nosec B404
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
@@ -35,7 +37,8 @@ def ocr_pdf_page(
     if page_number < 1:
         raise ExtractionFailedError("El numero de pagina OCR no es valido.")
     try:
-        languages = subprocess.run(  # noqa: S603 - ruta encontrada del binario fijo
+        # Binario resuelto fijo, argv separados y timeout; test_sast_mitigations.py.
+        languages = subprocess.run(  # noqa: S603 # nosec B603
             [engine, "--list-langs"], check=True, timeout=5,
             stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
         ).stdout.decode("utf-8", errors="replace").splitlines()
@@ -48,7 +51,7 @@ def ocr_pdf_page(
             source.write_bytes(data)
             # El limite de lado impide rasterizar lienzos PDF arbitrariamente
             # grandes; el watchdog externo cuenta tambien RAM de estos hijos.
-            subprocess.run(  # noqa: S603 - argumentos de datos, nunca shell
+            subprocess.run(  # noqa: S603 # nosec B603
                 [renderer, "-f", str(page_number), "-l", str(page_number),
                  "-r", str(options.dpi), "-scale-to", "3500", "-singlefile", "-png", str(source), str(output)],
                 check=True, timeout=30, stdin=subprocess.DEVNULL,
@@ -59,7 +62,7 @@ def ocr_pdf_page(
             layout = ["--psm", "3"]
             if preserve_layout:
                 layout.extend(["-c", "preserve_interword_spaces=1"])
-            result = subprocess.run(  # noqa: S603 - argumentos de datos, nunca shell
+            result = subprocess.run(  # noqa: S603 # nosec B603
                 [engine, str(output.with_suffix(".png")), "stdout", "-l", options.language, *layout],
                 check=True, timeout=30, stdin=subprocess.DEVNULL,
                 stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,

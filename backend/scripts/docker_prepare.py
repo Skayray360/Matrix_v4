@@ -230,6 +230,10 @@ def prepare(root: Path, *, uid: int | None = None, gid: int | None = None) -> di
             "QDRANT_URL": "http://qdrant:6333", "QDRANT_API_KEY": secrets.token_hex(32),
             "OLLAMA_BASE_URL": "http://ollama:11434", "LLM_LOCAL_ONLY": "true",
             "LLM_LOCAL_HOSTS": "127.0.0.1,localhost,::1,ollama",
+            # El contenedor permite una solicitud por modelo. Un perfil nuevo
+            # evita encolar dos generaciones del mismo modelo dentro de Ollama.
+            # Es conservador: tambien serializa embeddings; medir antes de ampliar.
+            "INFERENCE_MAX_INFLIGHT": "1",
             "MATRIX_DOCKER_UID": str(owner_uid), "MATRIX_DOCKER_GID": str(owner_gid),
             "MATRIX_DOCKER_PROJECT_ID": secrets.token_hex(8),
             "MATRIX_DOCKER_ADMIN": "Matrix", "MATRIX_PROXY_SUBNET": "172.31.240.0/28",

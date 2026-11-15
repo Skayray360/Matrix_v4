@@ -133,7 +133,21 @@ La CI también ejecuta una suite dirigida de recuperación vectorial con MySQL 8
 
 La automatización de GitHub ejecuta lint, contratos, pruebas aisladas, build y auditoría de dependencias en cada pull request. Las acciones están fijadas por commit y el token tiene permiso de lectura. Los casos omitidos bloquean esa comprobación: el runner necesita PowerShell para las pruebas sintéticas del controlador. Una prueba aislada aprobada no certifica capacidad ni calidad documental con el hardware y corpus de una instalación.
 
+La matriz Windows ejecuta nueve fixtures del controlador en PowerShell 5.1 y 7, con servicios simulados. El build se compara byte a byte con `frontend/dist` del commit, incluidos archivos sobrantes. También se comprueba la coherencia de versiones entre paquetes, locks, manifiestos y Dockerfile. Las comprobaciones semanales y Dependabot se activan cuando la configuración llegue a la rama predeterminada; sus propuestas no se fusionan automáticamente.
+
+El inventario CycloneDX se genera sin red desde ambos locks y se conserva como artefacto de CI durante 30 días. Para generarlo localmente, ejecute desde `backend`: `python -m scripts.generate_sbom --output var/reports/sbom.cdx.json`. Incluye dependencias de desarrollo, opcionales y de otras plataformas; no representa lo instalado, no incluye SO ni modelos y no certifica licencias o firmas.
+
 La [auditoría del 27 de octubre de 2026](backend/release/audit-2026-10-27/report.md) registra las correcciones, el alcance de lectura, las pruebas y los riesgos pendientes. Su estado es provisional hasta validar la instalación real.
+
+### Diagnóstico y medición opcionales
+
+Swagger y OpenAPI solo se publican en `development` y `test`. El diagnóstico de `standalone` consulta BitLocker en Windows y avisa si no puede verificarlo; no activa cifrado. El respaldo en frío admite `python -m scripts.installation_backup backup --require-encrypted-destination`, que rechaza la copia si el volumen de destino no tiene BitLocker completo y activo. Esta opción protege el destino comprobado al crear el respaldo: los archivos no tienen cifrado propio y moverlos a otro volumen puede dejarlos expuestos.
+
+Desde `backend`, `python -m scripts.model_warmup` muestra un plan sin red. Añadir `--run --target both --profile fast --timeout-seconds 60` ejecuta sondas sintéticas con los modelos locales y digests configurados. Úselo sin tráfico de la aplicación: consume RAM/VRAM, puede expulsar otro modelo y no garantiza residencia simultánea. No descarga pesos ni cambia el arranque. `scripts.benchmark_response --generate` incorpora la comparación de tokens estimados con `prompt_eval_count` cuando existe un solo intento; la razón no demuestra truncamiento ni sustituye una evaluación documental.
+
+`scripts.diagnosticar_rag` mantiene su diagnóstico de metadatos por defecto. La exportación de fragmentos requiere `--export-chunks var/revision.json --username CUENTA --document-id ID` y `--root` con la raíz de la instalación; para adjuntos también requiere `--conversation-id ID`. El archivo debe ser nuevo y privado. La cuenta necesita `diagnostics.read` y acceso vigente al documento; un administrador no obtiene acceso a conversaciones ajenas. La herramienta aplica límites de contenido, comprueba la generación activa y vuelve a validar permisos antes de guardar. Revise `complete` y `truncated` antes de evaluar cobertura. Para embedded, detenga Matrix; la revisión utiliza una copia temporal privada y acotada, y rechaza índices que excedan sus límites.
+
+La [validación de mejoras del 15 de noviembre de 2026](backend/release/review-2026-11-15/report.md) contrasta cada propuesta del archivo recibido con el código actual, identifica lo aplicado y documenta lo que requiere mediciones reales.
 
 ### Límites y actualización segura
 

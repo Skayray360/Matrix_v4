@@ -678,8 +678,50 @@ def _mysql_datadir(settings) -> Path:  # noqa: ANN001
     return path
 
 
+def _check_standalone_storage_encryption(
+    report: PreflightReport, settings, *, database_ok: bool,
+) -> None:  # noqa: ANN001
+    """Diagnostico del host local, sin imponer atestaciones ni activar BitLocker."""
+    if platform.system() != "Windows":
+        report.add("cifrado_reposo", WARN,
+                   "standalone: cifrado no verificado; la sonda BitLocker requiere Windows",
+                   required=False)
+        return
+    paths = [PROJECT_ROOT, settings.upload_storage_path, settings.knowledge_root_path]
+    if str(settings.qdrant_mode) == "embedded":
+        paths.append(settings.qdrant_storage_path)
+    database_issue = ""
+    try:
+        if not database_ok:
+            raise ValueError("MySQLNoDisponible")
+        paths.append(_mysql_datadir(settings))
+    except Exception as exc:  # noqa: BLE001 - diagnosticar las otras rutas aunque MySQL no este disponible
+        database_issue = f"; datadir MySQL no verificado ({type(exc).__name__})"
+    try:
+        status = windows_encryption_status(paths)
+    except Exception as exc:  # noqa: BLE001 - nunca mostrar salidas/errores privados de Windows
+        report.add("cifrado_reposo", WARN,
+                   f"standalone: BitLocker no verificable ({type(exc).__name__}){database_issue}; "
+                   "no se presume cifrado y no se modifico su configuracion",
+                   required=False)
+        return
+    unprotected = sorted({str(item.get("mount", "?")) for item in status if not (
+        item.get("status") == "FullyEncrypted" and item.get("protection") == "On"
+        and item.get("percentage") == 100
+    )})
+    detail = (
+        "standalone: BitLocker no protege completamente los volumenes " + ", ".join(unprotected)
+        if unprotected else f"standalone: BitLocker completo y proteccion On en {len(paths)} rutas locales"
+    )
+    report.add("cifrado_reposo", WARN if unprotected or database_issue else OK,
+               detail + database_issue + "; el cifrado de destinos de respaldo no fue verificado", required=False)
+
+
 def check_storage_encryption(report: PreflightReport, settings, *, database_ok: bool = True) -> None:  # noqa: ANN001
     """Exige evidencia de infraestructura; no activa cifrado por codigo."""
+    if str(settings.app_env) == "standalone":
+        _check_standalone_storage_encryption(report, settings, database_ok=database_ok)
+        return
     required = str(settings.app_env) in {"staging", "production"}
     if not required:
         report.add("cifrado_reposo", WARN,
