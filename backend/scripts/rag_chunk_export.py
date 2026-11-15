@@ -262,6 +262,10 @@ def read_chunks(client, *, collection: str, document: DocumentScope, max_chunks:
 def _windows_private_file(path: Path) -> None:
     """Protege el archivo aun vacio: chmod(0600) no protege una DACL de Windows."""
     powershell = Path(os.environ.get("SYSTEMROOT", r"C:\Windows")) / "System32/WindowsPowerShell/v1.0/powershell.exe"
+    # pwsh7 -> Python -> powershell5 hereda modulos de otra edicion. Dejar que
+    # powershell.exe construya sus rutas nativas, sin modificar el entorno padre.
+    environment = {key: value for key, value in os.environ.items() if key.upper() != "PSMODULEPATH"}
+    environment["MATRIX_REVIEW_FILE"] = str(path)
     security_type = "DirectorySecurity" if path.is_dir() else "FileSecurity"
     inheritance = "'ContainerInherit,ObjectInherit','None'," if path.is_dir() else ""
     script = (
@@ -281,7 +285,7 @@ def _windows_private_file(path: Path) -> None:
     )
     subprocess.run(  # noqa: S603 -- ejecutable del sistema y script constante, nunca contenido documental.
         [str(powershell), "-NoProfile", "-NonInteractive", "-Command", script],
-        env={**os.environ, "MATRIX_REVIEW_FILE": str(path)}, check=True, timeout=15,
+        env=environment, check=True, timeout=15,
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
     )
 

@@ -330,8 +330,10 @@ def test_collect_export_sanitizes_driver_errors_and_never_calls_models(source, t
     assert not (tmp_path / "var/review.json").exists()
 
 
-def test_windows_acl_command_contains_no_document_text_or_interpolated_path(tmp_path, monkeypatch):
+@pytest.mark.parametrize("module_variable", ["PSMODULEPATH", "PSModulePath", "psmodulepath"])
+def test_windows_acl_command_contains_no_document_text_or_interpolated_path(tmp_path, monkeypatch, module_variable):
     calls = []
+    monkeypatch.setenv(module_variable, "SYNTHETIC_POWERSHELL7_MODULES")
     monkeypatch.setattr(exporter.subprocess, "run", lambda *args, **kwargs: calls.append((args, kwargs)))
     path = tmp_path / "name'$() with spaces.json"
     exporter._windows_private_file(path)
@@ -339,6 +341,8 @@ def test_windows_acl_command_contains_no_document_text_or_interpolated_path(tmp_
     command = arguments[0]
     assert str(path) not in command[-1]
     assert keywords["env"]["MATRIX_REVIEW_FILE"] == str(path)
+    assert not any(key.upper() == "PSMODULEPATH" for key in keywords["env"])
+    assert os.environ[module_variable] == "SYNTHETIC_POWERSHELL7_MODULES"
     assert "SetAccessRuleProtection($true,$false)" in command[-1]
     assert keywords["check"] and keywords["timeout"] == 15
 

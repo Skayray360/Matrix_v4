@@ -93,10 +93,14 @@ def verify() -> dict:
             "Write-Output 'PRIVATE_ACL_VERIFIED'"
         )
         diagnostic.stage = "verify_file_directory_inherited_child"
+        # La consulta independiente tambien invoca PS5.1 desde Python, incluso
+        # cuando la matriz arranco con pwsh7: no heredar modulos de otra edicion.
+        environment = {key: value for key, value in os.environ.items() if key.upper() != "PSMODULEPATH"}
+        environment.update(MATRIX_ACL_FILE=str(protected_file), MATRIX_ACL_DIRECTORY=str(protected_directory),
+                           MATRIX_ACL_CHILD=str(child))
         result = diagnostic.run(
             [str(powershell), "-NoProfile", "-NonInteractive", "-Command", script],
-            env={**os.environ, "MATRIX_ACL_FILE": str(protected_file),
-                 "MATRIX_ACL_DIRECTORY": str(protected_directory), "MATRIX_ACL_CHILD": str(child)},
+            env=environment,
             check=True, timeout=15, capture_output=True, text=True,
         )
         if result.stdout.strip() != "PRIVATE_ACL_VERIFIED":
