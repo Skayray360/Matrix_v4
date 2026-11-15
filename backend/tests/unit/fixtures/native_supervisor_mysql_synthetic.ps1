@@ -6,6 +6,7 @@ $tokens=$null; $errors=$null
 $ast=[Management.Automation.Language.Parser]::ParseFile($Controller,[ref]$tokens,[ref]$errors)
 if ($errors.Count) { throw 'AST parse failed' }
 foreach ($function in $ast.FindAll({ param($n) $n -is [Management.Automation.Language.FunctionDefinitionAst] },$false)) { Invoke-Expression $function.Extent.Text }
+Add-Type -AssemblyName System.IO.Compression
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 $script:TestRoot=Join-Path ([IO.Path]::GetTempPath()) ('matrix mysql synthetic ' + [guid]::NewGuid().ToString('N'))
 $script:Utf8=[Text.UTF8Encoding]::new($false)

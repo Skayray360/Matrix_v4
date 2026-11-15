@@ -223,6 +223,8 @@ function Download-Pinned([string]$Url, [string]$Sha256, [string]$Destination) {
     } finally { if (Test-Path -LiteralPath $temporary) { Remove-Item -LiteralPath $temporary -Force } }
 }
 function Expand-Pinned([string]$Archive, [string]$Destination) {
+    # PS5.1 usa assemblies separados para ZipArchive y ZipFile.
+    Add-Type -AssemblyName System.IO.Compression
     Add-Type -AssemblyName System.IO.Compression.FileSystem
     $zip=[IO.Compression.ZipFile]::OpenRead($Archive)
     $prefix=[IO.Path]::GetFullPath($Destination) + [IO.Path]::DirectorySeparatorChar
