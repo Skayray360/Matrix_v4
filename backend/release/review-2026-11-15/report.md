@@ -52,7 +52,22 @@ Avisos de pypdf: `GHSA-62m5-6wh8-28x7`, `GHSA-42gh-23hr-vphw`, `GHSA-x3rh-gjgm-f
 
 ## Validación
 
-Validación remota del conjunto completo pendiente al redactar esta versión. Las verificaciones focalizadas ya ejecutadas y los límites definitivos se consolidarán tras CI. No se suman suites superpuestas como pruebas diferentes.
+La [CI del código final](https://github.com/Skayray360/Matrix_v4/actions/runs/43765743247), commit `d49ff2419692400e36f1fb8d1b2a5204497c4358`, aprobó sus cinco jobs. La [evidencia estructurada](validation.json) conserva versiones, hashes de locks, avisos antes/después y alcance. No se suman suites superpuestas como pruebas diferentes.
+
+| Comprobación | Resultado y alcance |
+|---|---|
+| Backend aislado | 3.730 casos aprobados, sin fallos ni omisiones; inventario raíz contrastado con JUnit. |
+| Frontend | 252 pruebas; tipos, ESLint, formato y build aprobados; `dist` coincide byte a byte. |
+| Chromium | 12 casos sobre el build con API sintética, incluidos funcionamiento CSSOM y bloqueo de estilo inyectado bajo CSP estricta. |
+| Recuperación vectorial | 10 escenarios con MySQL real en cada modo Qdrant: 20 ejecuciones aprobadas; 13 migraciones en base efímera. Embeddings deterministas. |
+| Windows x64 | Nueve fixtures por motor: PowerShell 5.1 y 7. Runtime Python 3.12.16 del manifiesto comprobado por tamaño/SHA-256. |
+| Permisos Windows | DACL real de archivo, directorio y descendiente temporal aprobada en ambas matrices. Sin importar aplicación ni usar datos reales. |
+| Controles de código y dependencias | Ruff, mypy, documentación/versiones, autoría, integridad, secretos, Bandit de `app`, suministro y auditorías aprobados. Cero avisos conocidos en los locks auditados. |
+| SBOM | 402 identidades de ambos locks; generación offline y validación contra schema CycloneDX 1.6. |
+
+La matriz Windows permitió corregir dos problemas funcionales: carga explícita de `System.IO.Compression` para PowerShell 5.1 y aislamiento de `PSModulePath` en los procesos hijos que aplican/verifican DACL desde Python. También se corrigieron fixtures que asumían LF o `pwsh --version`. Las reglas de permisos y los rechazos de seguridad se conservaron.
+
+La CI de navegador usa respuestas API sintéticas; no es un E2E con Ollama. Las fixtures Windows prueban funciones reales con servicios simulados, salvo las operaciones de permisos sobre archivos temporales. No se ejecutaron los otros 182 casos de integración ni una instalación/recuperación WAMP completa.
 
 La exportación embedded está limitada a una copia de colección de 64 MiB/15 segundos, sin WAL/journal pendiente y con el lock original libre; el scroll admite como máximo 2.000 chunks y 4 MiB de texto. La prueba sintética conserva hashes/filas originales incluso cuando el SDK normaliza duplicados en la copia. La compatibilidad se limita al formato del cliente Qdrant fijado en el lock.
 
@@ -73,5 +88,6 @@ La exportación embedded está limitada a una copia de colección de 64 MiB/15 s
 - [Ollama: concurrencia por modelo, precarga y keep_alive](https://docs.ollama.com/faq).
 - [CycloneDX 1.6 JSON](https://cyclonedx.org/docs/1.6/json/).
 - [Dependabot: opciones y ecosistemas](https://docs.github.com/en/code-security/dependabot/working-with-dependabot/dependabot-options-reference).
+- [Microsoft: herencia de PSModulePath a través de Python](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_psmodulepath?view=powershell-7.3).
 
 Creado por Aldo Garcia.

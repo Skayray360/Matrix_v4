@@ -60,9 +60,80 @@
       "selected": 3722,
       "exit_code": 0,
       "skipped_powershell_unavailable": 10,
-      "strict_gate_pass": false
+      "strict_gate_pass": false,
+      "scope": "Initial development snapshot; superseded by complete CI verification below"
     },
-    "ci": "pending"
+    "ci": {
+      "run_id": 43765743247,
+      "url": "https://github.com/Skayray360/Matrix_v4/actions/runs/43765743247",
+      "source_commit": "d49ff2419692400e36f1fb8d1b2a5204497c4358",
+      "source_tree": "20ae9fc841ac3f23d0e192976889777fafff23b4",
+      "conclusion": "success",
+      "jobs_passed": 5,
+      "backend_standalone": {
+        "selected": 3730,
+        "junit_cases": 3730,
+        "skipped": 0,
+        "status": "PASS"
+      },
+      "frontend_unit": {
+        "passed": 252,
+        "status": "PASS"
+      },
+      "chromium_api_mocks": {
+        "passed": 12,
+        "status": "PASS"
+      },
+      "vector_recovery": {
+        "mysql": "8.4.13",
+        "qdrant": "1.20.0",
+        "migrations": 13,
+        "cases_each_mode": 10,
+        "modes": [
+          "server",
+          "embedded"
+        ],
+        "executions_passed": 20
+      },
+      "windows": {
+        "powershell_5_1_fixtures_passed": 9,
+        "powershell_7_fixtures_passed": 9,
+        "python_runtime": "3.12.16 build 20261026, size/SHA256 verified",
+        "dacl_each_job": [
+          "file",
+          "directory",
+          "inherited_child"
+        ],
+        "data": "synthetic only"
+      },
+      "other_checks": [
+        "ruff",
+        "mypy",
+        "prettier",
+        "eslint",
+        "build",
+        "dist exact",
+        "versions/docs",
+        "headers",
+        "integrity",
+        "secrets",
+        "bandit app",
+        "supply chain",
+        "npm audit and signatures",
+        "all uv.lock registry identities audited"
+      ],
+      "job_ids": {
+        "backend": 132970378976,
+        "frontend": 132970378784,
+        "vectors": 132970379013,
+        "powershell_5_1": 132970379026,
+        "powershell_7": 132970379208
+      }
+    },
+    "sast_scope": {
+      "gate": "app only; seven justified B603/B405/B314 exceptions with regression coverage",
+      "scripts": "Not covered by the blocking Bandit gate; findings remain visible"
+    }
   },
   "not_evaluated": [
     "Real Ollama latency and quality",
