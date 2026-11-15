@@ -28,14 +28,13 @@ from app.database.migrator import (
 from app.database.models import LocalCredential, SessionRecord, User
 from seeds.identity_seed import SYNTHETIC_TEST_PASSWORD
 
-pytestmark = pytest.mark.integration
-
 
 @pytest.fixture()
 def usuario(db_session):  # noqa: ANN001, ANN201
     return db_session.execute(select(User).where(User.username == "Matrix")).scalar_one()
 
 
+@pytest.mark.integration
 class TestSesiones:
     def test_crear_y_resolver_una_sesion(self, db_session, usuario):
         issued = create_session(db_session, user=usuario, auth_source="local_test")
@@ -100,13 +99,8 @@ class TestSesiones:
         db_session.flush()
         assert purge_expired_sessions(db_session) >= 1
 
-    def test_la_cookie_es_httponly(self):
-        params = cookie_parameters()
-        assert params["httponly"] is True
-        assert params["path"] == "/"
-        assert params["samesite"] in ("lax", "strict", "none")
 
-
+@pytest.mark.integration
 class TestProveedorLocal:
     def test_autentica_con_la_credencial_sintetica(self, db_session):
         identity = LocalTestIdentityProvider().authenticate(
@@ -173,26 +167,40 @@ class TestProveedorLocal:
         assert credencial.locked_until is None
 
 
+@pytest.mark.unit
+class TestCookie:
+    def test_la_cookie_es_httponly(self):
+        params = cookie_parameters()
+        assert params["httponly"] is True
+        assert params["path"] == "/"
+        assert params["samesite"] in ("lax", "strict", "none")
+
+
 class TestMigrator:
+    @pytest.mark.unit
     def test_descubre_las_migraciones_en_orden(self):
         versiones = [m.version for m in discover_migrations()]
         assert versiones == sorted(versiones)
         assert "0001" in versiones
 
+    @pytest.mark.unit
     def test_cada_migracion_tiene_checksum_estable(self):
         migraciones = discover_migrations()
         assert all(len(m.checksum) == 64 for m in migraciones)
         assert discover_migrations()[0].checksum == migraciones[0].checksum
 
+    @pytest.mark.unit
     def test_rechaza_un_directorio_inexistente(self, tmp_path: Path):
         with pytest.raises(ConfigurationError, match="No existe"):
             discover_migrations(tmp_path / "no-existe")
 
+    @pytest.mark.unit
     def test_rechaza_un_nombre_de_migracion_invalido(self, tmp_path: Path):
         (tmp_path / "migracion-mal-nombrada.sql").write_text("SELECT 1;", encoding="utf-8")
         with pytest.raises(ConfigurationError, match="Nombre de migracion invalido"):
             discover_migrations(tmp_path)
 
+    @pytest.mark.unit
     def test_divide_las_sentencias_ignorando_comentarios(self):
         sql = """
         -- comentario con punto y coma; dentro
@@ -203,6 +211,7 @@ class TestMigrator:
         assert len(sentencias) == 2
         assert all(s.startswith("CREATE TABLE") for s in sentencias)
 
+    @pytest.mark.integration
     def test_la_base_configurada_existe(self, require_database):  # noqa: ARG002
         """En un entorno ya instalado la base existe y no la creamos ahora."""
         nombre, la_creamos = ensure_database_exists()

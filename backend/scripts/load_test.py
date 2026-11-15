@@ -264,6 +264,12 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     if any(not math.isfinite(value) or value <= 0 for value in (args.duration, args.timeout, args.request_deadline)):
         parser.error("duration, timeout y request-deadline deben ser finitos y positivos")
+    if args.slo_p95 is not None and (not math.isfinite(args.slo_p95) or args.slo_p95 <= 0):
+        parser.error("slo-p95 debe ser finito y positivo")
+    if args.max_error_pct is not None and (
+        not math.isfinite(args.max_error_pct) or not 0 <= args.max_error_pct <= 100
+    ):
+        parser.error("max-error-pct debe ser un porcentaje finito entre 0 y 100")
     result = asyncio.run(run(args))
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(result, indent=2), encoding="utf-8")

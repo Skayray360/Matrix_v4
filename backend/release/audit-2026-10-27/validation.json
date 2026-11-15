@@ -1,0 +1,1338 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-27",
+  "base_commit": "d057889aa85f1690576e2d65d19729a91cf06da4",
+  "branch": "audit/hardening-2026-10-27",
+  "status": "ISOLATED_VALIDATION_PASSED; PRODUCTION_ACCEPTANCE_PENDING",
+  "release_manifest_sha256": "fd573c5b2498a3d9ce52212428801a08f648f924040b91d97c53f11955c6169e",
+  "environment": {
+    "os": "Linux x86_64",
+    "python": "3.12.16",
+    "powershell": "7.6.9",
+    "node": "24.22.1",
+    "npm_final_tests_and_build": "11.19.1",
+    "test_data": "synthetic only",
+    "operational_data_accessed": false
+  },
+  "backend": {
+    "status": "PASS",
+    "collection": {
+      "group": "standalone",
+      "collected_total": 3712,
+      "groups": {
+        "standalone": 3530,
+        "integration_services": 182
+      },
+      "selected": 3530,
+      "nodeids_sha256": "09a30c737a0efa706c2cd771ba0b02330a55daf359de6959bb7f6581677df35d"
+    },
+    "parent_testcases": 3530,
+    "passed": 3530,
+    "skipped": 0,
+    "errors": 0,
+    "failures": 0,
+    "successful_subtests": 40,
+    "duration_seconds": 519.82,
+    "line_coverage_percent": 91.99,
+    "lines_covered": 10356,
+    "lines_valid": 11258,
+    "branch_coverage_measured": false,
+    "command": "APP_ENV=test python -m pytest tests -q -p scripts.quality_gate_pytest --matrix-test-group standalone --matrix-collection-report COLLECTION --junitxml JUNIT --cov=app --cov-report=xml:COVERAGE",
+    "by_suite": {
+      "tests.security.test_category_policy_validation": {
+        "passed": 11,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.security.test_federated_transport_config": {
+        "passed": 20,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.security.test_http_boundary": {
+        "passed": 33,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.security.test_local_runtime_compose": {
+        "passed": 8,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.security.test_network_protocol": {
+        "passed": 14,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.security.test_preflight_boundaries": {
+        "passed": 7,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.security.test_private_paths": {
+        "passed": 72,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.security.test_qdrant_transport": {
+        "passed": 1,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.security.test_release_runtime_contract": {
+        "passed": 6,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.security.test_session_provider_boundary": {
+        "passed": 28,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.security.test_supply_chain.TestListaDeBloqueo": {
+        "passed": 5,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.security.test_supply_chain.TestScriptsDeInstalacion": {
+        "passed": 4,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.security.test_supply_chain.TestIndicadoresDeCompromiso": {
+        "passed": 4,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.security.test_supply_chain.TestInstalacionReproducible": {
+        "passed": 4,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.security.test_supply_chain.TestIntegridadDelGestor": {
+        "passed": 3,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.security.test_supply_chain.TestListaDeBloqueoReal": {
+        "passed": 3,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.security.test_supply_chain_123": {
+        "passed": 34,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.security.test_supply_chain_policy": {
+        "passed": 45,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.test_chat_queue": {
+        "passed": 42,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_access_profile_contract": {
+        "passed": 4,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_admin_category_scope": {
+        "passed": 5,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_ai_runtime_contracts.TestContratoDeIntencion": {
+        "passed": 12,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_ai_runtime_contracts.TestIdentidadSinDependencias": {
+        "passed": 2,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_ai_runtime_contracts.TestResumenConEvidencia": {
+        "passed": 6,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_ai_runtime_contracts.TestRecuperacionDeResumenPrivado": {
+        "passed": 3,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_answer_contract_127": {
+        "passed": 21,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_answer_diagnostics": {
+        "passed": 15,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_answer_representation_contract": {
+        "passed": 27,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_application_natural_language": {
+        "passed": 36,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_attachment_preparation_transactions": {
+        "passed": 18,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_authorization.TestFirmaDelContexto": {
+        "passed": 7,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_authorization.TestCategoriasEfectivas": {
+        "passed": 4,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_authorization.TestMatrizDeAutorizacion": {
+        "passed": 16,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_authorization.TestOwnershipDeConversaciones": {
+        "passed": 2,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_authorization.TestNombresDeCategoria": {
+        "passed": 10,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_authorization.TestHashDeRoles": {
+        "passed": 3,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_authorization": {
+        "passed": 5,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_backend_consolidation": {
+        "passed": 33,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_backup_restore": {
+        "passed": 5,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_benchmark_response": {
+        "passed": 12,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_calculated_application": {
+        "passed": 55,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_calculated_application_agent": {
+        "passed": 11,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_calculated_transport_recovery": {
+        "passed": 5,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_calendar_date_grounding": {
+        "passed": 24,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_case_followup_presentation": {
+        "passed": 19,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_chat_failure_codes_127": {
+        "passed": 48,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_chat_response_contract": {
+        "passed": 67,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_chat_service": {
+        "passed": 9,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_chunking.TestSplitIntoBlocks": {
+        "passed": 3,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_chunking.TestChunking": {
+        "passed": 12,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_chunking.TestEstimacionDeTokens": {
+        "passed": 2,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_claim_role_scopes": {
+        "passed": 44,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_clarification_contract": {
+        "passed": 21,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_clarification_language_followup": {
+        "passed": 44,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_completion_recovery_128": {
+        "passed": 25,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_conditional_contract": {
+        "passed": 51,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_config.TestInvariantesRag": {
+        "passed": 5,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_config.TestModelosObligatorios": {
+        "passed": 2,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_config.TestSeguridadDeEntorno": {
+        "passed": 7,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_config.TestSnapshotAuditable": {
+        "passed": 1,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_configuration_completion_128": {
+        "passed": 7,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_configuration_runtime_127": {
+        "passed": 52,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_content_purge": {
+        "passed": 18,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_context_efficiency_20261007": {
+        "passed": 14,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_contextual_document_sequence": {
+        "passed": 18,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_contextual_query_20261008": {
+        "passed": 13,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_conversation_policy_stage1.ClassificationTests": {
+        "passed": 9,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_conversation_policy_stage1.OrchestrationTests": {
+        "passed": 18,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_conversation_policy_stage1.PromptContractTests": {
+        "passed": 4,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_coverage_gaps.TestValidadorRamasDeRechazo": {
+        "passed": 8,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_coverage_gaps.TestErroresTipados": {
+        "passed": 4,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_coverage_gaps.TestUploadGuardRamas": {
+        "passed": 4,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_coverage_gaps.TestContextoRamas": {
+        "passed": 2,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_coverage_gaps.TestPropiedadesDerivadas": {
+        "passed": 5,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_critical_module_branches.TestAdapterRamasDeError": {
+        "passed": 8,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_critical_module_branches.TestUploadGuardRamasRestantes": {
+        "passed": 4,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_critical_module_branches.TestEntraRamasRestantes": {
+        "passed": 3,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_critical_module_branches.TestProveedorSeleccionado": {
+        "passed": 3,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_critical_module_branches.TestRedaccionRamasRestantes": {
+        "passed": 3,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_current_delivery": {
+        "passed": 3,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_current_validity_contract": {
+        "passed": 32,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_data_alias_ingestion": {
+        "passed": 43,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_database_uniqueness": {
+        "passed": 6,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_diagnostics_logging": {
+        "passed": 10,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_docker_preparation": {
+        "passed": 50,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_document_case_workflow_acceptance": {
+        "passed": 3,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_document_overview_retrieval_20261008": {
+        "passed": 31,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_document_request_routing": {
+        "passed": 41,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_document_summary_synthesis": {
+        "passed": 14,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_document_table_context_131": {
+        "passed": 23,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_document_workflow_acceptance": {
+        "passed": 47,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_documentary_followup_hotfix": {
+        "passed": 14,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_documentary_grounding_scope": {
+        "passed": 51,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_documentary_output": {
+        "passed": 29,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_documentation_release_131": {
+        "passed": 16,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_embedding_switch_contracts": {
+        "passed": 4,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_empty_corpus_installation_130": {
+        "passed": 3,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_entra_mapping_revocation": {
+        "passed": 5,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_entra_role_sync": {
+        "passed": 5,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_evidence_provenance": {
+        "passed": 4,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_execution_profiles": {
+        "passed": 28,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_explicit_document_retrieval": {
+        "passed": 16,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_explicit_document_selection_20261007": {
+        "passed": 15,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_external_answer_rubric": {
+        "passed": 42,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_extraction_coverage_contract": {
+        "passed": 20,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_generation_integrity_recovery": {
+        "passed": 28,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_grounding.TestExtraccionDeCitas": {
+        "passed": 3,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_grounding.TestVerificacion": {
+        "passed": 7,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_grounding.TestCobertura": {
+        "passed": 3,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_grounding.TestFiltradoDeCitas": {
+        "passed": 1,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_grounding.TestMarcadoresDeInsuficiencia": {
+        "passed": 6,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_grounding_numeric_rag_hotfix": {
+        "passed": 61,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_health_capacity": {
+        "passed": 4,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_identity_and_policy_edges.TestValidacionDeIdToken": {
+        "passed": 7,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_identity_and_policy_edges.TestNormalizacionDeIdentidad": {
+        "passed": 2,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_identity_and_policy_edges.TestEstadoDelProveedorEntra": {
+        "passed": 5,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_identity_and_policy_edges.TestSeleccionDeProveedor": {
+        "passed": 4,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_identity_and_policy_edges.TestRegistroDeCategorias": {
+        "passed": 11,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_identity_and_policy_edges.TestExtractoresLimites": {
+        "passed": 5,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_identity_and_policy_edges.TestChunkingBloquesGrandes": {
+        "passed": 3,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_identity_history_scope": {
+        "passed": 17,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_implementation_v2": {
+        "passed": 24,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_index_recovery_acceptance": {
+        "passed": 15,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_index_update_guard": {
+        "passed": 8,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_ingestion_compensation_boundaries": {
+        "passed": 4,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_ingestion_security_130": {
+        "passed": 12,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_installation_backup": {
+        "passed": 33,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_installation_state": {
+        "passed": 34,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_installer_consolidation": {
+        "passed": 46,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_knowledge_layout": {
+        "passed": 6,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_knowledge_sync_new": {
+        "passed": 35,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_llm_client.TestPingEInventario": {
+        "passed": 4,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_llm_client.TestChat": {
+        "passed": 2,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_llm_client.TestReintentos": {
+        "passed": 3,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_llm_client.TestEmbeddings": {
+        "passed": 7,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_load_test_contracts": {
+        "passed": 23,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_loaders.TestFormatosSoportados": {
+        "passed": 4,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_loaders.TestTextoPlano": {
+        "passed": 4,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_loaders.TestMarkdown": {
+        "passed": 2,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_loaders.TestCsv": {
+        "passed": 2,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_loaders.TestDocx": {
+        "passed": 2,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_loaders.TestXlsx": {
+        "passed": 2,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_loaders.TestPdf": {
+        "passed": 2,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_local_context_budget": {
+        "passed": 4,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_local_identity_standalone": {
+        "passed": 26,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_local_inference_metrics": {
+        "passed": 8,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_local_model_diagnostics": {
+        "passed": 10,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_local_model_protocols_123": {
+        "passed": 24,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_local_provider_boundaries": {
+        "passed": 6,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_memory_and_agent.TestPrompts": {
+        "passed": 6,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_memory_and_agent.TestAgenteDeConocimiento": {
+        "passed": 5,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_memory_and_agent.TestPlanificadorJson": {
+        "passed": 5,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_memory_and_agent.TestContextoConversacional": {
+        "passed": 2,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_memory_context_query": {
+        "passed": 8,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_model_change": {
+        "passed": 21,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_model_diagnostic_effective_131": {
+        "passed": 4,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_model_policy.TestClasificacionDeIntencion": {
+        "passed": 19,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_model_policy.TestRouting": {
+        "passed": 9,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_model_policy.TestModelosProhibidos": {
+        "passed": 5,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_model_smoke_test": {
+        "passed": 42,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_multiformat_ingestion": {
+        "passed": 23,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_numeric_provenance_revision": {
+        "passed": 15,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_ollama_sampling_defaults": {
+        "passed": 5,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_operation_failure_codes": {
+        "passed": 13,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_operation_lifecycle": {
+        "passed": 11,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_operator_messages.TestSalidaDelBootstrap": {
+        "passed": 3,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_operator_messages.TestScriptsDeWindows": {
+        "passed": 6,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_operator_messages.TestQualityGate": {
+        "passed": 3,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_partial_documentary_answer": {
+        "passed": 29,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_pdf_rag_extraction": {
+        "passed": 31,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_preventive_operations": {
+        "passed": 18,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_preventive_rag": {
+        "passed": 14,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_private_reindex_final": {
+        "passed": 8,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_process_owner_restart": {
+        "passed": 11,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_provider_cancellation": {
+        "passed": 5,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_provider_deadline": {
+        "passed": 1,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_provider_time_limits_127": {
+        "passed": 12,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_quality_gate_completeness": {
+        "passed": 34,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_rag_audit_optimization": {
+        "passed": 17,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_rag_citation_transport": {
+        "passed": 18,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_rag_delete_transactions": {
+        "passed": 3,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_rag_diagnostic_readonly_fix01": {
+        "passed": 9,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_rag_eval_annotations": {
+        "passed": 41,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_rag_integrity_final": {
+        "passed": 22,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_rag_numeric_properties": {
+        "passed": 42,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_rag_pipeline_isolated.TestVectorStore": {
+        "passed": 6,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_rag_pipeline_isolated.TestFiltroAclEnLaConsulta": {
+        "passed": 3,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_rag_pipeline_isolated.TestRetriever": {
+        "passed": 5,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_rag_pipeline_isolated.TestConversionAEvidencia": {
+        "passed": 2,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_rag_pipeline_isolated.TestPrefijosDeEmbedding": {
+        "passed": 3,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_rag_validation_diagnostics_hotfix": {
+        "passed": 6,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_readiness_admission": {
+        "passed": 5,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_release_native_integrity": {
+        "passed": 1,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_release_structure": {
+        "passed": 10,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_retrieval_ranking.TestSimilitudCoseno": {
+        "passed": 4,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_retrieval_ranking.TestDeduplicacion": {
+        "passed": 5,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_retrieval_ranking.TestMmr": {
+        "passed": 4,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_retrieval_ranking.TestDiversidadPorCategoria": {
+        "passed": 2,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_retrieval_ranking.TestFiltroAclDeQdrant": {
+        "passed": 4,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_review_contract": {
+        "passed": 22,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_rh_routing": {
+        "passed": 39,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_routing_timeouts_127": {
+        "passed": 52,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_scoped_reconcile": {
+        "passed": 5,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_secrets_scan_boundaries": {
+        "passed": 7,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_security_boundaries_20261007": {
+        "passed": 27,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_security_controls.TestRedaccion": {
+        "passed": 8,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_security_controls.TestArgon2id": {
+        "passed": 6,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_security_controls.TestRutasSeguras": {
+        "passed": 13,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_security_controls.TestValidacionDeCargas": {
+        "passed": 9,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_security_controls.TestPromptGuard": {
+        "passed": 11,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_security_controls.TestRateLimiting": {
+        "passed": 3,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_security_privacy_revision": {
+        "passed": 17,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_security_runtime_config": {
+        "passed": 53,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_services_isolated.TestCatalogoDeFuentes": {
+        "passed": 7,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_services_isolated.TestAdapterReadOnly": {
+        "passed": 8,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_services_isolated.TestStructuredDataTool": {
+        "passed": 3,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_services_isolated.TestEvidenciaEstructurada": {
+        "passed": 4,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_services_isolated.TestScheduler": {
+        "passed": 3,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_services_isolated.TestColeccionesDelVectorStore": {
+        "passed": 2,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_single_local_model_130": {
+        "passed": 9,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_smoke_authorization_guard": {
+        "passed": 5,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_standalone_configuration": {
+        "passed": 33,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_status_read_only": {
+        "passed": 1,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_structured_document_reading": {
+        "passed": 14,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_structured_plan_boundaries": {
+        "passed": 25,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_structured_query.TestEsquemaDelPlan": {
+        "passed": 11,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_structured_query.TestValidadorDePolitica": {
+        "passed": 7,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_structured_query.TestCompilador": {
+        "passed": 4,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_structured_query.TestVerificacionPorAst": {
+        "passed": 12,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_structured_role_scope": {
+        "passed": 74,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_summary_scope_contract": {
+        "passed": 15,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_summary_security_operations": {
+        "passed": 2,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_table_range_vs_case": {
+        "passed": 19,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_test_environment": {
+        "passed": 12,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_text_budget_contract": {
+        "passed": 24,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_topic_transitions": {
+        "passed": 15,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_user_five_question_acceptance": {
+        "passed": 7,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_vector_geometry_contract": {
+        "passed": 26,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_windows_native_controller": {
+        "passed": 10,
+        "skipped": 0,
+        "failed": 0
+      },
+      "tests.unit.test_windows_runtime": {
+        "passed": 10,
+        "skipped": 0,
+        "failed": 0
+      }
+    }
+  },
+  "frontend": {
+    "status": "PASS",
+    "passed": 252,
+    "failed": 0,
+    "skipped": 0,
+    "test_files": 14,
+    "typecheck": "PASS",
+    "lint": "PASS",
+    "format": "PASS",
+    "production_build": "PASS",
+    "visual_tests": "NOT_EXECUTED: official Chromium and headless-shell downloads were invalid ZIP files",
+    "real_e2e": "NOT_EVALUATED"
+  },
+  "static_checks": {
+    "ruff": "PASS: app scripts seeds tests",
+    "mypy": "PASS: 113 app source files",
+    "headers": "PASS",
+    "documentation_links": "PASS",
+    "release_integrity": "PASS: 200 files",
+    "git_diff_check": "PASS",
+    "ci_workflow_syntax": "PASS: YAML, bash and embedded Python",
+    "github_actions_execution": "Application tests pass on GitHub; synthetic test-label redaction awaits final security gate rerun"
+  },
+  "dependency_security": {
+    "python_lock": {
+      "packages": 100,
+      "known_vulnerabilities": 0,
+      "skipped_packages": 0,
+      "scope": "all registry packages in uv.lock, including optional drivers and platform-specific dependencies",
+      "tool": "pip-audit 2.7.3"
+    },
+    "npm": {
+      "packages_in_lock": 301,
+      "known_vulnerabilities": 0,
+      "registry_signatures_verified": 276,
+      "attestations_verified": 81,
+      "supply_chain_policy": "PASS: lock and installed tree"
+    }
+  },
+  "secrets": {
+    "scope": "current working tree; not a complete history secret audit",
+    "verdict": "PASS",
+    "suspected_real_secrets": 0,
+    "candidates": 47,
+    "explicit_allowlist_entries": 37,
+    "historical_pdf_objects": 6,
+    "current_pdf_files": 0
+  },
+  "bandit": {
+    "candidates": 37,
+    "severity": {
+      "LOW": 29,
+      "MEDIUM": 8
+    },
+    "interpretation": "Candidates were triaged, not counted as confirmed vulnerabilities. XML paths reject DTD/entity declarations or read local test reports; SQL identifiers are fullmatch validated; container binds and fixed-argument subprocesses are intentional. Low-severity constants and assertions do not implement authorization. Existing suppressions were not broadened."
+  },
+  "not_evaluated": [
+    "182 integration-service testcases",
+    "Native Windows installation and upgrade",
+    "Live MySQL, Qdrant server and Ollama",
+    "Entra/OIDC tenant and external database grants",
+    "Docker build and runtime",
+    "Cold restore with live MySQL",
+    "Domain-expert RAG evaluation and production capacity",
+    "Browser visual and live end-to-end flows"
+  ],
+  "open_risks": [
+    "Six historical PDF objects remain reachable in public Git history; classification and coordinated remediation pending",
+    "Caller SQL commit failure or abrupt crash can leave invisible candidate vectors without durable cleanup intent",
+    "Extraction metadata in previous indexes needs full reconciliation",
+    "Only 11 of 43 synthetic RAG cases have independent complete rubrics; not expert validated"
+  ],
+  "ci_initial_run": {
+    "url": "https://github.com/Skayray360/Matrix_v4/actions/runs/40523084276",
+    "frontend": "PASS",
+    "backend": "INCOMPLETE: one supply-chain test skipped because node_modules was absent in the separate backend job",
+    "correction": "Install the pinned frontend tree without lifecycle scripts in the backend job; preserve strict no-skip gate; update action pins to Node24-native releases"
+  },
+  "ci_followup": {
+    "url": "https://github.com/Skayray360/Matrix_v4/actions/runs/40524448175",
+    "backend_test_gate": "PASS: 3530 cases and 40 subtests, zero skips",
+    "frontend": "PASS",
+    "secret_scan": "Four synthetic DSN matches in parameterized JUnit test names; not runtime credentials",
+    "correction": "Use descriptive parameter IDs in three test modules; no scanner exemption and no test data or assertions removed",
+    "focused_regression_tests": 99,
+    "original_junit_scanner_matches": 4,
+    "corrected_junit_scanner_matches": 0,
+    "local_full_suite_note": "Full local execution predates the descriptive parameter-ID change; application source and test assertions are unchanged."
+  },
+  "followup": {
+    "report": "vectors-followup.md",
+    "validation": "vectors-followup-validation.json",
+    "note": "The initial counts and open_risks in this file are a historical audit snapshot. The two requested residuals are superseded by this follow-up."
+  }
+}

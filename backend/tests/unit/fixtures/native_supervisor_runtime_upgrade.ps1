@@ -26,6 +26,7 @@ function New-Pin([string]$Name,[string]$Version,[string]$Relative) {
     return [pscustomobject]@{version=$Version;url='https://nodejs.org/fixture.zip';sha256=(Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant()}
 }
 try {
+    Add-Type -AssemblyName System.IO.Compression
     Add-Type -AssemblyName System.IO.Compression.FileSystem
     Ensure-Directory $script:Runtime
     Ensure-Directory $script:Run

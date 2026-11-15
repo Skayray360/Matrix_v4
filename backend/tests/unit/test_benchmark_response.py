@@ -5,6 +5,7 @@ import json
 
 import pytest
 
+from app.common.text_budget import estimate_tokens
 from app.config import Settings
 from app.llm.ollama_client import ChatResult
 from scripts import benchmark_response as benchmark
@@ -101,3 +102,39 @@ def test_exception_text_and_urls_never_escape(monkeypatch):
     assert report["status"] == "failed"
     assert report["samples"][0]["failure_kind"] == "adapter_or_configuration_failed"
     assert "private" not in json.dumps(report) and "password" not in json.dumps(report)
+
+
+def test_token_estimate_includes_prefix_and_schema_without_exporting_them():
+    prefix = "Instruccion privada con cifras: 17, 29 y 41."
+    schema = json.dumps(benchmark.SCHEMA, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    estimate = benchmark.estimated_input_text_tokens(prefix)
+    assert estimate == sum(estimate_tokens(text) for text in (prefix, benchmark.FIXTURE_PROMPT, schema))
+    assert estimate - benchmark.estimated_input_text_tokens("") == estimate_tokens(prefix)
+
+
+@pytest.mark.parametrize("count,attempts", [(None, 1), (0, 1), (173, 1), (173, 2)])
+def test_token_comparison_keeps_missing_metrics_and_retried_prompts_unknown(monkeypatch, count, attempts):
+    settings = Settings(_env_file=None, llm_system_prefix="private-prefix")
+    monkeypatch.setattr(benchmark, "get_settings", lambda: settings)
+    monkeypatch.setattr("app.llm.provider.get_settings", lambda: settings)
+
+    class Client:
+        def close(self):
+            pass
+
+        def chat(self, **kwargs):
+            return ChatResult(content='{"unidades":12}', model="private-model", latency_ms=5,
+                              prompt_eval_count=count, generation_attempts=attempts)
+
+    monkeypatch.setattr(benchmark, "ModelClient", Client)
+    report = benchmark.run_benchmark(samples=1)
+    sample = report["samples"][0]
+    assert sample["estimated_input_text_tokens"] == benchmark.estimated_input_text_tokens(settings.llm_system_prefix)
+    comparison = report["summary"]["metrics"]["actual_to_estimate_ratio"]
+    if count is not None and attempts == 1:
+        assert sample["actual_to_estimate_ratio"] == round(count / sample["estimated_input_text_tokens"], 6)
+        assert comparison["measured_samples"] == 1
+    else:
+        assert "actual_to_estimate_ratio" not in sample
+        assert comparison == {"measured_samples": 0, "p50": None, "p95": None}
+    assert "private" not in json.dumps(report)

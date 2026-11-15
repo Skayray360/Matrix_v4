@@ -7,7 +7,7 @@
 #
 # `enabled: false` deja la fuente en estado DISABLED: el adapter
 # existe, se valida su configuracion y hay pruebas de contrato, pero no se
-# declara conectada. Ver docs/integrations/README.md.
+# declara conectada. Ver README.md en la raiz del proyecto.
 
 version: 1
 

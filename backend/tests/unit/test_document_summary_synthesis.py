@@ -147,6 +147,8 @@ def test_failed_clarification_cannot_publish_facts_or_turn_into_validation_error
 def test_partial_material_is_not_presented_as_complete_document():
     result = summarize(Client(claim(source().text)), evidence_truncated=True)
     assert "seleccion de unidades completas" in result.answer
+    assert "no acredita la cobertura completa" in result.answer
+    assert "presupuesto operativo" not in result.answer
 
 
 @pytest.mark.parametrize("event", ["rag.document_summary_retrieved", "rag.private_summary_retrieved"])

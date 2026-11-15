@@ -30,6 +30,7 @@ try {
     foreach ($url in @('http://github.com/fixture.zip','https://example.invalid/fixture.zip','https://github.com:444/fixture.zip','https://user:secret@github.com/fixture.zip')) {
         Reject { Download-Pinned $url ('a'*64) (Join-Path $script:Root 'never-download.zip') } 'proveedor no autorizado'
     }
+    Add-Type -AssemblyName System.IO.Compression
     Add-Type -AssemblyName System.IO.Compression.FileSystem
     foreach ($name in @('../outside','..\outside','C:\outside')) {
         $archive=Join-Path $script:Root ([guid]::NewGuid().ToString('N') + '.zip')

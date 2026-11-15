@@ -229,9 +229,8 @@ def _classify(
     # Un DSN sin contrasena (root:@host) no expone nada.
     if rule == "connection_string_with_password" and value in ("", "@"):
         return "placeholder"
-    # Las plantillas de ejemplo son declaradamente ficticias.
-    if relative.endswith(".env.example"):
-        return "placeholder"
+    # Un nombre de plantilla no demuestra que su contenido sea ficticio.
+    # Solo los marcadores reconocidos arriba se pueden omitir automaticamente.
     return "real"
 
 
@@ -252,29 +251,25 @@ def scan(root: Path | None = None) -> list[Finding]:
         lines = content.splitlines()
         for index, line in enumerate(lines):
             line_number = index + 1
-            if len(line) > 4000:
-                continue
             previous_line = lines[index - 1] if index > 0 else ""
             for rule_name, pattern, severity in RULES:
-                match = pattern.search(line)
-                if not match:
-                    continue
-                captured = match.group(match.lastindex) if match.lastindex else match.group(0)
-                classification = _classify(captured, relative, rule_name, line, previous_line)
-                findings.append(
-                    Finding(
-                        file=relative,
-                        line=line_number,
-                        rule=rule_name,
-                        severity=severity,
-                        classification=classification,
-                        # Nunca se imprime el valor: solo el contexto redactado.
-                        excerpt="[MATCH]",  # Sin contexto: puede contener otros secretos en la misma linea.
+                for match in pattern.finditer(line):
+                    captured = match.group(match.lastindex) if match.lastindex else match.group(0)
+                    classification = _classify(captured, relative, rule_name, line, previous_line)
+                    findings.append(
+                        Finding(
+                            file=relative,
+                            line=line_number,
+                            rule=rule_name,
+                            severity=severity,
+                            classification=classification,
+                            # Sin contexto: puede contener otros secretos en la misma linea.
+                            excerpt="[MATCH]",
+                        )
                     )
-                )
 
         # El .env real jamas debe formar parte del paquete.
-        if relative == ".env":
+        if path.name == ".env":
             findings.append(
                 Finding(
                     file=relative,

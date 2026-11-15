@@ -74,7 +74,7 @@ class ReadOnlySourceAdapter:
     """
 
     def __init__(self, source: SourceConfig) -> None:
-        self.source = source
+        self.source = source.model_copy(deep=True)
         self._engine: Engine | None = None
 
     # ------------------------------------------------------------- validacion
@@ -124,6 +124,7 @@ class ReadOnlySourceAdapter:
                     "pool_pre_ping": True,
                     "connect_args": self._connect_args(),
                     "future": True,
+                    "hide_parameters": True,
                 }
                 # SQLite usa pools que no admiten pool_size/max_overflow; pasarlos
                 # aborta la creacion del engine.

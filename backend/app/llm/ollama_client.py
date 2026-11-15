@@ -27,7 +27,7 @@ from typing import TYPE_CHECKING, Any, Literal
 
 import httpx
 
-from app.common.errors import EmbeddingDimensionMismatchError
+from app.common.errors import ConfigurationError, EmbeddingDimensionMismatchError
 from app.common.inference_errors import CompletionDiagnostics, InferenceFailureError, InferenceFailureKind
 from app.common.logging import get_logger
 from app.common.vectors import valid_cosine_vector
@@ -328,6 +328,10 @@ class OllamaClient:
                 return list(cached)
 
         vector = self.embed([text], model=target_model)[0]
+        if hasattr(self, "embedding_revision") and self.embedding_revision() != revision:
+            # La etiqueta pudo cambiar mientras el runtime generaba el vector.
+            # No publicarlo con una huella anterior ni contaminar la cache.
+            raise ConfigurationError("El modelo de embeddings cambio durante la consulta; repita la solicitud.")
         with self._embedding_cache_lock:
             self._embedding_cache[cache_key] = tuple(vector)
             self._embedding_cache.move_to_end(cache_key)

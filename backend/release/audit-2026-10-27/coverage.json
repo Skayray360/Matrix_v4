@@ -1,0 +1,3193 @@
+{
+  "base_commit": "d057889aa85f1690576e2d65d19729a91cf06da4",
+  "date": "2026-10-27",
+  "scope": "repository-owned files; dependencies and generated artifacts use separate methods",
+  "limits": [
+    "Backend historical tests were reviewed selectively, not every line manually.",
+    "Binary assets were inventoried, not decoded byte by byte.",
+    "No production environment or operational corpus was inspected."
+  ],
+  "summary": {
+    "configuration_or_document_review": 42,
+    "complete_manual_source_review": 181,
+    "asset_inventory_and_reference_checks": 4,
+    "automated_collection_and_execution_with_targeted_manual_review": 196,
+    "locked_dependency_audit": 2,
+    "generated_build_reference_and_integrity_checks": 5,
+    "complete_manual_test_review_and_available_execution": 22
+  },
+  "removed_files": [
+    "backend/docker/mysql/init/01-create-database.sql",
+    "backend/scripts/model_inventory.py",
+    "backend/scripts/uv_runtime.py",
+    "backend/tests/unit/test_uv_runtime.py",
+    "frontend/dist/assets/index-D9hl6w8n.css",
+    "frontend/dist/assets/index-DTGJsWES.js"
+  ],
+  "files": [
+    {
+      "path": ".gitattributes",
+      "method": "configuration_or_document_review",
+      "reviewer": "root",
+      "bytes": 176,
+      "lines": 3
+    },
+    {
+      "path": ".github/workflows/quality.yml",
+      "method": "configuration_or_document_review",
+      "reviewer": "root",
+      "bytes": 4122,
+      "lines": 109
+    },
+    {
+      "path": ".gitignore",
+      "method": "configuration_or_document_review",
+      "reviewer": "root",
+      "bytes": 1122,
+      "lines": 76
+    },
+    {
+      "path": ".htaccess",
+      "method": "configuration_or_document_review",
+      "reviewer": "root",
+      "bytes": 323,
+      "lines": 10
+    },
+    {
+      "path": "README.md",
+      "method": "configuration_or_document_review",
+      "reviewer": "root",
+      "bytes": 12034,
+      "lines": 144
+    },
+    {
+      "path": "backend/Dockerfile",
+      "method": "configuration_or_document_review",
+      "reviewer": "root",
+      "bytes": 2973,
+      "lines": 52
+    },
+    {
+      "path": "backend/Dockerfile.dockerignore",
+      "method": "configuration_or_document_review",
+      "reviewer": "root",
+      "bytes": 481,
+      "lines": 32
+    },
+    {
+      "path": "backend/LICENSE",
+      "method": "configuration_or_document_review",
+      "reviewer": "root",
+      "bytes": 775,
+      "lines": 15
+    },
+    {
+      "path": "backend/app/__init__.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "root",
+      "bytes": 260,
+      "lines": 8
+    },
+    {
+      "path": "backend/app/agents/__init__.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "llm_orchestration",
+      "bytes": 216,
+      "lines": 6
+    },
+    {
+      "path": "backend/app/agents/chat_queue.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "llm_orchestration",
+      "bytes": 22704,
+      "lines": 509
+    },
+    {
+      "path": "backend/app/agents/chat_service.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "llm_orchestration",
+      "bytes": 5595,
+      "lines": 125
+    },
+    {
+      "path": "backend/app/agents/contextual_query.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "llm_orchestration",
+      "bytes": 8693,
+      "lines": 197
+    },
+    {
+      "path": "backend/app/agents/documentary_output.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "llm_orchestration",
+      "bytes": 11774,
+      "lines": 221
+    },
+    {
+      "path": "backend/app/agents/knowledge_agent.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "llm_orchestration",
+      "bytes": 61694,
+      "lines": 1208
+    },
+    {
+      "path": "backend/app/agents/orchestrator.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "llm_orchestration",
+      "bytes": 35725,
+      "lines": 829
+    },
+    {
+      "path": "backend/app/agents/partial_documentary.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "llm_orchestration",
+      "bytes": 4349,
+      "lines": 97
+    },
+    {
+      "path": "backend/app/agents/process_owner.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "llm_orchestration",
+      "bytes": 2443,
+      "lines": 70
+    },
+    {
+      "path": "backend/app/agents/prompts.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "llm_orchestration",
+      "bytes": 23784,
+      "lines": 448
+    },
+    {
+      "path": "backend/app/agents/query_planner.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "llm_orchestration",
+      "bytes": 5656,
+      "lines": 148
+    },
+    {
+      "path": "backend/app/api/__init__.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "auth_api_security",
+      "bytes": 87,
+      "lines": 2
+    },
+    {
+      "path": "backend/app/api/body_limit.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "auth_api_security",
+      "bytes": 5187,
+      "lines": 118
+    },
+    {
+      "path": "backend/app/api/chat_schemas.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "auth_api_security",
+      "bytes": 6083,
+      "lines": 171
+    },
+    {
+      "path": "backend/app/api/deps.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "auth_api_security",
+      "bytes": 4747,
+      "lines": 132
+    },
+    {
+      "path": "backend/app/api/middleware.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "auth_api_security",
+      "bytes": 5219,
+      "lines": 141
+    },
+    {
+      "path": "backend/app/api/private_paths.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "auth_api_security",
+      "bytes": 1263,
+      "lines": 34
+    },
+    {
+      "path": "backend/app/api/request_boundary.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "auth_api_security",
+      "bytes": 3826,
+      "lines": 81
+    },
+    {
+      "path": "backend/app/api/routes/__init__.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "auth_api_security",
+      "bytes": 54,
+      "lines": 2
+    },
+    {
+      "path": "backend/app/api/routes/admin.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "auth_api_security",
+      "bytes": 12521,
+      "lines": 308
+    },
+    {
+      "path": "backend/app/api/routes/auth.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "auth_api_security",
+      "bytes": 20101,
+      "lines": 465
+    },
+    {
+      "path": "backend/app/api/routes/chat.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "auth_api_security",
+      "bytes": 8628,
+      "lines": 199
+    },
+    {
+      "path": "backend/app/api/routes/conversations.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "auth_api_security",
+      "bytes": 12722,
+      "lines": 315
+    },
+    {
+      "path": "backend/app/api/routes/health.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "auth_api_security",
+      "bytes": 7770,
+      "lines": 184
+    },
+    {
+      "path": "backend/app/api/schemas.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "auth_api_security",
+      "bytes": 4337,
+      "lines": 175
+    },
+    {
+      "path": "backend/app/audit/__init__.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "data_persistence",
+      "bytes": 172,
+      "lines": 6
+    },
+    {
+      "path": "backend/app/audit/service.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "data_persistence",
+      "bytes": 4528,
+      "lines": 134
+    },
+    {
+      "path": "backend/app/auth/__init__.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "auth_api_security",
+      "bytes": 285,
+      "lines": 6
+    },
+    {
+      "path": "backend/app/auth/entra_provider.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "auth_api_security",
+      "bytes": 13993,
+      "lines": 338
+    },
+    {
+      "path": "backend/app/auth/local_accounts.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "auth_api_security",
+      "bytes": 7881,
+      "lines": 172
+    },
+    {
+      "path": "backend/app/auth/local_provider.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "auth_api_security",
+      "bytes": 7524,
+      "lines": 175
+    },
+    {
+      "path": "backend/app/auth/oidc_provider.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "auth_api_security",
+      "bytes": 1972,
+      "lines": 66
+    },
+    {
+      "path": "backend/app/auth/passwords.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "auth_api_security",
+      "bytes": 2429,
+      "lines": 70
+    },
+    {
+      "path": "backend/app/auth/provider.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "auth_api_security",
+      "bytes": 3741,
+      "lines": 108
+    },
+    {
+      "path": "backend/app/auth/sessions.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "auth_api_security",
+      "bytes": 6610,
+      "lines": 179
+    },
+    {
+      "path": "backend/app/authorization/__init__.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "auth_api_security",
+      "bytes": 312,
+      "lines": 7
+    },
+    {
+      "path": "backend/app/authorization/categories.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "auth_api_security",
+      "bytes": 10656,
+      "lines": 284
+    },
+    {
+      "path": "backend/app/authorization/context.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "auth_api_security",
+      "bytes": 6627,
+      "lines": 160
+    },
+    {
+      "path": "backend/app/authorization/policy.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "auth_api_security",
+      "bytes": 11730,
+      "lines": 292
+    },
+    {
+      "path": "backend/app/common/__init__.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "llm_orchestration",
+      "bytes": 120,
+      "lines": 2
+    },
+    {
+      "path": "backend/app/common/answer_diagnostics.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "llm_orchestration",
+      "bytes": 9623,
+      "lines": 219
+    },
+    {
+      "path": "backend/app/common/answers.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "llm_orchestration",
+      "bytes": 7747,
+      "lines": 146
+    },
+    {
+      "path": "backend/app/common/chat_failures.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "llm_orchestration",
+      "bytes": 952,
+      "lines": 21
+    },
+    {
+      "path": "backend/app/common/errors.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "llm_orchestration",
+      "bytes": 7013,
+      "lines": 213
+    },
+    {
+      "path": "backend/app/common/identity.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "llm_orchestration",
+      "bytes": 1154,
+      "lines": 26
+    },
+    {
+      "path": "backend/app/common/ids.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "llm_orchestration",
+      "bytes": 1640,
+      "lines": 54
+    },
+    {
+      "path": "backend/app/common/inference_errors.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "llm_orchestration",
+      "bytes": 2539,
+      "lines": 78
+    },
+    {
+      "path": "backend/app/common/logging.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "llm_orchestration",
+      "bytes": 4467,
+      "lines": 111
+    },
+    {
+      "path": "backend/app/common/operation_lifecycle.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "llm_orchestration",
+      "bytes": 3725,
+      "lines": 82
+    },
+    {
+      "path": "backend/app/common/provenance.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "llm_orchestration",
+      "bytes": 1146,
+      "lines": 27
+    },
+    {
+      "path": "backend/app/common/redaction.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "llm_orchestration",
+      "bytes": 3844,
+      "lines": 117
+    },
+    {
+      "path": "backend/app/common/text_budget.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "llm_orchestration",
+      "bytes": 2445,
+      "lines": 66
+    },
+    {
+      "path": "backend/app/common/timing.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "llm_orchestration",
+      "bytes": 1198,
+      "lines": 33
+    },
+    {
+      "path": "backend/app/common/vectors.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "llm_orchestration",
+      "bytes": 1347,
+      "lines": 37
+    },
+    {
+      "path": "backend/app/config/__init__.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "auth_api_security",
+      "bytes": 367,
+      "lines": 22
+    },
+    {
+      "path": "backend/app/config/settings.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "auth_api_security",
+      "bytes": 34863,
+      "lines": 680
+    },
+    {
+      "path": "backend/app/database/__init__.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "data_persistence",
+      "bytes": 285,
+      "lines": 7
+    },
+    {
+      "path": "backend/app/database/engine.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "data_persistence",
+      "bytes": 2843,
+      "lines": 91
+    },
+    {
+      "path": "backend/app/database/migrator.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "data_persistence",
+      "bytes": 12888,
+      "lines": 306
+    },
+    {
+      "path": "backend/app/database/models.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "data_persistence",
+      "bytes": 23682,
+      "lines": 476
+    },
+    {
+      "path": "backend/app/ingestion/__init__.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "rag_ingestion",
+      "bytes": 284,
+      "lines": 6
+    },
+    {
+      "path": "backend/app/ingestion/extract_worker.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "rag_ingestion",
+      "bytes": 1368,
+      "lines": 33
+    },
+    {
+      "path": "backend/app/ingestion/isolated_extraction.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "rag_ingestion",
+      "bytes": 5325,
+      "lines": 115
+    },
+    {
+      "path": "backend/app/ingestion/knowledge_layout.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "rag_ingestion",
+      "bytes": 17707,
+      "lines": 391
+    },
+    {
+      "path": "backend/app/ingestion/loaders.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "rag_ingestion",
+      "bytes": 24591,
+      "lines": 549
+    },
+    {
+      "path": "backend/app/ingestion/local_ocr.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "rag_ingestion",
+      "bytes": 3590,
+      "lines": 73
+    },
+    {
+      "path": "backend/app/ingestion/pdf_graphics.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "rag_ingestion",
+      "bytes": 2470,
+      "lines": 70
+    },
+    {
+      "path": "backend/app/ingestion/pending_generation_cleanup.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "rag_ingestion",
+      "bytes": 4334,
+      "lines": 94
+    },
+    {
+      "path": "backend/app/ingestion/pptx.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "rag_ingestion",
+      "bytes": 8878,
+      "lines": 168
+    },
+    {
+      "path": "backend/app/ingestion/reconciler.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "rag_ingestion",
+      "bytes": 24814,
+      "lines": 581
+    },
+    {
+      "path": "backend/app/ingestion/service.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "rag_ingestion",
+      "bytes": 42889,
+      "lines": 892
+    },
+    {
+      "path": "backend/app/jobs/__init__.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "data_persistence",
+      "bytes": 184,
+      "lines": 6
+    },
+    {
+      "path": "backend/app/jobs/retention.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "data_persistence",
+      "bytes": 7340,
+      "lines": 156
+    },
+    {
+      "path": "backend/app/jobs/scheduler.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "data_persistence",
+      "bytes": 7266,
+      "lines": 169
+    },
+    {
+      "path": "backend/app/llm/__init__.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "llm_orchestration",
+      "bytes": 362,
+      "lines": 13
+    },
+    {
+      "path": "backend/app/llm/http_transport.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "llm_orchestration",
+      "bytes": 3017,
+      "lines": 75
+    },
+    {
+      "path": "backend/app/llm/model_configuration.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "llm_orchestration",
+      "bytes": 4800,
+      "lines": 91
+    },
+    {
+      "path": "backend/app/llm/model_policy.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "llm_orchestration",
+      "bytes": 24209,
+      "lines": 605
+    },
+    {
+      "path": "backend/app/llm/ollama_client.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "llm_orchestration",
+      "bytes": 15994,
+      "lines": 385
+    },
+    {
+      "path": "backend/app/llm/provider.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "llm_orchestration",
+      "bytes": 30001,
+      "lines": 607
+    },
+    {
+      "path": "backend/app/llm/request_control.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "llm_orchestration",
+      "bytes": 2109,
+      "lines": 55
+    },
+    {
+      "path": "backend/app/main.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "auth_api_security",
+      "bytes": 6777,
+      "lines": 182
+    },
+    {
+      "path": "backend/app/memory/__init__.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "data_persistence",
+      "bytes": 202,
+      "lines": 6
+    },
+    {
+      "path": "backend/app/memory/citations.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "data_persistence",
+      "bytes": 2131,
+      "lines": 51
+    },
+    {
+      "path": "backend/app/memory/service.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "data_persistence",
+      "bytes": 19481,
+      "lines": 450
+    },
+    {
+      "path": "backend/app/rag/__init__.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "rag_ingestion",
+      "bytes": 225,
+      "lines": 6
+    },
+    {
+      "path": "backend/app/rag/calculated_application.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "rag_ingestion",
+      "bytes": 13252,
+      "lines": 278
+    },
+    {
+      "path": "backend/app/rag/chunking.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "rag_ingestion",
+      "bytes": 16496,
+      "lines": 420
+    },
+    {
+      "path": "backend/app/rag/citation_aliases.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "rag_ingestion",
+      "bytes": 1708,
+      "lines": 45
+    },
+    {
+      "path": "backend/app/rag/claim_context.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "rag_ingestion",
+      "bytes": 36123,
+      "lines": 755
+    },
+    {
+      "path": "backend/app/rag/document_selection.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "rag_ingestion",
+      "bytes": 6767,
+      "lines": 144
+    },
+    {
+      "path": "backend/app/rag/embedding_prompts.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "rag_ingestion",
+      "bytes": 2231,
+      "lines": 52
+    },
+    {
+      "path": "backend/app/rag/grounding.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "rag_ingestion",
+      "bytes": 17364,
+      "lines": 384
+    },
+    {
+      "path": "backend/app/rag/index_manifest.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "rag_ingestion",
+      "bytes": 5551,
+      "lines": 132
+    },
+    {
+      "path": "backend/app/rag/numeric_grounding.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "rag_ingestion",
+      "bytes": 19530,
+      "lines": 442
+    },
+    {
+      "path": "backend/app/rag/retriever.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "rag_ingestion",
+      "bytes": 25860,
+      "lines": 576
+    },
+    {
+      "path": "backend/app/rag/schemas.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "rag_ingestion",
+      "bytes": 5201,
+      "lines": 151
+    },
+    {
+      "path": "backend/app/rag/summary_scope.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "rag_ingestion",
+      "bytes": 5032,
+      "lines": 111
+    },
+    {
+      "path": "backend/app/rag/vector_store.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "rag_ingestion",
+      "bytes": 37583,
+      "lines": 791
+    },
+    {
+      "path": "backend/app/security/__init__.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "auth_api_security",
+      "bytes": 336,
+      "lines": 7
+    },
+    {
+      "path": "backend/app/security/admission.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "auth_api_security",
+      "bytes": 2166,
+      "lines": 61
+    },
+    {
+      "path": "backend/app/security/prompt_guard.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "auth_api_security",
+      "bytes": 4273,
+      "lines": 101
+    },
+    {
+      "path": "backend/app/security/rate_limit.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "auth_api_security",
+      "bytes": 3395,
+      "lines": 89
+    },
+    {
+      "path": "backend/app/security/upload_guard.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "auth_api_security",
+      "bytes": 10643,
+      "lines": 243
+    },
+    {
+      "path": "backend/app/structured_data/__init__.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "data_persistence",
+      "bytes": 294,
+      "lines": 7
+    },
+    {
+      "path": "backend/app/structured_data/adapters.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "data_persistence",
+      "bytes": 9266,
+      "lines": 213
+    },
+    {
+      "path": "backend/app/structured_data/compiler.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "data_persistence",
+      "bytes": 9678,
+      "lines": 239
+    },
+    {
+      "path": "backend/app/structured_data/schemas.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "data_persistence",
+      "bytes": 7728,
+      "lines": 226
+    },
+    {
+      "path": "backend/app/structured_data/scope.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "data_persistence",
+      "bytes": 4468,
+      "lines": 103
+    },
+    {
+      "path": "backend/app/structured_data/sources.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "data_persistence",
+      "bytes": 8110,
+      "lines": 221
+    },
+    {
+      "path": "backend/app/structured_data/tool.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "data_persistence",
+      "bytes": 7695,
+      "lines": 188
+    },
+    {
+      "path": "backend/app/structured_data/validator.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "data_persistence",
+      "bytes": 10711,
+      "lines": 211
+    },
+    {
+      "path": "backend/config/apache/matrix-rh.conf.template",
+      "method": "configuration_or_document_review",
+      "reviewer": "root",
+      "bytes": 1430,
+      "lines": 35
+    },
+    {
+      "path": "backend/config/authorization/categories.yaml",
+      "method": "configuration_or_document_review",
+      "reviewer": "root",
+      "bytes": 6229,
+      "lines": 167
+    },
+    {
+      "path": "backend/config/authorization/entra-role-mapping.yaml",
+      "method": "configuration_or_document_review",
+      "reviewer": "root",
+      "bytes": 7582,
+      "lines": 205
+    },
+    {
+      "path": "backend/config/data_sources/sources.yaml",
+      "method": "configuration_or_document_review",
+      "reviewer": "root",
+      "bytes": 4294,
+      "lines": 128
+    },
+    {
+      "path": "backend/config/env.example",
+      "method": "configuration_or_document_review",
+      "reviewer": "root",
+      "bytes": 7909,
+      "lines": 217
+    },
+    {
+      "path": "backend/config/knowledge-layout.yaml",
+      "method": "configuration_or_document_review",
+      "reviewer": "root",
+      "bytes": 130,
+      "lines": 4
+    },
+    {
+      "path": "backend/config/model-manifest.json",
+      "method": "configuration_or_document_review",
+      "reviewer": "root",
+      "bytes": 1404,
+      "lines": 36
+    },
+    {
+      "path": "backend/config/runtime-manifest.json",
+      "method": "configuration_or_document_review",
+      "reviewer": "root",
+      "bytes": 4413,
+      "lines": 83
+    },
+    {
+      "path": "backend/config/supply_chain_denylist.yaml",
+      "method": "configuration_or_document_review",
+      "reviewer": "root",
+      "bytes": 2640,
+      "lines": 69
+    },
+    {
+      "path": "backend/migrations/0001_initial_schema.sql",
+      "method": "complete_manual_source_review",
+      "reviewer": "data_persistence",
+      "bytes": 15469,
+      "lines": 338
+    },
+    {
+      "path": "backend/migrations/0002_widen_audit_status.sql",
+      "method": "complete_manual_source_review",
+      "reviewer": "data_persistence",
+      "bytes": 682,
+      "lines": 12
+    },
+    {
+      "path": "backend/migrations/0003_message_sequence.sql",
+      "method": "complete_manual_source_review",
+      "reviewer": "data_persistence",
+      "bytes": 908,
+      "lines": 19
+    },
+    {
+      "path": "backend/migrations/0004_memory_authorization.sql",
+      "method": "complete_manual_source_review",
+      "reviewer": "data_persistence",
+      "bytes": 261,
+      "lines": 4
+    },
+    {
+      "path": "backend/migrations/0005_index_generations.sql",
+      "method": "complete_manual_source_review",
+      "reviewer": "data_persistence",
+      "bytes": 328,
+      "lines": 5
+    },
+    {
+      "path": "backend/migrations/0006_chat_operations.sql",
+      "method": "complete_manual_source_review",
+      "reviewer": "data_persistence",
+      "bytes": 426,
+      "lines": 12
+    },
+    {
+      "path": "backend/migrations/0007_chat_queue.sql",
+      "method": "complete_manual_source_review",
+      "reviewer": "data_persistence",
+      "bytes": 520,
+      "lines": 8
+    },
+    {
+      "path": "backend/migrations/0008_content_purge.sql",
+      "method": "complete_manual_source_review",
+      "reviewer": "data_persistence",
+      "bytes": 317,
+      "lines": 5
+    },
+    {
+      "path": "backend/migrations/0009_answer_provenance.sql",
+      "method": "complete_manual_source_review",
+      "reviewer": "data_persistence",
+      "bytes": 247,
+      "lines": 4
+    },
+    {
+      "path": "backend/migrations/0010_message_source_details.sql",
+      "method": "complete_manual_source_review",
+      "reviewer": "data_persistence",
+      "bytes": 254,
+      "lines": 4
+    },
+    {
+      "path": "backend/migrations/0011_user_context_query.sql",
+      "method": "complete_manual_source_review",
+      "reviewer": "data_persistence",
+      "bytes": 260,
+      "lines": 4
+    },
+    {
+      "path": "backend/migrations/0012_document_retrieval_indexes.sql",
+      "method": "complete_manual_source_review",
+      "reviewer": "data_persistence",
+      "bytes": 436,
+      "lines": 7
+    },
+    {
+      "path": "backend/migrations/0013_chat_operation_timing.sql",
+      "method": "complete_manual_source_review",
+      "reviewer": "data_persistence",
+      "bytes": 656,
+      "lines": 10
+    },
+    {
+      "path": "backend/pyproject.toml",
+      "method": "configuration_or_document_review",
+      "reviewer": "root",
+      "bytes": 3479,
+      "lines": 114
+    },
+    {
+      "path": "backend/release/BUILD_INFO.json",
+      "method": "configuration_or_document_review",
+      "reviewer": "root",
+      "bytes": 3782,
+      "lines": 94
+    },
+    {
+      "path": "backend/release/SHA256SUMS.txt",
+      "method": "configuration_or_document_review",
+      "reviewer": "root",
+      "bytes": 19956,
+      "lines": 200
+    },
+    {
+      "path": "backend/release/architecture/matrix-architecture.svg",
+      "method": "asset_inventory_and_reference_checks",
+      "reviewer": "root",
+      "bytes": 9645,
+      "lines": 76
+    },
+    {
+      "path": "backend/release/architecture/matrix-layers.svg",
+      "method": "asset_inventory_and_reference_checks",
+      "reviewer": "root",
+      "bytes": 9041,
+      "lines": 76
+    },
+    {
+      "path": "backend/release/audit-2026-10-25/queue-benchmark.json",
+      "method": "configuration_or_document_review",
+      "reviewer": "root",
+      "bytes": 10066,
+      "lines": 402
+    },
+    {
+      "path": "backend/release/audit-2026-10-25/score.json",
+      "method": "configuration_or_document_review",
+      "reviewer": "root",
+      "bytes": 2079,
+      "lines": 99
+    },
+    {
+      "path": "backend/release/audit-2026-10-25/validation.json",
+      "method": "configuration_or_document_review",
+      "reviewer": "root",
+      "bytes": 2179,
+      "lines": 70
+    },
+    {
+      "path": "backend/release/layout-migration.json",
+      "method": "configuration_or_document_review",
+      "reviewer": "root",
+      "bytes": 651,
+      "lines": 17
+    },
+    {
+      "path": "backend/release/remediation-2026-10-25.json",
+      "method": "configuration_or_document_review",
+      "reviewer": "root",
+      "bytes": 6403,
+      "lines": 206
+    },
+    {
+      "path": "backend/scripts/__init__.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "root",
+      "bytes": 106,
+      "lines": 2
+    },
+    {
+      "path": "backend/scripts/answer_rubric.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "quality_evals",
+      "bytes": 10015,
+      "lines": 197
+    },
+    {
+      "path": "backend/scripts/backup_restore.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "root",
+      "bytes": 8023,
+      "lines": 162
+    },
+    {
+      "path": "backend/scripts/benchmark_queue_isolated.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "quality_evals",
+      "bytes": 15433,
+      "lines": 353
+    },
+    {
+      "path": "backend/scripts/benchmark_response.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "quality_evals",
+      "bytes": 8712,
+      "lines": 172
+    },
+    {
+      "path": "backend/scripts/bootstrap.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "root",
+      "bytes": 17680,
+      "lines": 412
+    },
+    {
+      "path": "backend/scripts/configuration_upgrade.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "root",
+      "bytes": 4893,
+      "lines": 115
+    },
+    {
+      "path": "backend/scripts/diagnosticar_rag.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "data_persistence",
+      "bytes": 9109,
+      "lines": 204
+    },
+    {
+      "path": "backend/scripts/diagnosticar_solicitud.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "data_persistence",
+      "bytes": 10428,
+      "lines": 201
+    },
+    {
+      "path": "backend/scripts/docker_entrypoint.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "root",
+      "bytes": 8927,
+      "lines": 183
+    },
+    {
+      "path": "backend/scripts/docker_prepare.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "root",
+      "bytes": 15073,
+      "lines": 271
+    },
+    {
+      "path": "backend/scripts/installation_backup.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "root",
+      "bytes": 28148,
+      "lines": 544
+    },
+    {
+      "path": "backend/scripts/installation_state.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "root",
+      "bytes": 22225,
+      "lines": 443
+    },
+    {
+      "path": "backend/scripts/load_entra_mapping.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "data_persistence",
+      "bytes": 16388,
+      "lines": 411
+    },
+    {
+      "path": "backend/scripts/load_test.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "quality_evals",
+      "bytes": 12941,
+      "lines": 281
+    },
+    {
+      "path": "backend/scripts/local_identity.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "root",
+      "bytes": 3855,
+      "lines": 84
+    },
+    {
+      "path": "backend/scripts/local_model_diagnostics.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "llm_orchestration",
+      "bytes": 15734,
+      "lines": 294
+    },
+    {
+      "path": "backend/scripts/model_change.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "llm_orchestration",
+      "bytes": 14072,
+      "lines": 295
+    },
+    {
+      "path": "backend/scripts/model_smoke_test.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "llm_orchestration",
+      "bytes": 11694,
+      "lines": 276
+    },
+    {
+      "path": "backend/scripts/package_release.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "root",
+      "bytes": 13324,
+      "lines": 337
+    },
+    {
+      "path": "backend/scripts/preflight.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "frontend_review",
+      "bytes": 45517,
+      "lines": 1016
+    },
+    {
+      "path": "backend/scripts/purge.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "data_persistence",
+      "bytes": 1667,
+      "lines": 38
+    },
+    {
+      "path": "backend/scripts/quality_gate_pytest.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "quality_evals",
+      "bytes": 1840,
+      "lines": 51
+    },
+    {
+      "path": "backend/scripts/rag_eval.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "quality_evals",
+      "bytes": 25679,
+      "lines": 557
+    },
+    {
+      "path": "backend/scripts/run_quality_gate.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "quality_evals",
+      "bytes": 23744,
+      "lines": 514
+    },
+    {
+      "path": "backend/scripts/runtime_control.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "root",
+      "bytes": 3133,
+      "lines": 77
+    },
+    {
+      "path": "backend/scripts/secrets_scan.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "root",
+      "bytes": 11876,
+      "lines": 335
+    },
+    {
+      "path": "backend/scripts/smoke_authorization.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "data_persistence",
+      "bytes": 4001,
+      "lines": 94
+    },
+    {
+      "path": "backend/scripts/test_environment.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "quality_evals",
+      "bytes": 2525,
+      "lines": 61
+    },
+    {
+      "path": "backend/scripts/verify_documentation.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "quality_evals",
+      "bytes": 4281,
+      "lines": 100
+    },
+    {
+      "path": "backend/scripts/verify_headers.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "quality_evals",
+      "bytes": 5617,
+      "lines": 163
+    },
+    {
+      "path": "backend/scripts/verify_supply_chain.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "frontend_review",
+      "bytes": 25385,
+      "lines": 580
+    },
+    {
+      "path": "backend/scripts/windows/MatrixRH.ps1",
+      "method": "complete_manual_source_review",
+      "reviewer": "root",
+      "bytes": 79624,
+      "lines": 1124
+    },
+    {
+      "path": "backend/scripts/windows/launch_process.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "root",
+      "bytes": 3138,
+      "lines": 61
+    },
+    {
+      "path": "backend/seeds/__init__.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "data_persistence",
+      "bytes": 69,
+      "lines": 2
+    },
+    {
+      "path": "backend/seeds/identity_seed.py",
+      "method": "complete_manual_source_review",
+      "reviewer": "data_persistence",
+      "bytes": 10999,
+      "lines": 304
+    },
+    {
+      "path": "backend/tests/__init__.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 65,
+      "lines": 2
+    },
+    {
+      "path": "backend/tests/conftest.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 5275,
+      "lines": 178
+    },
+    {
+      "path": "backend/tests/fixtures/chat_contract.json",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 8931,
+      "lines": 494
+    },
+    {
+      "path": "backend/tests/fixtures/knowledge/nomina/politica-de-nomina.md",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 1707,
+      "lines": 48
+    },
+    {
+      "path": "backend/tests/fixtures/knowledge/prestaciones/fondo-de-ahorro-y-aguinaldo.md",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 1656,
+      "lines": 50
+    },
+    {
+      "path": "backend/tests/fixtures/knowledge/prestaciones/politica-vacaciones.md",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 1789,
+      "lines": 54
+    },
+    {
+      "path": "backend/tests/fixtures/knowledge/reclutamiento/proceso-de-reclutamiento.md",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 1737,
+      "lines": 47
+    },
+    {
+      "path": "backend/tests/fixtures/knowledge/relaciones_laborales/reglamento-interior.md",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 2085,
+      "lines": 48
+    },
+    {
+      "path": "backend/tests/fixtures/knowledge/salud_ambiental/seguridad-higiene-y-ambiente.md",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 1854,
+      "lines": 49
+    },
+    {
+      "path": "backend/tests/integration/test_api_auth.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 10255,
+      "lines": 255
+    },
+    {
+      "path": "backend/tests/integration/test_database_adoption.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 9050,
+      "lines": 253
+    },
+    {
+      "path": "backend/tests/integration/test_database_ownership.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 6146,
+      "lines": 170
+    },
+    {
+      "path": "backend/tests/integration/test_entra_flow_mock.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 9759,
+      "lines": 223
+    },
+    {
+      "path": "backend/tests/integration/test_ingestion_and_memory.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 17313,
+      "lines": 400
+    },
+    {
+      "path": "backend/tests/integration/test_reconciler.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 11254,
+      "lines": 254
+    },
+    {
+      "path": "backend/tests/integration/test_schema_and_seed.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 5729,
+      "lines": 121
+    },
+    {
+      "path": "backend/tests/integration/test_sessions_and_migrations.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 9195,
+      "lines": 210
+    },
+    {
+      "path": "backend/tests/integration/test_structured_end_to_end.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 11033,
+      "lines": 298
+    },
+    {
+      "path": "backend/tests/rag_eval/golden_rubrics.yaml",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 6299,
+      "lines": 224
+    },
+    {
+      "path": "backend/tests/rag_eval/golden_set.yaml",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 15708,
+      "lines": 431
+    },
+    {
+      "path": "backend/tests/response_samples.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 940,
+      "lines": 8
+    },
+    {
+      "path": "backend/tests/security/test_attack_surface.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 12487,
+      "lines": 320
+    },
+    {
+      "path": "backend/tests/security/test_category_policy_validation.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 3233,
+      "lines": 71
+    },
+    {
+      "path": "backend/tests/security/test_federated_transport_config.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 2840,
+      "lines": 57
+    },
+    {
+      "path": "backend/tests/security/test_http_boundary.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 9376,
+      "lines": 242
+    },
+    {
+      "path": "backend/tests/security/test_local_runtime_compose.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 7667,
+      "lines": 154
+    },
+    {
+      "path": "backend/tests/security/test_network_protocol.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 4322,
+      "lines": 105
+    },
+    {
+      "path": "backend/tests/security/test_preflight_boundaries.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 4944,
+      "lines": 134
+    },
+    {
+      "path": "backend/tests/security/test_private_paths.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 3140,
+      "lines": 75
+    },
+    {
+      "path": "backend/tests/security/test_qdrant_transport.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 1223,
+      "lines": 27
+    },
+    {
+      "path": "backend/tests/security/test_release_runtime_contract.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 4867,
+      "lines": 100
+    },
+    {
+      "path": "backend/tests/security/test_session_provider_boundary.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 4959,
+      "lines": 119
+    },
+    {
+      "path": "backend/tests/security/test_supply_chain.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 10647,
+      "lines": 287
+    },
+    {
+      "path": "backend/tests/security/test_supply_chain_123.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 8447,
+      "lines": 194
+    },
+    {
+      "path": "backend/tests/security/test_supply_chain_policy.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 3807,
+      "lines": 101
+    },
+    {
+      "path": "backend/tests/test_chat_queue.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 34880,
+      "lines": 801
+    },
+    {
+      "path": "backend/tests/unit/conftest.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 2447,
+      "lines": 74
+    },
+    {
+      "path": "backend/tests/unit/fixtures/native_supervisor_apache_synthetic.ps1",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 3219,
+      "lines": 41
+    },
+    {
+      "path": "backend/tests/unit/fixtures/native_supervisor_frontend_build.ps1",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 6128,
+      "lines": 100
+    },
+    {
+      "path": "backend/tests/unit/fixtures/native_supervisor_identity_synthetic.ps1",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 8820,
+      "lines": 121
+    },
+    {
+      "path": "backend/tests/unit/fixtures/native_supervisor_incomplete_synthetic.ps1",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 4459,
+      "lines": 58
+    },
+    {
+      "path": "backend/tests/unit/fixtures/native_supervisor_installer_security.ps1",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 8030,
+      "lines": 117
+    },
+    {
+      "path": "backend/tests/unit/fixtures/native_supervisor_mysql_synthetic.ps1",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 8716,
+      "lines": 123
+    },
+    {
+      "path": "backend/tests/unit/fixtures/native_supervisor_ollama_synthetic.ps1",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 5945,
+      "lines": 90
+    },
+    {
+      "path": "backend/tests/unit/fixtures/native_supervisor_runtime_upgrade.ps1",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 9738,
+      "lines": 133
+    },
+    {
+      "path": "backend/tests/unit/fixtures/native_supervisor_synthetic.ps1",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 8335,
+      "lines": 107
+    },
+    {
+      "path": "backend/tests/unit/test_access_profile_contract.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 3334,
+      "lines": 81
+    },
+    {
+      "path": "backend/tests/unit/test_admin_category_scope.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 3481,
+      "lines": 105
+    },
+    {
+      "path": "backend/tests/unit/test_ai_runtime_contracts.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 16842,
+      "lines": 405
+    },
+    {
+      "path": "backend/tests/unit/test_answer_contract_127.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 8005,
+      "lines": 172
+    },
+    {
+      "path": "backend/tests/unit/test_answer_diagnostics.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 10684,
+      "lines": 223
+    },
+    {
+      "path": "backend/tests/unit/test_answer_representation_contract.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 4230,
+      "lines": 90
+    },
+    {
+      "path": "backend/tests/unit/test_application_natural_language.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 5945,
+      "lines": 139
+    },
+    {
+      "path": "backend/tests/unit/test_attachment_preparation_transactions.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 10860,
+      "lines": 263
+    },
+    {
+      "path": "backend/tests/unit/test_authorization.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 12249,
+      "lines": 301
+    },
+    {
+      "path": "backend/tests/unit/test_backend_consolidation.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 11144,
+      "lines": 275
+    },
+    {
+      "path": "backend/tests/unit/test_backup_restore.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 4818,
+      "lines": 107
+    },
+    {
+      "path": "backend/tests/unit/test_benchmark_response.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 4682,
+      "lines": 103
+    },
+    {
+      "path": "backend/tests/unit/test_calculated_application.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 12567,
+      "lines": 263
+    },
+    {
+      "path": "backend/tests/unit/test_calculated_application_agent.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 5046,
+      "lines": 115
+    },
+    {
+      "path": "backend/tests/unit/test_calculated_transport_recovery.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 2014,
+      "lines": 46
+    },
+    {
+      "path": "backend/tests/unit/test_calendar_date_grounding.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 3223,
+      "lines": 69
+    },
+    {
+      "path": "backend/tests/unit/test_case_followup_presentation.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 5678,
+      "lines": 112
+    },
+    {
+      "path": "backend/tests/unit/test_chat_failure_codes_127.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 15239,
+      "lines": 309
+    },
+    {
+      "path": "backend/tests/unit/test_chat_response_contract.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 7587,
+      "lines": 168
+    },
+    {
+      "path": "backend/tests/unit/test_chat_service.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 9917,
+      "lines": 235
+    },
+    {
+      "path": "backend/tests/unit/test_chunking.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 5101,
+      "lines": 136
+    },
+    {
+      "path": "backend/tests/unit/test_claim_role_scopes.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 7428,
+      "lines": 150
+    },
+    {
+      "path": "backend/tests/unit/test_clarification_contract.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 3364,
+      "lines": 68
+    },
+    {
+      "path": "backend/tests/unit/test_clarification_language_followup.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 6174,
+      "lines": 92
+    },
+    {
+      "path": "backend/tests/unit/test_completion_recovery_128.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 10479,
+      "lines": 215
+    },
+    {
+      "path": "backend/tests/unit/test_conditional_contract.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 19456,
+      "lines": 435
+    },
+    {
+      "path": "backend/tests/unit/test_config.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 6340,
+      "lines": 161
+    },
+    {
+      "path": "backend/tests/unit/test_configuration_completion_128.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 3587,
+      "lines": 72
+    },
+    {
+      "path": "backend/tests/unit/test_configuration_runtime_127.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 13329,
+      "lines": 304
+    },
+    {
+      "path": "backend/tests/unit/test_content_purge.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 21494,
+      "lines": 448
+    },
+    {
+      "path": "backend/tests/unit/test_context_efficiency_20261007.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 5705,
+      "lines": 116
+    },
+    {
+      "path": "backend/tests/unit/test_contextual_document_sequence.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 5491,
+      "lines": 108
+    },
+    {
+      "path": "backend/tests/unit/test_contextual_query_20261008.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 3843,
+      "lines": 93
+    },
+    {
+      "path": "backend/tests/unit/test_conversation_policy_stage1.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 24099,
+      "lines": 459
+    },
+    {
+      "path": "backend/tests/unit/test_coverage_gaps.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 11461,
+      "lines": 282
+    },
+    {
+      "path": "backend/tests/unit/test_critical_module_branches.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 10889,
+      "lines": 249
+    },
+    {
+      "path": "backend/tests/unit/test_current_delivery.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 1704,
+      "lines": 41
+    },
+    {
+      "path": "backend/tests/unit/test_current_validity_contract.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 5293,
+      "lines": 122
+    },
+    {
+      "path": "backend/tests/unit/test_data_alias_ingestion.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 21433,
+      "lines": 438
+    },
+    {
+      "path": "backend/tests/unit/test_database_uniqueness.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 2308,
+      "lines": 59
+    },
+    {
+      "path": "backend/tests/unit/test_diagnostics_logging.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 5136,
+      "lines": 113
+    },
+    {
+      "path": "backend/tests/unit/test_docker_preparation.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 17347,
+      "lines": 377
+    },
+    {
+      "path": "backend/tests/unit/test_document_case_workflow_acceptance.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 4924,
+      "lines": 91
+    },
+    {
+      "path": "backend/tests/unit/test_document_overview_retrieval_20261008.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 22128,
+      "lines": 443
+    },
+    {
+      "path": "backend/tests/unit/test_document_request_routing.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 13562,
+      "lines": 281
+    },
+    {
+      "path": "backend/tests/unit/test_document_summary_synthesis.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 7940,
+      "lines": 169
+    },
+    {
+      "path": "backend/tests/unit/test_document_table_context_131.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 5477,
+      "lines": 122
+    },
+    {
+      "path": "backend/tests/unit/test_document_workflow_acceptance.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 26204,
+      "lines": 502
+    },
+    {
+      "path": "backend/tests/unit/test_documentary_followup_hotfix.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 5971,
+      "lines": 114
+    },
+    {
+      "path": "backend/tests/unit/test_documentary_grounding_scope.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 8479,
+      "lines": 175
+    },
+    {
+      "path": "backend/tests/unit/test_documentary_output.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 8137,
+      "lines": 185
+    },
+    {
+      "path": "backend/tests/unit/test_documentation_release_131.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 4439,
+      "lines": 101
+    },
+    {
+      "path": "backend/tests/unit/test_embedding_switch_contracts.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 3165,
+      "lines": 83
+    },
+    {
+      "path": "backend/tests/unit/test_empty_corpus_installation_130.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 3471,
+      "lines": 86
+    },
+    {
+      "path": "backend/tests/unit/test_entra_mapping_revocation.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 5107,
+      "lines": 111
+    },
+    {
+      "path": "backend/tests/unit/test_entra_role_sync.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 5598,
+      "lines": 182
+    },
+    {
+      "path": "backend/tests/unit/test_evidence_provenance.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 2771,
+      "lines": 53
+    },
+    {
+      "path": "backend/tests/unit/test_execution_profiles.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 16380,
+      "lines": 326
+    },
+    {
+      "path": "backend/tests/unit/test_explicit_document_retrieval.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 10730,
+      "lines": 222
+    },
+    {
+      "path": "backend/tests/unit/test_explicit_document_selection_20261007.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 7912,
+      "lines": 162
+    },
+    {
+      "path": "backend/tests/unit/test_external_answer_rubric.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 12292,
+      "lines": 260
+    },
+    {
+      "path": "backend/tests/unit/test_extraction_coverage_contract.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 9243,
+      "lines": 195
+    },
+    {
+      "path": "backend/tests/unit/test_generation_integrity_recovery.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 10602,
+      "lines": 223
+    },
+    {
+      "path": "backend/tests/unit/test_grounding.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 4633,
+      "lines": 129
+    },
+    {
+      "path": "backend/tests/unit/test_grounding_numeric_rag_hotfix.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 7800,
+      "lines": 163
+    },
+    {
+      "path": "backend/tests/unit/test_health_capacity.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 2331,
+      "lines": 49
+    },
+    {
+      "path": "backend/tests/unit/test_identity_and_policy_edges.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 17041,
+      "lines": 406
+    },
+    {
+      "path": "backend/tests/unit/test_identity_history_scope.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 4026,
+      "lines": 89
+    },
+    {
+      "path": "backend/tests/unit/test_implementation_v2.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 21792,
+      "lines": 562
+    },
+    {
+      "path": "backend/tests/unit/test_index_recovery_acceptance.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 16818,
+      "lines": 367
+    },
+    {
+      "path": "backend/tests/unit/test_index_update_guard.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 6193,
+      "lines": 118
+    },
+    {
+      "path": "backend/tests/unit/test_ingestion_compensation_boundaries.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 5434,
+      "lines": 121
+    },
+    {
+      "path": "backend/tests/unit/test_ingestion_security_130.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 5610,
+      "lines": 138
+    },
+    {
+      "path": "backend/tests/unit/test_installation_backup.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 21189,
+      "lines": 400
+    },
+    {
+      "path": "backend/tests/unit/test_installation_state.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 19855,
+      "lines": 427
+    },
+    {
+      "path": "backend/tests/unit/test_installer_consolidation.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 21599,
+      "lines": 468
+    },
+    {
+      "path": "backend/tests/unit/test_knowledge_layout.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 2105,
+      "lines": 57
+    },
+    {
+      "path": "backend/tests/unit/test_knowledge_sync_new.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 31065,
+      "lines": 656
+    },
+    {
+      "path": "backend/tests/unit/test_llm_client.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 6773,
+      "lines": 182
+    },
+    {
+      "path": "backend/tests/unit/test_load_test_contracts.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 9376,
+      "lines": 208
+    },
+    {
+      "path": "backend/tests/unit/test_loaders.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 5786,
+      "lines": 156
+    },
+    {
+      "path": "backend/tests/unit/test_local_context_budget.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 2928,
+      "lines": 67
+    },
+    {
+      "path": "backend/tests/unit/test_local_identity_standalone.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 17042,
+      "lines": 340
+    },
+    {
+      "path": "backend/tests/unit/test_local_inference_metrics.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 2394,
+      "lines": 60
+    },
+    {
+      "path": "backend/tests/unit/test_local_model_diagnostics.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 6773,
+      "lines": 149
+    },
+    {
+      "path": "backend/tests/unit/test_local_model_protocols_123.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 7096,
+      "lines": 154
+    },
+    {
+      "path": "backend/tests/unit/test_local_provider_boundaries.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 3983,
+      "lines": 93
+    },
+    {
+      "path": "backend/tests/unit/test_memory_and_agent.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 8119,
+      "lines": 196
+    },
+    {
+      "path": "backend/tests/unit/test_memory_context_query.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 6460,
+      "lines": 126
+    },
+    {
+      "path": "backend/tests/unit/test_model_change.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 10338,
+      "lines": 203
+    },
+    {
+      "path": "backend/tests/unit/test_model_diagnostic_effective_131.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 1019,
+      "lines": 29
+    },
+    {
+      "path": "backend/tests/unit/test_model_policy.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 5655,
+      "lines": 127
+    },
+    {
+      "path": "backend/tests/unit/test_model_smoke_test.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 13486,
+      "lines": 295
+    },
+    {
+      "path": "backend/tests/unit/test_multiformat_ingestion.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 8670,
+      "lines": 189
+    },
+    {
+      "path": "backend/tests/unit/test_numeric_provenance_revision.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 6165,
+      "lines": 123
+    },
+    {
+      "path": "backend/tests/unit/test_ollama_sampling_defaults.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 2871,
+      "lines": 68
+    },
+    {
+      "path": "backend/tests/unit/test_operation_failure_codes.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 5395,
+      "lines": 107
+    },
+    {
+      "path": "backend/tests/unit/test_operation_lifecycle.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 8242,
+      "lines": 180
+    },
+    {
+      "path": "backend/tests/unit/test_operator_messages.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 9132,
+      "lines": 214
+    },
+    {
+      "path": "backend/tests/unit/test_partial_documentary_answer.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 8748,
+      "lines": 188
+    },
+    {
+      "path": "backend/tests/unit/test_pdf_rag_extraction.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 12285,
+      "lines": 253
+    },
+    {
+      "path": "backend/tests/unit/test_preventive_operations.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 5226,
+      "lines": 113
+    },
+    {
+      "path": "backend/tests/unit/test_preventive_rag.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 5722,
+      "lines": 111
+    },
+    {
+      "path": "backend/tests/unit/test_private_reindex_final.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 11103,
+      "lines": 262
+    },
+    {
+      "path": "backend/tests/unit/test_process_owner_restart.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 2188,
+      "lines": 58
+    },
+    {
+      "path": "backend/tests/unit/test_provider_cancellation.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 4312,
+      "lines": 120
+    },
+    {
+      "path": "backend/tests/unit/test_provider_deadline.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 2019,
+      "lines": 58
+    },
+    {
+      "path": "backend/tests/unit/test_provider_time_limits_127.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 7695,
+      "lines": 178
+    },
+    {
+      "path": "backend/tests/unit/test_quality_gate_completeness.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 15664,
+      "lines": 325
+    },
+    {
+      "path": "backend/tests/unit/test_rag_audit_optimization.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 6955,
+      "lines": 168
+    },
+    {
+      "path": "backend/tests/unit/test_rag_citation_transport.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 8889,
+      "lines": 193
+    },
+    {
+      "path": "backend/tests/unit/test_rag_delete_transactions.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 2396,
+      "lines": 68
+    },
+    {
+      "path": "backend/tests/unit/test_rag_diagnostic_readonly_fix01.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 8654,
+      "lines": 190
+    },
+    {
+      "path": "backend/tests/unit/test_rag_eval_annotations.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 10660,
+      "lines": 234
+    },
+    {
+      "path": "backend/tests/unit/test_rag_integrity_final.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 10965,
+      "lines": 233
+    },
+    {
+      "path": "backend/tests/unit/test_rag_numeric_properties.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 5209,
+      "lines": 112
+    },
+    {
+      "path": "backend/tests/unit/test_rag_pipeline_isolated.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 13230,
+      "lines": 342
+    },
+    {
+      "path": "backend/tests/unit/test_rag_validation_diagnostics_hotfix.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 4140,
+      "lines": 87
+    },
+    {
+      "path": "backend/tests/unit/test_readiness_admission.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 4132,
+      "lines": 110
+    },
+    {
+      "path": "backend/tests/unit/test_release_native_integrity.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 3875,
+      "lines": 87
+    },
+    {
+      "path": "backend/tests/unit/test_release_structure.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 4037,
+      "lines": 82
+    },
+    {
+      "path": "backend/tests/unit/test_retrieval_ranking.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 5444,
+      "lines": 143
+    },
+    {
+      "path": "backend/tests/unit/test_review_contract.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 11661,
+      "lines": 216
+    },
+    {
+      "path": "backend/tests/unit/test_rh_routing.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 14532,
+      "lines": 315
+    },
+    {
+      "path": "backend/tests/unit/test_routing_timeouts_127.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 12944,
+      "lines": 295
+    },
+    {
+      "path": "backend/tests/unit/test_scoped_reconcile.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 8130,
+      "lines": 164
+    },
+    {
+      "path": "backend/tests/unit/test_secrets_scan_boundaries.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 3052,
+      "lines": 72
+    },
+    {
+      "path": "backend/tests/unit/test_security_boundaries_20261007.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 4708,
+      "lines": 104
+    },
+    {
+      "path": "backend/tests/unit/test_security_controls.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 9680,
+      "lines": 252
+    },
+    {
+      "path": "backend/tests/unit/test_security_privacy_revision.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 13253,
+      "lines": 269
+    },
+    {
+      "path": "backend/tests/unit/test_security_runtime_config.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 19254,
+      "lines": 402
+    },
+    {
+      "path": "backend/tests/unit/test_services_isolated.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 11672,
+      "lines": 264
+    },
+    {
+      "path": "backend/tests/unit/test_single_local_model_130.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 5063,
+      "lines": 111
+    },
+    {
+      "path": "backend/tests/unit/test_smoke_authorization_guard.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 2333,
+      "lines": 55
+    },
+    {
+      "path": "backend/tests/unit/test_standalone_configuration.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 5516,
+      "lines": 115
+    },
+    {
+      "path": "backend/tests/unit/test_status_read_only.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 1531,
+      "lines": 41
+    },
+    {
+      "path": "backend/tests/unit/test_structured_document_reading.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 6930,
+      "lines": 148
+    },
+    {
+      "path": "backend/tests/unit/test_structured_plan_boundaries.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 5139,
+      "lines": 118
+    },
+    {
+      "path": "backend/tests/unit/test_structured_query.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 8444,
+      "lines": 214
+    },
+    {
+      "path": "backend/tests/unit/test_structured_role_scope.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 29405,
+      "lines": 601
+    },
+    {
+      "path": "backend/tests/unit/test_summary_scope_contract.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 12388,
+      "lines": 249
+    },
+    {
+      "path": "backend/tests/unit/test_summary_security_operations.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 1634,
+      "lines": 33
+    },
+    {
+      "path": "backend/tests/unit/test_table_range_vs_case.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 4117,
+      "lines": 91
+    },
+    {
+      "path": "backend/tests/unit/test_test_environment.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 3813,
+      "lines": 82
+    },
+    {
+      "path": "backend/tests/unit/test_text_budget_contract.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 8201,
+      "lines": 156
+    },
+    {
+      "path": "backend/tests/unit/test_topic_transitions.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 3230,
+      "lines": 75
+    },
+    {
+      "path": "backend/tests/unit/test_user_five_question_acceptance.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 12316,
+      "lines": 246
+    },
+    {
+      "path": "backend/tests/unit/test_vector_geometry_contract.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 4348,
+      "lines": 96
+    },
+    {
+      "path": "backend/tests/unit/test_windows_native_controller.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 2257,
+      "lines": 49
+    },
+    {
+      "path": "backend/tests/unit/test_windows_runtime.py",
+      "method": "automated_collection_and_execution_with_targeted_manual_review",
+      "reviewer": "quality_evals_and_domain_reviewers",
+      "bytes": 6017,
+      "lines": 161
+    },
+    {
+      "path": "backend/uv.lock",
+      "method": "locked_dependency_audit",
+      "reviewer": "root",
+      "bytes": 173520,
+      "lines": 1511
+    },
+    {
+      "path": "detener.bat",
+      "method": "configuration_or_document_review",
+      "reviewer": "root",
+      "bytes": 774,
+      "lines": 18
+    },
+    {
+      "path": "diagnosticar.bat",
+      "method": "configuration_or_document_review",
+      "reviewer": "root",
+      "bytes": 784,
+      "lines": 18
+    },
+    {
+      "path": "docker-compose.yml",
+      "method": "configuration_or_document_review",
+      "reviewer": "root",
+      "bytes": 11468,
+      "lines": 352
+    },
+    {
+      "path": "frontend/.npmrc",
+      "method": "configuration_or_document_review",
+      "reviewer": "root",
+      "bytes": 1377,
+      "lines": 28
+    },
+    {
+      "path": "frontend/.prettierignore",
+      "method": "configuration_or_document_review",
+      "reviewer": "root",
+      "bytes": 97,
+      "lines": 6
+    },
+    {
+      "path": "frontend/dist/assets/bot-mascot-CKFLcuAv.png",
+      "method": "generated_build_reference_and_integrity_checks",
+      "reviewer": "root",
+      "bytes": 122714,
+      "lines": null
+    },
+    {
+      "path": "frontend/dist/assets/index-BtKgeVea.js",
+      "method": "generated_build_reference_and_integrity_checks",
+      "reviewer": "root",
+      "bytes": 198241,
+      "lines": 10
+    },
+    {
+      "path": "frontend/dist/assets/index-CdqCvFwJ.css",
+      "method": "generated_build_reference_and_integrity_checks",
+      "reviewer": "root",
+      "bytes": 31945,
+      "lines": 1
+    },
+    {
+      "path": "frontend/dist/assets/login-bg-DdfnBwXX.jpg",
+      "method": "generated_build_reference_and_integrity_checks",
+      "reviewer": "root",
+      "bytes": 967261,
+      "lines": null
+    },
+    {
+      "path": "frontend/dist/index.html",
+      "method": "generated_build_reference_and_integrity_checks",
+      "reviewer": "root",
+      "bytes": 1007,
+      "lines": 21
+    },
+    {
+      "path": "frontend/eslint.config.js",
+      "method": "configuration_or_document_review",
+      "reviewer": "root",
+      "bytes": 665,
+      "lines": 22
+    },
+    {
+      "path": "frontend/index.html",
+      "method": "configuration_or_document_review",
+      "reviewer": "root",
+      "bytes": 904,
+      "lines": 20
+    },
+    {
+      "path": "frontend/nginx/matrixrh.conf",
+      "method": "configuration_or_document_review",
+      "reviewer": "root",
+      "bytes": 1968,
+      "lines": 48
+    },
+    {
+      "path": "frontend/package-lock.json",
+      "method": "locked_dependency_audit",
+      "reviewer": "root",
+      "bytes": 150628,
+      "lines": 4340
+    },
+    {
+      "path": "frontend/package.json",
+      "method": "configuration_or_document_review",
+      "reviewer": "root",
+      "bytes": 1801,
+      "lines": 52
+    },
+    {
+      "path": "frontend/playwright.config.ts",
+      "method": "configuration_or_document_review",
+      "reviewer": "root",
+      "bytes": 1403,
+      "lines": 42
+    },
+    {
+      "path": "frontend/playwright.visual.config.ts",
+      "method": "configuration_or_document_review",
+      "reviewer": "root",
+      "bytes": 869,
+      "lines": 29
+    },
+    {
+      "path": "frontend/prettier.config.cjs",
+      "method": "configuration_or_document_review",
+      "reviewer": "root",
+      "bytes": 151,
+      "lines": 8
+    },
+    {
+      "path": "frontend/src/App.tsx",
+      "method": "complete_manual_source_review",
+      "reviewer": "frontend_review",
+      "bytes": 3367,
+      "lines": 110
+    },
+    {
+      "path": "frontend/src/assets.d.ts",
+      "method": "complete_manual_source_review",
+      "reviewer": "frontend_review",
+      "bytes": 68,
+      "lines": 2
+    },
+    {
+      "path": "frontend/src/assets/bot-mascot.png",
+      "method": "asset_inventory_and_reference_checks",
+      "reviewer": "root",
+      "bytes": 122714,
+      "lines": null
+    },
+    {
+      "path": "frontend/src/assets/login-bg.jpg",
+      "method": "asset_inventory_and_reference_checks",
+      "reviewer": "root",
+      "bytes": 967261,
+      "lines": null
+    },
+    {
+      "path": "frontend/src/components/ChangePasswordDialog.tsx",
+      "method": "complete_manual_source_review",
+      "reviewer": "frontend_review",
+      "bytes": 6806,
+      "lines": 201
+    },
+    {
+      "path": "frontend/src/components/Composer.tsx",
+      "method": "complete_manual_source_review",
+      "reviewer": "frontend_review",
+      "bytes": 7147,
+      "lines": 219
+    },
+    {
+      "path": "frontend/src/components/ErrorBoundary.tsx",
+      "method": "complete_manual_source_review",
+      "reviewer": "frontend_review",
+      "bytes": 1484,
+      "lines": 49
+    },
+    {
+      "path": "frontend/src/components/Icon.tsx",
+      "method": "complete_manual_source_review",
+      "reviewer": "frontend_review",
+      "bytes": 6542,
+      "lines": 254
+    },
+    {
+      "path": "frontend/src/components/Mascot.tsx",
+      "method": "complete_manual_source_review",
+      "reviewer": "frontend_review",
+      "bytes": 487,
+      "lines": 19
+    },
+    {
+      "path": "frontend/src/components/MessageList.tsx",
+      "method": "complete_manual_source_review",
+      "reviewer": "frontend_review",
+      "bytes": 8190,
+      "lines": 215
+    },
+    {
+      "path": "frontend/src/components/QuickActions.tsx",
+      "method": "complete_manual_source_review",
+      "reviewer": "frontend_review",
+      "bytes": 4187,
+      "lines": 139
+    },
+    {
+      "path": "frontend/src/components/Sidebar.tsx",
+      "method": "complete_manual_source_review",
+      "reviewer": "frontend_review",
+      "bytes": 4910,
+      "lines": 155
+    },
+    {
+      "path": "frontend/src/components/ThemeControl.tsx",
+      "method": "complete_manual_source_review",
+      "reviewer": "frontend_review",
+      "bytes": 2383,
+      "lines": 89
+    },
+    {
+      "path": "frontend/src/components/TracePanel.tsx",
+      "method": "complete_manual_source_review",
+      "reviewer": "frontend_review",
+      "bytes": 5066,
+      "lines": 141
+    },
+    {
+      "path": "frontend/src/main.tsx",
+      "method": "complete_manual_source_review",
+      "reviewer": "frontend_review",
+      "bytes": 476,
+      "lines": 20
+    },
+    {
+      "path": "frontend/src/pages/ChatPage.tsx",
+      "method": "complete_manual_source_review",
+      "reviewer": "frontend_review",
+      "bytes": 32159,
+      "lines": 828
+    },
+    {
+      "path": "frontend/src/pages/LoginPage.tsx",
+      "method": "complete_manual_source_review",
+      "reviewer": "frontend_review",
+      "bytes": 5044,
+      "lines": 149
+    },
+    {
+      "path": "frontend/src/security/Markdown.tsx",
+      "method": "complete_manual_source_review",
+      "reviewer": "frontend_review",
+      "bytes": 8611,
+      "lines": 267
+    },
+    {
+      "path": "frontend/src/services/api.ts",
+      "method": "complete_manual_source_review",
+      "reviewer": "frontend_review",
+      "bytes": 9316,
+      "lines": 308
+    },
+    {
+      "path": "frontend/src/services/contracts.ts",
+      "method": "complete_manual_source_review",
+      "reviewer": "frontend_review",
+      "bytes": 11650,
+      "lines": 388
+    },
+    {
+      "path": "frontend/src/styles.css",
+      "method": "complete_manual_source_review",
+      "reviewer": "frontend_review",
+      "bytes": 41092,
+      "lines": 938
+    },
+    {
+      "path": "frontend/tests/ApiAuth.test.ts",
+      "method": "complete_manual_test_review_and_available_execution",
+      "reviewer": "frontend_review",
+      "bytes": 2165,
+      "lines": 65
+    },
+    {
+      "path": "frontend/tests/ApiChat.test.ts",
+      "method": "complete_manual_test_review_and_available_execution",
+      "reviewer": "frontend_review",
+      "bytes": 13010,
+      "lines": 371
+    },
+    {
+      "path": "frontend/tests/ApiContracts.test.ts",
+      "method": "complete_manual_test_review_and_available_execution",
+      "reviewer": "frontend_review",
+      "bytes": 5843,
+      "lines": 171
+    },
+    {
+      "path": "frontend/tests/App.test.tsx",
+      "method": "complete_manual_test_review_and_available_execution",
+      "reviewer": "frontend_review",
+      "bytes": 3556,
+      "lines": 87
+    },
+    {
+      "path": "frontend/tests/ChangePasswordDialog.test.tsx",
+      "method": "complete_manual_test_review_and_available_execution",
+      "reviewer": "frontend_review",
+      "bytes": 7993,
+      "lines": 185
+    },
+    {
+      "path": "frontend/tests/ChatPage.test.tsx",
+      "method": "complete_manual_test_review_and_available_execution",
+      "reviewer": "frontend_review",
+      "bytes": 53065,
+      "lines": 1240
+    },
+    {
+      "path": "frontend/tests/Composer.test.tsx",
+      "method": "complete_manual_test_review_and_available_execution",
+      "reviewer": "frontend_review",
+      "bytes": 4530,
+      "lines": 122
+    },
+    {
+      "path": "frontend/tests/E2EHelpers.test.ts",
+      "method": "complete_manual_test_review_and_available_execution",
+      "reviewer": "frontend_review",
+      "bytes": 4876,
+      "lines": 130
+    },
+    {
+      "path": "frontend/tests/ErrorBoundary.test.tsx",
+      "method": "complete_manual_test_review_and_available_execution",
+      "reviewer": "frontend_review",
+      "bytes": 2179,
+      "lines": 64
+    },
+    {
+      "path": "frontend/tests/LoginPage.test.tsx",
+      "method": "complete_manual_test_review_and_available_execution",
+      "reviewer": "frontend_review",
+      "bytes": 3377,
+      "lines": 74
+    },
+    {
+      "path": "frontend/tests/Markdown.test.tsx",
+      "method": "complete_manual_test_review_and_available_execution",
+      "reviewer": "frontend_review",
+      "bytes": 5270,
+      "lines": 127
+    },
+    {
+      "path": "frontend/tests/MessageList.test.tsx",
+      "method": "complete_manual_test_review_and_available_execution",
+      "reviewer": "frontend_review",
+      "bytes": 7294,
+      "lines": 210
+    },
+    {
+      "path": "frontend/tests/QuickActions.test.tsx",
+      "method": "complete_manual_test_review_and_available_execution",
+      "reviewer": "frontend_review",
+      "bytes": 1003,
+      "lines": 28
+    },
+    {
+      "path": "frontend/tests/TracePanel.test.tsx",
+      "method": "complete_manual_test_review_and_available_execution",
+      "reviewer": "frontend_review",
+      "bytes": 4146,
+      "lines": 129
+    },
+    {
+      "path": "frontend/tests/e2e/01-auth.spec.ts",
+      "method": "complete_manual_test_review_and_available_execution",
+      "reviewer": "frontend_review",
+      "bytes": 4568,
+      "lines": 115
+    },
+    {
+      "path": "frontend/tests/e2e/02-authorization.spec.ts",
+      "method": "complete_manual_test_review_and_available_execution",
+      "reviewer": "frontend_review",
+      "bytes": 5042,
+      "lines": 120
+    },
+    {
+      "path": "frontend/tests/e2e/03-documents-memory.spec.ts",
+      "method": "complete_manual_test_review_and_available_execution",
+      "reviewer": "frontend_review",
+      "bytes": 5419,
+      "lines": 132
+    },
+    {
+      "path": "frontend/tests/e2e/04-operations.spec.ts",
+      "method": "complete_manual_test_review_and_available_execution",
+      "reviewer": "frontend_review",
+      "bytes": 6345,
+      "lines": 146
+    },
+    {
+      "path": "frontend/tests/e2e/05-http-security.spec.ts",
+      "method": "complete_manual_test_review_and_available_execution",
+      "reviewer": "frontend_review",
+      "bytes": 3838,
+      "lines": 91
+    },
+    {
+      "path": "frontend/tests/e2e/helpers.ts",
+      "method": "complete_manual_test_review_and_available_execution",
+      "reviewer": "frontend_review",
+      "bytes": 4482,
+      "lines": 114
+    },
+    {
+      "path": "frontend/tests/setup.ts",
+      "method": "complete_manual_test_review_and_available_execution",
+      "reviewer": "frontend_review",
+      "bytes": 149,
+      "lines": 3
+    },
+    {
+      "path": "frontend/tests/visual/LoginChat.spec.ts",
+      "method": "complete_manual_test_review_and_available_execution",
+      "reviewer": "frontend_review",
+      "bytes": 13859,
+      "lines": 353
+    },
+    {
+      "path": "frontend/tsconfig.json",
+      "method": "configuration_or_document_review",
+      "reviewer": "root",
+      "bytes": 587,
+      "lines": 21
+    },
+    {
+      "path": "frontend/vite.config.ts",
+      "method": "configuration_or_document_review",
+      "reviewer": "root",
+      "bytes": 1174,
+      "lines": 40
+    },
+    {
+      "path": "iniciar.bat",
+      "method": "configuration_or_document_review",
+      "reviewer": "root",
+      "bytes": 774,
+      "lines": 18
+    },
+    {
+      "path": "instalar.bat",
+      "method": "configuration_or_document_review",
+      "reviewer": "root",
+      "bytes": 776,
+      "lines": 18
+    },
+    {
+      "path": "knowledge-base/.gitkeep",
+      "method": "configuration_or_document_review",
+      "reviewer": "root",
+      "bytes": 0,
+      "lines": 0
+    }
+  ]
+}

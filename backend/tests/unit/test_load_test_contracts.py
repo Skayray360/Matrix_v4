@@ -13,6 +13,26 @@ from scripts import load_test
 pytestmark = pytest.mark.unit
 
 
+@pytest.mark.parametrize("option,value", [
+    ("--slo-p95", "inf"), ("--slo-p95", "nan"), ("--slo-p95", "0"), ("--slo-p95", "-1"),
+    ("--max-error-pct", "inf"), ("--max-error-pct", "nan"),
+    ("--max-error-pct", "-1"), ("--max-error-pct", "101"),
+])
+def test_invalid_slo_is_rejected_before_sessions_or_requests(tmp_path, monkeypatch, option, value):
+    def forbidden_run(_args):
+        pytest.fail("Invalid SLO must not open session files or start requests")
+
+    monkeypatch.setattr(load_test, "run", forbidden_run)
+    with pytest.raises(SystemExit) as error:
+        load_test.main([
+            "--base-url", "http://127.0.0.1:8000", "--sessions", str(tmp_path / "absent-sessions.json"),
+            "--prompts", str(tmp_path / "absent-prompts.json"), "--users", "1",
+            "--output", str(tmp_path / "result.json"), option, value,
+        ])
+    assert error.value.code == 2
+    assert not (tmp_path / "result.json").exists()
+
+
 @pytest.mark.parametrize("body,expected", [
     ("not-json", "transport_or_contract_error"),
     ({"conversation_id": "c"}, "transport_or_contract_error"),

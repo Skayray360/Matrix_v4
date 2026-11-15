@@ -55,6 +55,46 @@ def test_restore_reopens_sqlite_fixture_and_qdrant_with_same_owner_metadata(tmp_
     assert (restored / "uploads").is_dir()
 
 
+def test_restore_preserves_unpublished_candidate_and_payload_only_generation_journal(tmp_path):
+    source = prepared_set(tmp_path)
+    with sqlite3.connect(source / "database/fixture.sqlite") as database:
+        database.execute("CREATE TABLE documents (id TEXT PRIMARY KEY, active_generation TEXT)")
+        database.execute("INSERT INTO documents VALUES (?, ?)", ("document-a", "published"))
+    collection = "corporate_fixture"
+    journal = f"{collection}__generation_intents"
+    intent = {"document_id": "document-a", "generation": "candidate", "scope": "corporate",
+              "collection": collection}
+    vectors = QdrantClient(path=str(source / "vector/index"))
+    try:
+        vectors.create_collection(collection, vectors_config=models.VectorParams(size=3, distance=models.Distance.COSINE))
+        vectors.create_collection(journal, vectors_config={})
+        vectors.upsert(journal, [models.PointStruct(id=1, vector={}, payload=intent)], wait=True)
+        vectors.upsert(collection, [
+            models.PointStruct(id=1, vector=[1.0, 0.0, 0.0],
+                               payload={"document_id": "document-a", "generation": "published"}),
+            models.PointStruct(id=2, vector=[0.0, 1.0, 0.0],
+                               payload={"document_id": "document-a", "generation": "candidate"}),
+        ], wait=True)
+    finally:
+        vectors.close()
+
+    backup, restored = tmp_path / "backup", tmp_path / "isolated-restore"
+    create_backup(source, backup)
+    restore_backup(backup, restored)
+    with sqlite3.connect(restored / "database/fixture.sqlite") as database:
+        assert database.execute("SELECT active_generation FROM documents").fetchall() == [("published",)]
+    reopened = QdrantClient(path=str(restored / "vector/index"))
+    try:
+        restored_intent = reopened.retrieve(journal, ids=[1], with_vectors=True)
+        assert len(restored_intent) == 1
+        assert restored_intent[0].payload == intent
+        assert restored_intent[0].vector == {}
+        generations = reopened.retrieve(collection, ids=[1, 2])
+        assert {point.payload["generation"] for point in generations} == {"published", "candidate"}
+    finally:
+        reopened.close()
+
+
 def test_corruption_blocks_restore_before_destination_is_created(tmp_path):
     source = prepared_set(tmp_path)
     backup, destination = tmp_path / "backup", tmp_path / "restore"

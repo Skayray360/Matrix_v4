@@ -99,6 +99,7 @@ def extract_document(data: bytes, *, filename: str) -> ExtractedDocument:
                 blocks=[TextBlock(**block) for block in result["blocks"]],
                 mime_type=result["mime_type"],
                 warnings=result["warnings"],
+                extraction_incomplete=result.get("extraction_incomplete") is not False,
             )
         finally:
             with suppress(psutil.NoSuchProcess):

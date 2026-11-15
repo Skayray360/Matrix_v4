@@ -23,7 +23,9 @@ from app.structured_data.sources import EntityConfig, SourceCatalog, SourceConfi
 from app.structured_data.tool import StructuredDataTool
 from app.structured_data.validator import QueryPolicyValidator
 
-pytestmark = pytest.mark.integration
+# Integra componentes locales, pero no depende de servicios externos. Debe
+# ejecutarse tambien en el gate standalone con su SQLite temporal real.
+pytestmark = pytest.mark.unit
 
 FILAS = [
     ("E001", "Operaciones", "Torreon", "Tecnico", 5, "activo"),

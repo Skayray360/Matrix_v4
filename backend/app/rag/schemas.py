@@ -65,6 +65,7 @@ class ChunkMetadata:
     #: Solo para adjuntos privados: aislan el chunk a un usuario y conversacion.
     owner_user_id: str | None = None
     conversation_id: str | None = None
+    extraction_incomplete: bool = False
     created_at: datetime = field(default_factory=utcnow_naive)
     updated_at: datetime = field(default_factory=utcnow_naive)
 

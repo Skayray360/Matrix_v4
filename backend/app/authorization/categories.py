@@ -22,9 +22,11 @@ from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
 from threading import RLock
+from typing import Literal, Self
 
 import yaml
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from yaml.nodes import MappingNode
 
 from app.common.errors import ConfigurationError
 from app.common.logging import get_logger
@@ -62,6 +64,8 @@ SEED_CATEGORIES: tuple[str, ...] = (
 class CategoryPolicy(BaseModel):
     """Politica declarativa de una categoria."""
 
+    model_config = ConfigDict(extra="forbid")
+
     name: str
     description: str = ""
     sensitivity: str = Field(default="internal")
@@ -75,7 +79,7 @@ class CategoryPolicy(BaseModel):
     @field_validator("name")
     @classmethod
     def _validate_name(cls, value: str) -> str:
-        if not CATEGORY_NAME_RE.match(value):
+        if not CATEGORY_NAME_RE.fullmatch(value):
             raise ValueError(
                 f"Nombre de categoria invalido: {value!r}. Solo minusculas, digitos, '_' y '-'."
             )
@@ -93,11 +97,34 @@ class CategoryPolicy(BaseModel):
 class CategoryPolicyFile(BaseModel):
     """Esquema del archivo ``categories.yaml``."""
 
-    version: int = 1
+    model_config = ConfigDict(extra="forbid")
+
+    version: Literal[1] = 1
     #: Comportamiento para categorias descubiertas y no declaradas.
-    default_sensitivity: str = "internal"
+    default_sensitivity: Literal["public", "internal", "confidential", "restricted"] = "internal"
     default_wildcard_eligible: bool = False
     categories: list[CategoryPolicy] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def _unique_categories(self) -> Self:
+        names = [policy.name for policy in self.categories]
+        if len(names) != len(set(names)):
+            raise ValueError("Cada categoria debe declarar una sola politica.")
+        return self
+
+
+class _UniqueKeySafeLoader(yaml.SafeLoader):
+    """Las claves duplicadas no pueden reemplazar silenciosamente una denegacion."""
+
+    def construct_mapping(self, node: MappingNode, deep: bool = False) -> dict:
+        self.flatten_mapping(node)
+        keys: set[object] = set()
+        for key_node, _ in node.value:
+            key = self.construct_object(key_node, deep=deep)
+            if key in keys:
+                raise ValueError("La politica contiene claves YAML duplicadas.")
+            keys.add(key)
+        return super().construct_mapping(node, deep=deep)
 
 
 @dataclass(frozen=True)
@@ -148,8 +175,12 @@ def load_category_policy_file(path: Path | None = None) -> CategoryPolicyFile:
         logger.warning("authorization.category_policy_missing", extra={"policy_path": str(target)})
         return CategoryPolicyFile()
     try:
-        # safe_load nunca instancia objetos Python arbitrarios.
-        raw = yaml.safe_load(target.read_text(encoding="utf-8")) or {}
+        # Conserva SafeLoader y rechaza las claves que YAML normalmente pisa.
+        loader = _UniqueKeySafeLoader(target.read_text(encoding="utf-8"))
+        try:
+            raw = loader.get_single_data() or {}
+        finally:
+            loader.dispose()
         return CategoryPolicyFile.model_validate(raw)
     except Exception as exc:  # noqa: BLE001
         raise ConfigurationError(

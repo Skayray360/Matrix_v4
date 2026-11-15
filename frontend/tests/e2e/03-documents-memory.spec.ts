@@ -38,8 +38,14 @@ async function attach(
     mimeType: mime,
     buffer: Buffer.from(body, "utf-8"),
   });
-  await expect(page.getByTestId("attachments")).toContainText(name, { timeout: 120_000 });
-  await expect(page.getByTestId("attachments")).toContainText("indexed", { timeout: 120_000 });
+  const attachment = page
+    .getByTestId("attachments")
+    .locator(".attachment")
+    .filter({ has: page.getByText(name, { exact: true }) });
+  await expect(attachment).toHaveCount(1, { timeout: 120_000 });
+  // El estado tecnico vive en data-status; la etiqueta visible esta traducida.
+  // Comprobar este archivo evita aceptar por error otro adjunto ya indexado.
+  await expect(attachment).toHaveAttribute("data-status", "indexed", { timeout: 120_000 });
 }
 
 test.describe("Adjuntos de conversacion", () => {

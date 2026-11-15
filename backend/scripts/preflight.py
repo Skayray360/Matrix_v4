@@ -35,6 +35,7 @@ import tomllib
 from contextlib import ExitStack
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
+from tempfile import NamedTemporaryFile
 from types import SimpleNamespace
 from urllib.parse import urlsplit
 
@@ -543,6 +544,10 @@ def check_qdrant(report: PreflightReport, settings, *, read_only: bool = False) 
                 url=settings.qdrant_url,
                 api_key=settings.qdrant_api_key.get_secret_value() or None,
                 timeout=10,
+                trust_env=False,
+                # La sonda auxiliar de version usa su propio cliente HTTP y
+                # no hereda trust_env; tampoco debe salir por proxies del host.
+                check_compatibility=False,
             )
             try:
                 client.get_collections()
@@ -601,9 +606,10 @@ def check_paths(report: PreflightReport, settings, *, read_only: bool) -> None: 
         return
     try:
         storage.mkdir(parents=True, exist_ok=True)
-        probe = storage / ".preflight_write_test"
-        probe.write_text("ok", encoding="utf-8")
-        probe.unlink()
+        # Creacion exclusiva y nombre aleatorio: nunca truncar un archivo
+        # preexistente ni seguir un enlace del directorio de almacenamiento.
+        with NamedTemporaryFile(mode="w", encoding="utf-8", prefix=".preflight-", dir=storage) as probe:
+            probe.write("ok")
         report.add("almacenamiento_runtime", OK, f"escritura verificada en {storage}")
     except Exception as exc:  # noqa: BLE001
         report.add("almacenamiento_runtime", FAIL, f"{type(exc).__name__}: {storage}")
@@ -641,9 +647,13 @@ try {
 catch { Write-Output 'BITLOCKER_NO_VERIFICABLE'; exit 1 }
 """
     powershell = Path(os.environ.get("SYSTEMROOT", r"C:\Windows")) / "System32/WindowsPowerShell/v1.0/powershell.exe"
+    # Python puede heredar rutas de modulos de pwsh7; PS5.1 necesita reconstruir
+    # las suyas. La salida del script es UTF-8 tambien en un Windows con ACP.
+    environment = {key: value for key, value in os.environ.items() if key.upper() != "PSMODULEPATH"}
     completed = subprocess.run(  # noqa: S603 - programa fijo; rutas via stdin, sin credenciales
         [str(powershell), "-NoProfile", "-NonInteractive", "-Command", script],
-        input=json.dumps([str(path) for path in paths]), capture_output=True, text=True, timeout=30, check=False,
+        input=json.dumps([str(path) for path in paths]), capture_output=True, text=True, encoding="utf-8",
+        timeout=30, check=False, env=environment,
     )
     if completed.returncode != 0:
         raise OSError("BitLockerNoVerificable")
@@ -672,8 +682,50 @@ def _mysql_datadir(settings) -> Path:  # noqa: ANN001
     return path
 
 
+def _check_standalone_storage_encryption(
+    report: PreflightReport, settings, *, database_ok: bool,
+) -> None:  # noqa: ANN001
+    """Diagnostico del host local, sin imponer atestaciones ni activar BitLocker."""
+    if platform.system() != "Windows":
+        report.add("cifrado_reposo", WARN,
+                   "standalone: cifrado no verificado; la sonda BitLocker requiere Windows",
+                   required=False)
+        return
+    paths = [PROJECT_ROOT, settings.upload_storage_path, settings.knowledge_root_path]
+    if str(settings.qdrant_mode) == "embedded":
+        paths.append(settings.qdrant_storage_path)
+    database_issue = ""
+    try:
+        if not database_ok:
+            raise ValueError("MySQLNoDisponible")
+        paths.append(_mysql_datadir(settings))
+    except Exception as exc:  # noqa: BLE001 - diagnosticar las otras rutas aunque MySQL no este disponible
+        database_issue = f"; datadir MySQL no verificado ({type(exc).__name__})"
+    try:
+        status = windows_encryption_status(paths)
+    except Exception as exc:  # noqa: BLE001 - nunca mostrar salidas/errores privados de Windows
+        report.add("cifrado_reposo", WARN,
+                   f"standalone: BitLocker no verificable ({type(exc).__name__}){database_issue}; "
+                   "no se presume cifrado y no se modifico su configuracion",
+                   required=False)
+        return
+    unprotected = sorted({str(item.get("mount", "?")) for item in status if not (
+        item.get("status") == "FullyEncrypted" and item.get("protection") == "On"
+        and item.get("percentage") == 100
+    )})
+    detail = (
+        "standalone: BitLocker no protege completamente los volumenes " + ", ".join(unprotected)
+        if unprotected else f"standalone: BitLocker completo y proteccion On en {len(paths)} rutas locales"
+    )
+    report.add("cifrado_reposo", WARN if unprotected or database_issue else OK,
+               detail + database_issue + "; el cifrado de destinos de respaldo no fue verificado", required=False)
+
+
 def check_storage_encryption(report: PreflightReport, settings, *, database_ok: bool = True) -> None:  # noqa: ANN001
     """Exige evidencia de infraestructura; no activa cifrado por codigo."""
+    if str(settings.app_env) == "standalone":
+        _check_standalone_storage_encryption(report, settings, database_ok=database_ok)
+        return
     required = str(settings.app_env) in {"staging", "production"}
     if not required:
         report.add("cifrado_reposo", WARN,

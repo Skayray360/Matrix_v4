@@ -73,6 +73,20 @@ def test_storage_receipt_is_pinned_and_preserved_after_writes(project):
     assert prepare.check_storage_images(project)["storage_images_verified"] is True
 
 
+def test_new_docker_profile_limits_inference_but_preserves_existing_tuning(project):
+    template = project / "backend/config/env.example"
+    original_template = template.read_bytes()
+    assert prepare.read_values(template)["INFERENCE_MAX_INFLIGHT"] == "2"
+    initialize(project)
+    config = project / "backend/config/docker.env"
+    assert prepare.read_values(config)["INFERENCE_MAX_INFLIGHT"] == "1"
+    config.write_text(config.read_text().replace("INFERENCE_MAX_INFLIGHT=1", "INFERENCE_MAX_INFLIGHT=2"))
+    tuned = config.read_bytes()
+    initialize(project)
+    assert config.read_bytes() == tuned
+    assert template.read_bytes() == original_template
+
+
 @pytest.mark.parametrize("service", [*prepare.STORAGE_SERVICES, "qdrant-snapshots", "uploads"])
 def test_legacy_state_without_receipt_blocks_without_creating_or_changing_files(project, service):
     initialize(project)

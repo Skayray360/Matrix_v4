@@ -66,9 +66,10 @@ try {
     Assert (-not (Test-Path (Join-Path $script:Config 'mysql.ini'))) 'missing datadir start must fail before writing MySQL configuration'
     Start-MySql -AllowInitialize
     $ini=Get-Content -LiteralPath (Join-Path $script:Config 'mysql.ini') -Raw
-    Assert ($ini -match '(?m)^port=3308$') 'my.ini port must be one complete line'
-    Assert ($ini -match '(?m)^basedir=".+/backend/runtime/mysql"$') 'my.ini basedir malformed'
-    Assert ($ini -match '(?m)^datadir=".+/knowledge-base/state/mysql"$') 'my.ini datadir malformed'
+    # Write-Text usa LF en Linux y CRLF en Windows; conservar anclaje de linea completa.
+    Assert ($ini -match '(?m)^port=3308\r?$') 'my.ini port must be one complete line'
+    Assert ($ini -match '(?m)^basedir=".+/backend/runtime/mysql"\r?$') 'my.ini basedir malformed'
+    Assert ($ini -match '(?m)^datadir=".+/knowledge-base/state/mysql"\r?$') 'my.ini datadir malformed'
     Assert (-not (Test-Path (Join-Path $script:Secrets 'mysql-init.sql'))) 'plaintext bootstrap SQL must be removed after authenticated ready'
     Assert (-not (Test-Path (Join-Path $script:Run 'mysql-needs-bootstrap'))) 'completed bootstrap marker not cleared'
     Assert (Test-Path (Join-Path $script:Config 'mysql-initialized.json')) 'authenticated initial startup must persist a receipt outside the datadir'

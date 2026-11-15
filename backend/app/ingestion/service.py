@@ -30,6 +30,7 @@ from app.common.errors import ConversationCleanupPendingError, IngestionFailedEr
 from app.common.ids import new_id, sha256_bytes, utcnow_naive
 from app.common.logging import get_logger
 from app.config import get_settings
+from app.database.document_locks import lock_document
 from app.database.models import Document, DocumentAccessPolicy, DocumentVersion, User
 from app.ingestion.isolated_extraction import extract_document
 from app.ingestion.loaders import mime_for_extension
@@ -38,6 +39,7 @@ from app.llm.provider import InferenceClient
 from app.memory.service import MemoryService
 from app.rag.chunking import ChunkDraft, chunk_blocks
 from app.rag.embedding_prompts import document_embedding_title, format_document
+from app.rag.generation_journal import SESSION_WRITE_TRANSACTION, GenerationIntent
 from app.rag.index_manifest import PIPELINE_VERSION, indexing_fingerprint
 from app.rag.schemas import SCOPE_CONVERSATION, SCOPE_CORPORATE, Chunk, ChunkMetadata
 from app.rag.vector_store import VectorStore, get_vector_store
@@ -96,6 +98,7 @@ class PreparedAttachment:
     drafts: tuple[ChunkDraft, ...]
     vectors: tuple[tuple[float, ...], ...]
     warnings: tuple[str, ...]
+    extraction_incomplete: bool = False
 
     @property
     def estimated_memory_bytes(self) -> int:
@@ -325,6 +328,7 @@ class IngestionService:
             overlap_tokens=self._settings.rag_chunk_overlap_tokens,
         ) if not extracted.is_empty else []
         warnings = tuple(extracted.warnings)
+        extraction_incomplete = extracted.extraction_incomplete
         del extracted
         estimated = (4096 + sum(len(draft.text.encode("utf-8")) * 4 + 512 for draft in drafts)
                      + len(drafts) * (self._settings.rag_embedding_dimension * 32 + 64))
@@ -342,7 +346,8 @@ class IngestionService:
         if indexing_fingerprint(self._llm) != fingerprint:
             raise IngestionFailedError("La configuracion cambio durante la preparacion del adjunto; repita la carga.")
         prepared = PreparedAttachment(filename, sha256_bytes(data), fingerprint, tuple(drafts),
-                                      tuple(tuple(vector) for vector in vectors), warnings)
+                                      tuple(tuple(vector) for vector in vectors), warnings,
+                                      extraction_incomplete=extraction_incomplete)
         if prepared.estimated_memory_bytes > max_memory_bytes:
             raise ValidationFailedError("El lote excede el presupuesto de procesamiento; divida la carga.")
         return prepared
@@ -503,14 +508,23 @@ class IngestionService:
         prepared: PreparedAttachment | None = None,
     ) -> IngestionOutcome:
         """Extrae, chunkea, embebe e indexa. Actualiza el manifest."""
+        # El bloqueo pertenece a la transaccion del llamador, no a esta funcion.
+        # Antes de registrar una intencion, el INSERT de un documento nuevo ya
+        # debe existir en SQL y un limpiador no puede observarlo como ausente.
+        locked_document = lock_document(db, document.id)
+        if locked_document is None:
+            raise IngestionFailedError("El documento ya no existe para su indexacion.")
+        document = locked_document
         settings = self._settings
         try:
             if prepared is None:
                 extracted = extract_document(data, filename=document.filename)
                 warnings = tuple(extracted.warnings)
+                extraction_incomplete = extracted.extraction_incomplete
                 empty = extracted.is_empty
             else:
                 warnings = prepared.warnings
+                extraction_incomplete = prepared.extraction_incomplete
                 empty = not prepared.drafts
         except Exception as exc:
             document.status = "failed"
@@ -566,6 +580,7 @@ class IngestionService:
             category=category,
             policy=policy,
             subpath=subpath,
+            extraction_incomplete=extraction_incomplete,
         )
         generation = new_id()
         fingerprint = prepared.index_fingerprint if prepared is not None else indexing_fingerprint(self._llm)
@@ -576,16 +591,30 @@ class IngestionService:
             for chunk in chunks
         ]
         vectors = [list(vector) for vector in prepared.vectors] if prepared is not None else self._embed_chunks(chunks)
+        if indexing_fingerprint(self._llm) != fingerprint:
+            # Tambien protege la ingesta corporativa y la reindexacion privada,
+            # que no pasan por prepare_attachment. La dimension por si sola no
+            # hace compatibles dos revisiones distintas del mismo modelo.
+            raise IngestionFailedError("La configuracion cambio durante la indexacion; repita la sincronizacion.")
         if verify_source is not None:
             # Evitar incluso el upsert de una fuente modificada durante la IA.
             verify_source()
 
+        # Un flush fallido expira el estado ORM y deja la Session en rollback
+        # obligatorio. La compensacion no puede leer atributos de esa Session.
+        document_id, document_scope = document.id, document.scope
+        db.info[SESSION_WRITE_TRANSACTION] = db.get_transaction()
+        self._store.generation_journal.record(GenerationIntent(
+            document_id=document_id, generation=generation, scope=document_scope,
+            collection=self._store.collection_for(document_scope),
+        ))
+
         def compensate_generation() -> None:
             try:
-                self._store.delete_generation(document.id, generation=generation, scope=document.scope)
+                self._store.delete_generation(document_id, generation=generation, scope=document_scope)
             except Exception as exc:  # noqa: BLE001 - identificadores para reintento durable
                 raise GenerationCleanupPendingError(
-                    document_id=document.id, generation=generation, scope=document.scope,
+                    document_id=document_id, generation=generation, scope=document_scope,
                 ) from exc
 
         # La generacion anterior se conserva hasta el commit SQL. Una escritura
@@ -599,25 +628,22 @@ class IngestionService:
                 )
             if verify_source is not None:
                 verify_source()
+            document.active_generation = generation
+            document.index_fingerprint = fingerprint
+            document.index_cleanup_pending = True
+            document.status = "indexed"
+            document.chunk_count = len(chunks)
+            document.error_message = "; ".join(warnings)[:500] or None
+            document.updated_at = utcnow_naive()
+            self._record_version(db, document, chunk_count=len(chunks))
+            db.flush()
+            if verify_source is not None:
+                verify_source()
         except Exception:
+            # La publicacion SQL pertenece a la misma operacion logica: un
+            # fallo del manifest/version tambien retira los vectores nuevos.
             compensate_generation()
             raise
-
-        document.active_generation = generation
-        document.index_fingerprint = fingerprint
-        document.index_cleanup_pending = True
-        document.status = "indexed"
-        document.chunk_count = len(chunks)
-        document.error_message = "; ".join(warnings)[:500] or None
-        document.updated_at = utcnow_naive()
-        self._record_version(db, document, chunk_count=len(chunks))
-        db.flush()
-        if verify_source is not None:
-            try:
-                verify_source()
-            except SourceChangedError:
-                compensate_generation()
-                raise
 
         logger.info(
             "ingestion.document_indexed",
@@ -643,6 +669,7 @@ class IngestionService:
         category: str | None,
         policy: CategoryPolicy | None,
         subpath: str,
+        extraction_incomplete: bool = False,
     ) -> list[Chunk]:
         """Construye los chunks con su metadata de ACL a partir de los borradores.
 
@@ -675,6 +702,7 @@ class IngestionService:
                 scope=document.scope,
                 owner_user_id=document.owner_user_id,
                 conversation_id=document.conversation_id,
+                extraction_incomplete=extraction_incomplete,
             )
             chunks.append(Chunk(text=draft.text, metadata=metadata))
         return chunks
@@ -759,6 +787,10 @@ class IngestionService:
         commit perdia evidencia aunque SQL hiciera rollback. El filtro de
         generaciones la oculta tras el commit y cleanup_generations la elimina.
         """
+        locked_document = lock_document(db, document.id)
+        if locked_document is None:
+            return
+        document = locked_document
         document.deleted_at = utcnow_naive()
         document.status = "deleted"
         document.chunk_count = 0

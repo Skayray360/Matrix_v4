@@ -223,6 +223,8 @@ function Download-Pinned([string]$Url, [string]$Sha256, [string]$Destination) {
     } finally { if (Test-Path -LiteralPath $temporary) { Remove-Item -LiteralPath $temporary -Force } }
 }
 function Expand-Pinned([string]$Archive, [string]$Destination) {
+    # PS5.1 usa assemblies separados para ZipArchive y ZipFile.
+    Add-Type -AssemblyName System.IO.Compression
     Add-Type -AssemblyName System.IO.Compression.FileSystem
     $zip=[IO.Compression.ZipFile]::OpenRead($Archive)
     $prefix=[IO.Path]::GetFullPath($Destination) + [IO.Path]::DirectorySeparatorChar
@@ -932,7 +934,7 @@ function Install-PythonRuntime($Pin) {
         Invoke-Checked $uv @('python','install',$Pin.version,'--no-config')
         Set-InstallStage 'auditoria_python'
         Step 'Auditando dependencias Python antes de instalar; sin omitir avisos conocidos...'
-        Invoke-Checked $uv @('audit','--project',(Join-Path $script:Root 'backend'),'--locked','--no-dev','--no-extra','dev','--no-extra','vertex','--no-extra','oracle','--no-extra','mssql','--no-extra','postgres','--python-version',$Pin.version,'--python-platform','x86_64-pc-windows-msvc','--no-python-downloads','--no-config')
+        Invoke-Checked $uv @('audit','--project',(Join-Path $script:Root 'backend'),'--locked','--no-dev','--no-extra','dev','--no-extra','oracle','--no-extra','mssql','--no-extra','postgres','--python-version',$Pin.version,'--python-platform','x86_64-pc-windows-msvc','--no-python-downloads','--no-config')
         Set-InstallStage 'runtime_python'
         Invoke-Checked $uv @('sync','--project',(Join-Path $script:Root 'backend'),'--frozen','--no-dev','--no-editable','--no-build','--no-install-project','--python',$Pin.version,'--managed-python','--no-python-downloads','--no-config')
         Invoke-Checked $uv @('pip','check','--python',$script:Python,'--no-config')

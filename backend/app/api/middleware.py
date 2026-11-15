@@ -22,13 +22,13 @@ from app.config import get_settings
 
 logger = get_logger(__name__)
 
-#: CSP estricta: sin ``unsafe-eval``; el bundle de Vite no lo necesita.
-#: ``style-src`` admite ``unsafe-inline`` porque React inyecta estilos calculados
-#: en algunos componentes; los scripts, que son el vector real de XSS, no.
+#: CSP sin scripts ni estilos inline. Los estilos calculados por CSSOM de
+#: Composer y TracePanel se verifican en navegador junto al bloqueo de un
+#: atributo style inyectado; no requieren ampliar style-src.
 CONTENT_SECURITY_POLICY = (
     "default-src 'self'; "
     "script-src 'self'; "
-    "style-src 'self' 'unsafe-inline'; "
+    "style-src 'self'; "
     "img-src 'self' data:; "
     "font-src 'self' data:; "
     "connect-src 'self'; "

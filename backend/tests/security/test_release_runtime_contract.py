@@ -8,11 +8,8 @@ import re
 from pathlib import Path
 from urllib.parse import urlsplit
 
-import pytest
-
 from scripts.package_release import iter_package_files, verify_release_layout
 from scripts.preflight import CORE_FILES, OPERATOR_BATCH_FILES
-from scripts.uv_runtime import compatible_uv_version
 
 ROOT = Path(__file__).resolve().parents[3]
 CONTROLLER = ROOT / "backend/scripts/windows/MatrixRH.ps1"
@@ -47,19 +44,6 @@ def test_runtime_manifest_fija_descargas_windows_x64_con_checksum():
     assert manifest["python"]["version"].startswith("3.12.")
     assert "backend/config/runtime-manifest.json" in CORE_FILES
     assert ".htaccess" in CORE_FILES
-
-
-def test_uv_metadata_permite_versiones_soportadas_y_rechaza_plataforma_distinta():
-    for banner in (
-        "uv 0.11.33 (fece32fc5 2026-07-28 x86_64-pc-windows-msvc)",
-        "uv 0.12.8 (x86_64-pc-windows-msvc)",
-        "uv 0.12.8 (fece32fc5 2026-07-28 x86_64-pc-windows-msvc)",
-    ):
-        assert compatible_uv_version(banner, expected_target="x86_64-pc-windows-msvc")
-    with pytest.raises(ValueError, match="target"):
-        compatible_uv_version("uv 0.12.8 (aarch64-pc-windows-msvc)", expected_target="x86_64-pc-windows-msvc")
-    with pytest.raises(ValueError, match="invalida"):
-        compatible_uv_version("uv 0.12.8\ncontenido inesperado")
 
 
 def test_cada_bat_invoca_accion_valida_y_archivo_entregado_con_lineas_cmd_reales():

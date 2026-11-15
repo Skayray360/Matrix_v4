@@ -166,7 +166,87 @@ async function noOverflow(page: Page) {
   ).toBe(0);
 }
 
-test("recuperación de un fallo de render mediante recarga", async ({ page }, testInfo) => {
+/** Aplica la politica de produccion al servidor Vite de pruebas y comprueba CSSOM. */
+async function strictStylePolicy(page: Page) {
+  await page.addInitScript(() => {
+    const violations: string[] = [];
+    Object.assign(window, { matrixCspViolations: violations });
+    document.addEventListener("securitypolicyviolation", (event) =>
+      violations.push(event.effectiveDirective),
+    );
+  });
+  await page.route("**/*", async (route) => {
+    if (route.request().resourceType() !== "document") return route.fallback();
+    const response = await route.fetch();
+    await route.fulfill({
+      response,
+      headers: {
+        ...response.headers(),
+        "content-security-policy":
+          "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; " +
+          "font-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; " +
+          "form-action 'self'; object-src 'none'",
+      },
+    });
+  });
+}
+
+test("CSP estricta mantiene TracePanel y autosize de Composer", async ({ page }) => {
+  await strictStylePolicy(page);
+  const api = await mockApi(page);
+  const documentResponse = page.waitForResponse(
+    (response) => response.request().resourceType() === "document",
+  );
+  await login(page);
+  expect((await documentResponse).headers()["content-security-policy"]).toContain(
+    "style-src 'self';",
+  );
+  const composer = page.getByTestId("composer-input");
+  await composer.fill(Array.from({ length: 15 }, () => "Linea sintetica").join("\n"));
+  await expect(composer).toHaveCSS("height", "180px");
+  await composer.fill("Consulta sintetica de prestaciones");
+  await page.getByTestId("send-button").click();
+  await expect(page.getByTestId("message-assistant")).toContainText("respuesta sintética");
+  await page.getByRole("button", { name: "Mostrar u ocultar trazabilidad" }).click();
+  await expect(page.locator(".inspector")).toBeVisible();
+  const fraction = await page.locator(".evidence-score .fill").evaluate((element) => {
+    return (
+      element.getBoundingClientRect().width / element.parentElement!.getBoundingClientRect().width
+    );
+  });
+  expect(fraction).toBeCloseTo(0.9, 2);
+  expect(await page.evaluate(() => Reflect.get(window, "matrixCspViolations"))).toEqual([]);
+  expect(api.errors).toEqual([]);
+  expect(api.unexpected).toEqual([]);
+});
+
+test("CSP estricta bloquea un atributo style inyectado", async ({ page }) => {
+  await strictStylePolicy(page);
+  await mockApi(page);
+  await login(page);
+  await page.evaluate(() => {
+    const injected = document.createElement("div");
+    injected.id = "csp-inline-style-probe";
+    injected.setAttribute("style", "background-color: rgb(1, 2, 3)");
+    document.body.append(injected);
+  });
+  await expect(page.locator("#csp-inline-style-probe")).not.toHaveCSS(
+    "background-color",
+    "rgb(1, 2, 3)",
+  );
+  await expect
+    .poll(async () => {
+      const directives = await page.evaluate(
+        () => Reflect.get(window, "matrixCspViolations") as string[],
+      );
+      return directives.some((directive) => directive.startsWith("style-src"));
+    })
+    .toBe(true);
+});
+
+test("un perfil malformado se rechaza antes de renderizar y permite reintentar", async ({
+  page,
+}, testInfo) => {
   await page.setViewportSize({ width: 320, height: 667 });
   let profileReads = 0;
   const errors: string[] = [];
@@ -183,11 +263,11 @@ test("recuperación de un fallo de render mediante recarga", async ({ page }, te
     });
   });
   await page.goto("/");
-  await expect(page.getByRole("alert")).toContainText("No se pudo mostrar Matrix RH");
+  await expect(page.getByRole("alert")).toContainText("No se pudo verificar su sesión");
   await expect(page.locator(".recovery-card")).not.toContainText("TypeError");
   await noOverflow(page);
   await page.screenshot({ path: testInfo.outputPath("recovery-mobile.png"), fullPage: true });
-  await page.getByRole("button", { name: "Recargar Matrix RH" }).click();
+  await page.getByRole("button", { name: "Reintentar conexión" }).click();
   await expect(
     page.getByRole("heading", { name: "Consulta conocimiento interno con contexto" }),
   ).toBeVisible();
@@ -264,6 +344,49 @@ test("consulta, fuentes, trazabilidad y cierre de sesión con CSRF", async ({ pa
   expect(api.unexpected).toEqual([]);
 });
 
+test("acceso y consulta con teclado conservan el salto de línea y las fuentes", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const api = await mockApi(page);
+  await page.goto("/");
+  await expect(page.getByRole("button", { name: "Entrar", exact: true })).toBeVisible();
+  await page.keyboard.press("Tab");
+  await expect(page.getByRole("link", { name: "Continuar con acceso corporativo" })).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(page.getByLabel("Usuario", { exact: true })).toBeFocused();
+  await page.keyboard.type("usuario-ui");
+  await page.keyboard.press("Tab");
+  await expect(page.getByRole("button", { name: "Mostrar", exact: true })).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(page.getByLabel("Contrasena", { exact: true })).toBeFocused();
+  await page.keyboard.type("dato-sintetico");
+  await page.keyboard.press("Enter");
+  await expect(page.getByTestId("identity-user")).toHaveText("MatrixR1");
+
+  // Llega al compositor mediante el orden real de tabulación, sin focus() ni click().
+  const composer = page.getByTestId("composer-input");
+  for (let step = 0; step < 30; step += 1) {
+    if (await composer.evaluate((node) => node === document.activeElement)) break;
+    await page.keyboard.press("Tab");
+    expect(
+      await page.locator(".sidebar").evaluate((node) => node.contains(document.activeElement)),
+    ).toBe(false);
+  }
+  await expect(composer).toBeFocused();
+  await page.keyboard.type("Primera línea");
+  await page.keyboard.press("Shift+Enter");
+  await page.keyboard.type("Segunda línea");
+  await expect(composer).toHaveValue("Primera línea\nSegunda línea");
+  expect(api.mutations.filter((mutation) => mutation.path === "/chat/submit")).toHaveLength(0);
+  await page.keyboard.press("Enter");
+  await expect(page.getByTestId("message-assistant")).toContainText("respuesta sintética");
+  await expect(page.getByTestId("sources")).toContainText("Manual de prueba");
+  expect(api.mutations.filter((mutation) => mutation.path === "/chat/submit")).toHaveLength(1);
+  expect(api.errors).toEqual([]);
+  expect(api.unexpected).toEqual([]);
+});
+
 test("aviso general visible y persistente en móvil", async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 320, height: 667 });
   const api = await mockApi(page, false, true);
@@ -319,8 +442,22 @@ test("menú móvil, tema oscuro y adjunto privado", async ({ page }, testInfo) =
   await login(page);
   await page.getByRole("button", { name: "Conversaciones", exact: true }).click();
   await expect(page.locator(".sidebar")).toHaveAttribute("data-open", "true");
+  await expect(page.locator(".sidebar")).toBeVisible();
   await page.locator(".sidebar-close").click();
   await expect(page.locator(".sidebar")).toHaveAttribute("data-open", "false");
+  await expect(page.locator(".sidebar")).toBeHidden();
+  // El menu cerrado tampoco debe capturar el foco fuera de la pantalla.
+  await page.getByRole("button", { name: "Conversaciones", exact: true }).focus();
+  await page.keyboard.press("Shift+Tab");
+  expect(
+    await page.locator(".sidebar").evaluate((node) => node.contains(document.activeElement)),
+  ).toBe(false);
+  for (let step = 0; step < 30; step += 1) {
+    await page.keyboard.press("Tab");
+    expect(
+      await page.locator(".sidebar").evaluate((node) => node.contains(document.activeElement)),
+    ).toBe(false);
+  }
   await page.getByTestId("theme-toggle").click();
   await page.getByTestId("theme-toggle").click();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");

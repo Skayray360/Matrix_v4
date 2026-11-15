@@ -78,6 +78,35 @@ def test_dependency_vulnerability_blocks_release_even_with_other_checks_passing(
     assert "auditoria de dependencias (pip-audit)" in report["blocking_failures"]
 
 
+@pytest.mark.parametrize("typing_status,expected,code", [
+    (gate.FAIL, gate.FAIL, 1), (gate.SKIPPED, gate.INCOMPLETE, 2),
+])
+def test_typing_failure_or_missing_tool_cannot_pass_local_gate(tmp_path, monkeypatch, typing_status, expected, code):
+    monkeypatch.setattr(gate, "TEST_REPORTS", tmp_path / "tests")
+    monkeypatch.setattr(gate, "SECURITY_REPORTS", tmp_path / "security")
+    monkeypatch.setattr(gate, "FRONTEND_ROOT", tmp_path / "frontend")
+    monkeypatch.setattr(gate, "_launcher", lambda _name: None)
+    monkeypatch.setattr(gate, "_backend_tests", lambda *_args: gate.GateResult("backend", gate.PASS))
+    monkeypatch.setattr(gate, "_audit_dependencies", lambda *_args: gate.GateResult("dependencies", gate.PASS))
+    monkeypatch.setattr(gate, "_rag_gate", lambda *_args, **_kwargs: gate.GateResult("rag", gate.PASS))
+
+    def run(command, *, name, blocking=True, **_kwargs):
+        return gate.GateResult(name, typing_status if "mypy" in command else gate.PASS, blocking=blocking)
+
+    monkeypatch.setattr(gate, "_run", run)
+    results = gate.build_gates(SimpleNamespace(with_e2e=False, fast=True))
+    typing = next(item for item in results if item.name == "typing (mypy)")
+    # Aislar el resultado del control real, con todos los demas controles aprobados.
+    monkeypatch.setattr(gate, "build_gates", lambda _args: [typing, gate.GateResult("others", gate.PASS)])
+    monkeypatch.setattr(gate, "provenance", lambda: {})
+    output = tmp_path / "result.json"
+    assert gate.main(["--output", str(output)]) == code
+    report = json.loads(output.read_text())
+    assert report["overall"] == expected
+    assert not report["advisory_failures"]
+    assert typing.name in report["blocking_failures" if typing_status == gate.FAIL else "incomplete_gates"]
+
+
 def test_audit_inventory_excludes_only_private_app_and_keeps_all_installed_third_parties(tmp_path, monkeypatch):
     monkeypatch.setattr(gate.importlib.metadata, "distributions", lambda: [
         SimpleNamespace(metadata={"Name": "matrix-rh-backend"}, version="1.3.0"),
@@ -261,6 +290,49 @@ def test_backend_success_without_root_collection_evidence_fails(tmp_path, monkey
     monkeypatch.setattr(gate, "TEST_REPORTS", tmp_path)
     monkeypatch.setattr(gate, "_run", lambda *_args, **kwargs: gate.GateResult(kwargs["name"], gate.PASS))
     assert gate._backend_tests("python", "standalone").status == gate.FAIL
+
+
+def test_backend_gate_rejects_tests_removed_after_partition(tmp_path, monkeypatch):
+    """A later pytest hook must not make a shortened execution look complete."""
+    tests = tmp_path / "tests"
+    tests.mkdir()
+    (tmp_path / "pytest.ini").write_text("[pytest]\n")
+    (tests / "test_cases.py").write_text("def test_first(): pass\ndef test_second(): pass\n")
+    (tests / "conftest.py").write_text(
+        "import pytest\n"
+        "@pytest.hookimpl(trylast=True)\n"
+        "def pytest_collection_modifyitems(items):\n"
+        "    del items[1:]\n"
+    )
+    monkeypatch.setenv("PYTHONPATH", str(gate.BACKEND_ROOT))
+    monkeypatch.setattr(gate, "BACKEND_ROOT", tmp_path)
+    monkeypatch.setattr(gate, "TEST_REPORTS", tmp_path)
+    result = gate._backend_tests(sys.executable, "standalone")
+    inventory = json.loads((tmp_path / "standalone-collection.json").read_text())
+    assert inventory["selected"] == 2
+    assert result.status == gate.FAIL
+    assert "seleccionados" in result.detail
+
+
+def test_backend_gate_counts_parent_testcases_without_double_counting_subtests(tmp_path, monkeypatch):
+    tests = tmp_path / "tests"
+    tests.mkdir()
+    (tmp_path / "pytest.ini").write_text("[pytest]\n")
+    (tests / "test_cases.py").write_text(
+        "import unittest\n"
+        "class Example(unittest.TestCase):\n"
+        "    def test_subcases(self):\n"
+        "        for value in (1, 2):\n"
+        "            with self.subTest(value=value):\n"
+        "                self.assertGreater(value, 0)\n"
+        "def test_second(): pass\n"
+    )
+    monkeypatch.setenv("PYTHONPATH", str(gate.BACKEND_ROOT))
+    monkeypatch.setattr(gate, "BACKEND_ROOT", tmp_path)
+    monkeypatch.setattr(gate, "TEST_REPORTS", tmp_path)
+    result = gate._backend_tests(sys.executable, "standalone")
+    assert result.status == gate.PASS
+    assert result.junit_testcases == result.collection["selected"] == 2
 
 
 @pytest.mark.parametrize("external,expected", [(True, gate.PASS), (False, gate.FAIL), (None, gate.FAIL)])

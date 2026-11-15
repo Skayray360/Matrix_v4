@@ -56,7 +56,7 @@ class EntityConfig(BaseModel):
     @field_validator("name", "table")
     @classmethod
     def _check_identifier(cls, value: str) -> str:
-        if not IDENTIFIER_RE.match(value):
+        if not IDENTIFIER_RE.fullmatch(value):
             raise ValueError(f"Identificador invalido: {value!r}")
         return value
 
@@ -64,7 +64,7 @@ class EntityConfig(BaseModel):
     @classmethod
     def _check_columns(cls, value: list[str]) -> list[str]:
         for column in value:
-            if not IDENTIFIER_RE.match(column):
+            if not IDENTIFIER_RE.fullmatch(column):
                 raise ValueError(f"Columna invalida: {column!r}")
         return value
 
@@ -109,7 +109,7 @@ class SourceConfig(BaseModel):
     @field_validator("name")
     @classmethod
     def _check_name(cls, value: str) -> str:
-        if not IDENTIFIER_RE.match(value):
+        if not IDENTIFIER_RE.fullmatch(value):
             raise ValueError(f"Nombre de fuente invalido: {value!r}")
         return value
 
