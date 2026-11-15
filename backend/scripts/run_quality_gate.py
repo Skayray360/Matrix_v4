@@ -334,9 +334,8 @@ def build_gates(args: argparse.Namespace) -> list[GateResult]:
     results.append(_run([py, "-m", "ruff", "check", "app", "scripts", "seeds", "tests"],
                         cwd=BACKEND_ROOT, name="lint (ruff)"))
 
-    # 2. typing
-    results.append(_run([py, "-m", "mypy", "app"], cwd=BACKEND_ROOT, name="typing (mypy)",
-                        blocking=False))
+    # 2. typing: el gate local exige el mismo resultado que CI.
+    results.append(_run([py, "-m", "mypy", "app"], cwd=BACKEND_ROOT, name="typing (mypy)"))
 
     # 2b. encabezados de autoria (requisito 16)
     results.append(_run([py, "-m", "scripts.verify_headers"], cwd=BACKEND_ROOT,

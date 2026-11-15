@@ -1,6 +1,8 @@
 <!-- Creado por Aldo Garcia. -->
 # Validación del archivo de mejoras — 15 de noviembre de 2026
 
+La [continuación de esta revisión](followup.md) documenta las correcciones posteriores de diagnóstico Windows, tipado y cobertura. Las cifras de este informe corresponden al commit indicado en su sección de validación.
+
 Se contrastó íntegramente `README MEJORAS MATRIX RH.md` con el proyecto. El archivo revisaba `main@5400884`; el trabajo anterior está en la PR #3, cuya base de esta revisión es `5f17e42fa6b17f89698c91ddfcc7b1e0354e8acb`. Por eso sus afirmaciones sobre ausencia de CI, auditorías sin ejecutar y documentación antigua no describen completamente esta rama. La PR permanece en borrador, sin fusionar ni desplegar.
 
 SHA-256 del archivo recibido: `5895fe4e7e88b4bcb618627fdb744190ffd7fe59c5bfd65226209f4d07f73862`.

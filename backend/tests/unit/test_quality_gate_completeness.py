@@ -78,6 +78,35 @@ def test_dependency_vulnerability_blocks_release_even_with_other_checks_passing(
     assert "auditoria de dependencias (pip-audit)" in report["blocking_failures"]
 
 
+@pytest.mark.parametrize("typing_status,expected,code", [
+    (gate.FAIL, gate.FAIL, 1), (gate.SKIPPED, gate.INCOMPLETE, 2),
+])
+def test_typing_failure_or_missing_tool_cannot_pass_local_gate(tmp_path, monkeypatch, typing_status, expected, code):
+    monkeypatch.setattr(gate, "TEST_REPORTS", tmp_path / "tests")
+    monkeypatch.setattr(gate, "SECURITY_REPORTS", tmp_path / "security")
+    monkeypatch.setattr(gate, "FRONTEND_ROOT", tmp_path / "frontend")
+    monkeypatch.setattr(gate, "_launcher", lambda _name: None)
+    monkeypatch.setattr(gate, "_backend_tests", lambda *_args: gate.GateResult("backend", gate.PASS))
+    monkeypatch.setattr(gate, "_audit_dependencies", lambda *_args: gate.GateResult("dependencies", gate.PASS))
+    monkeypatch.setattr(gate, "_rag_gate", lambda *_args, **_kwargs: gate.GateResult("rag", gate.PASS))
+
+    def run(command, *, name, blocking=True, **_kwargs):
+        return gate.GateResult(name, typing_status if "mypy" in command else gate.PASS, blocking=blocking)
+
+    monkeypatch.setattr(gate, "_run", run)
+    results = gate.build_gates(SimpleNamespace(with_e2e=False, fast=True))
+    typing = next(item for item in results if item.name == "typing (mypy)")
+    # Aislar el resultado del control real, con todos los demas controles aprobados.
+    monkeypatch.setattr(gate, "build_gates", lambda _args: [typing, gate.GateResult("others", gate.PASS)])
+    monkeypatch.setattr(gate, "provenance", lambda: {})
+    output = tmp_path / "result.json"
+    assert gate.main(["--output", str(output)]) == code
+    report = json.loads(output.read_text())
+    assert report["overall"] == expected
+    assert not report["advisory_failures"]
+    assert typing.name in report["blocking_failures" if typing_status == gate.FAIL else "incomplete_gates"]
+
+
 def test_audit_inventory_excludes_only_private_app_and_keeps_all_installed_third_parties(tmp_path, monkeypatch):
     monkeypatch.setattr(gate.importlib.metadata, "distributions", lambda: [
         SimpleNamespace(metadata={"Name": "matrix-rh-backend"}, version="1.3.0"),

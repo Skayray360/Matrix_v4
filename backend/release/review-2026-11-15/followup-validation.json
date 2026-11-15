@@ -1,0 +1,88 @@
+{
+  "schema_version": 1,
+  "scope": "synthetic_local_followup",
+  "base_commit": "045e4871571e9a64752d9f15fe4f0022864accee",
+  "local_backend": {
+    "name": "pruebas backend (standalone)",
+    "status": "INCOMPLETE",
+    "exit_code": 0,
+    "duration_s": 160.34,
+    "detail": "3798 casos recopilados, 10 omitidos; no certifica la suite completa",
+    "blocking": true,
+    "collection": {
+      "group": "standalone",
+      "collected_total": 3927,
+      "groups": {
+        "standalone": 3758,
+        "integration_services": 169
+      },
+      "selected": 3758,
+      "nodeids_sha256": "5b0d6f64010385248a36cc082110ae8416e70ef0a692f3313d798cc6c3b23cf0"
+    },
+    "junit_testcases": 3758
+  },
+  "local_parent_testcases_passed": 3748,
+  "omitted_local_powerShell": [
+    {
+      "name": "test_packaged_source_passes_native_guard_and_rejects_frontend_tampering",
+      "reason": "PowerShell is required to execute the isolated release guard"
+    },
+    {
+      "name": "test_native_controller_pure_powershell_flows[native_supervisor_synthetic.ps1]",
+      "reason": "PowerShell is required to execute isolated supervisor functions"
+    },
+    {
+      "name": "test_native_controller_pure_powershell_flows[native_supervisor_apache_synthetic.ps1]",
+      "reason": "PowerShell is required to execute isolated supervisor functions"
+    },
+    {
+      "name": "test_native_controller_pure_powershell_flows[native_supervisor_identity_synthetic.ps1]",
+      "reason": "PowerShell is required to execute isolated supervisor functions"
+    },
+    {
+      "name": "test_native_controller_pure_powershell_flows[native_supervisor_ollama_synthetic.ps1]",
+      "reason": "PowerShell is required to execute isolated supervisor functions"
+    },
+    {
+      "name": "test_native_controller_pure_powershell_flows[native_supervisor_mysql_synthetic.ps1]",
+      "reason": "PowerShell is required to execute isolated supervisor functions"
+    },
+    {
+      "name": "test_native_controller_pure_powershell_flows[native_supervisor_incomplete_synthetic.ps1]",
+      "reason": "PowerShell is required to execute isolated supervisor functions"
+    },
+    {
+      "name": "test_native_controller_pure_powershell_flows[native_supervisor_installer_security.ps1]",
+      "reason": "PowerShell is required to execute isolated supervisor functions"
+    },
+    {
+      "name": "test_native_controller_pure_powershell_flows[native_supervisor_frontend_build.ps1]",
+      "reason": "PowerShell is required to execute isolated supervisor functions"
+    },
+    {
+      "name": "test_native_controller_pure_powershell_flows[native_supervisor_runtime_upgrade.ps1]",
+      "reason": "PowerShell is required to execute isolated supervisor functions"
+    }
+  ],
+  "reclassified_offline_collection": {
+    "group": "standalone",
+    "collected_total": 39,
+    "groups": {
+      "standalone": 23,
+      "integration_services": 16
+    },
+    "selected": 23,
+    "nodeids_sha256": "9aa15679e91016589a05869c818ea2fbc143581cec5085865a1104b9094eff32"
+  },
+  "changes_sha256": {
+    "backend/scripts/preflight.py": "5d491063d6ee57cf91499380d0b9e5cb81fc7e1cda609b06e7d903d7d49b2c5e",
+    "backend/scripts/run_quality_gate.py": "ab83ccccc654dc579ef284bc963f6eb4a17ae8cf25f052bc612526edf4ab90a9",
+    "backend/tests/unit/test_bitlocker_probe_process.py": "32c34284f8ce946b0ea1dab94e1e15b474c052ea0539e4dae874deda411680aa",
+    "backend/tests/unit/test_quality_gate_completeness.py": "4cb4a51be775c2269ea4db5959d636a02a35a2e12d0cd02ca21f38cf68c9b0fe",
+    "backend/tests/integration/test_sessions_and_migrations.py": "836b3ce3cfad76e039a593b8ff52dfbe9f2dfff9c31a54932dad7eb7211e0989",
+    "backend/tests/integration/test_structured_end_to_end.py": "aa9b318a65c3edbcc7f0c9b9a1f2037fdc9d53717e74f3a4770839ba64f18496"
+  },
+  "real_bitlocker_verified": false,
+  "production_data_accessed": false,
+  "integration_remaining_beyond_existing_vector_cases": 159
+}

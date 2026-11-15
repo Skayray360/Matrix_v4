@@ -647,9 +647,13 @@ try {
 catch { Write-Output 'BITLOCKER_NO_VERIFICABLE'; exit 1 }
 """
     powershell = Path(os.environ.get("SYSTEMROOT", r"C:\Windows")) / "System32/WindowsPowerShell/v1.0/powershell.exe"
+    # Python puede heredar rutas de modulos de pwsh7; PS5.1 necesita reconstruir
+    # las suyas. La salida del script es UTF-8 tambien en un Windows con ACP.
+    environment = {key: value for key, value in os.environ.items() if key.upper() != "PSMODULEPATH"}
     completed = subprocess.run(  # noqa: S603 - programa fijo; rutas via stdin, sin credenciales
         [str(powershell), "-NoProfile", "-NonInteractive", "-Command", script],
-        input=json.dumps([str(path) for path in paths]), capture_output=True, text=True, timeout=30, check=False,
+        input=json.dumps([str(path) for path in paths]), capture_output=True, text=True, encoding="utf-8",
+        timeout=30, check=False, env=environment,
     )
     if completed.returncode != 0:
         raise OSError("BitLockerNoVerificable")
