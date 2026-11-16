@@ -567,6 +567,7 @@ test("texto al 200 por ciento conserva acceso, consulta y fuentes en móvil", as
   await expect(page.getByTestId("sources").locator("li")).toBeFocused();
   await noOverflow(page);
   await page.screenshot({ path: testInfo.outputPath("chat-large-text.png"), fullPage: true });
+  await expect(page.getByTestId("sources").locator("li")).toBeInViewport({ ratio: 1 });
   expect(api.errors).toEqual([]);
   expect(api.unexpected).toEqual([]);
 });

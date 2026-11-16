@@ -924,6 +924,9 @@ a:hover { color: var(--accent); }
   .welcome-grid strong, .welcome-grid span { grid-column: 2; }
   .welcome-mascot { width: 48px; height: 64px; margin-bottom: 10px; }
   .messages { padding-inline: 16px; }
+  .sources { align-items: flex-start; }
+  .sources h4, .sources ul { flex-basis: 100%; }
+  .source-chip { border-radius: 12px; }
 }
 
 @media (max-width: 800px) {
