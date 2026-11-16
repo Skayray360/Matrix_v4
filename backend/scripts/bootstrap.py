@@ -274,7 +274,7 @@ def cmd_serve(args: argparse.Namespace) -> int:
     server_options: dict[str, Any] = {
         "app": "app.main:app", "host": args.host or settings.app_host,
         "port": args.port or settings.app_port, "reload": args.reload,
-        "log_config": None, "access_log": False, "proxy_headers": True,
+        "log_config": None, "access_log": False, "proxy_headers": True, "server_header": False,
         "forwarded_allow_ips": settings.forwarded_allow_ips, "timeout_graceful_shutdown": 20,
     }
     if args.reload:

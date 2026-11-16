@@ -18,7 +18,7 @@ from app.auth.sessions import (
     revoke_all_user_sessions,
     revoke_session,
 )
-from app.common.errors import ConfigurationError, RateLimitedError, UnauthorizedError
+from app.common.errors import ConfigurationError, UnauthorizedError
 from app.common.ids import sha256_text, utcnow_naive
 from app.database.migrator import (
     discover_migrations,
@@ -132,7 +132,7 @@ class TestProveedorLocal:
         with pytest.raises(UnauthorizedError):
             LocalTestIdentityProvider().authenticate(db_session, username="", password="")
 
-    def test_bloquea_tras_varios_intentos_fallidos(self, db_session):
+    def test_fallos_no_bloquean_la_contrasena_correcta(self, db_session):
         provider = LocalTestIdentityProvider()
         usuario = db_session.execute(select(User).where(User.username == "MatrixR1")).scalar_one()
         credencial = db_session.get(LocalCredential, usuario.id)
@@ -145,10 +145,10 @@ class TestProveedorLocal:
                 # secrets-scan: allow (valor deliberadamente incorrecto de la prueba)
                 provider.authenticate(db_session, username="MatrixR1", password="incorrecta")
 
-        with pytest.raises(RateLimitedError, match="bloqueada"):
-            provider.authenticate(
-                db_session, username="MatrixR1", password=SYNTHETIC_TEST_PASSWORD
-            )
+        identity = provider.authenticate(
+            db_session, username="MatrixR1", password=SYNTHETIC_TEST_PASSWORD
+        )
+        assert identity.username == "MatrixR1"
 
         # Se restaura el estado para no afectar a otras pruebas.
         credencial.failed_attempts = 0

@@ -21,7 +21,9 @@ que impide dos reconciliaciones simultaneas.
 
 from __future__ import annotations
 
+import hashlib
 import os
+import stat
 import time
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -44,7 +46,7 @@ from app.common.ids import new_id, utcnow_naive
 from app.common.logging import get_logger
 from app.config import get_settings
 from app.database.models import Document, IngestionJob, JobLock
-from app.ingestion.knowledge_layout import KnowledgeScan, scan_knowledge, source_for_document
+from app.ingestion.knowledge_layout import KnowledgeFile, KnowledgeScan, scan_knowledge, source_for_document
 from app.ingestion.loaders import supported_extensions
 from app.ingestion.service import GenerationCleanupPendingError, IngestionService, SourceChangedError
 from app.rag.schemas import SCOPE_CONVERSATION, SCOPE_CORPORATE
@@ -240,6 +242,7 @@ def reconcile_knowledge(
     trigger: str = "manual",
     force: bool = False,
     new_only: bool = False,
+    incremental: bool = False,
     max_documents: int | None = None,
     allowed_categories: frozenset[str] | None = None,
 ) -> ReconcileStats:
@@ -247,10 +250,12 @@ def reconcile_knowledge(
     settings = get_settings()
     if new_only and force:
         raise ValueError("new_only y force son incompatibles.")
+    if incremental and (new_only or force):
+        raise ValueError("incremental es incompatible con new_only y force.")
     if max_documents is not None and max_documents < 1:
         raise ValueError("max_documents debe ser positivo.")
     ingestion = service
-    stats = ReconcileStats(mode="new_only" if new_only else "full")
+    stats = ReconcileStats(mode="incremental" if incremental else "new_only" if new_only else "full")
     if allowed_categories == frozenset():
         # Ninguna categoria autorizada implica cero trabajo, tambien en modo
         # completo. No abrir inventario, Qdrant o el runtime para un alcance vacio.
@@ -265,6 +270,16 @@ def reconcile_knowledge(
         # dominios. El administrador funcional solo recibe su ambito efectivo.
         stats.inventory_warnings = []
         stats.source_roots = len({item.source_id for item in inventory.files})
+    # Las bajas se calculan contra TODO el inventario, nunca contra el lote de
+    # candidatos ni solo los archivos estables. Eso evita eliminar archivos
+    # validos que quedaron fuera de las ocho actualizaciones de esta pasada.
+    incremental_seen: set[str] = set()
+    if incremental:
+        inventory.files, incremental_seen, has_missing = _incremental_candidates(
+            db, inventory=inventory, stats=stats, max_documents=max_documents,
+        )
+        if not inventory.files and not has_missing and not stats.failures:
+            return stats
     if new_only:
         # Un unico inventario SQL. No abrir archivos existentes ni generar
         # embeddings para comparar SHA/fingerprint en la pasada rapida.
@@ -318,7 +333,7 @@ def reconcile_knowledge(
 
     job = IngestionJob(
         id=new_id(),
-        job_type="sync_new" if new_only else "reconcile",
+        job_type="sync_changes" if incremental else "sync_new" if new_only else "reconcile",
         status="running",
         trigger_source=trigger,
         started_at=utcnow_naive(),
@@ -344,13 +359,21 @@ def reconcile_knowledge(
         refresh_registry()
         logger.info("ingestion.new_categories", extra={"new_category_count": len(stats.new_categories)})
 
+    if incremental:
+        # Retirar una politica ausente no espera a los embeddings de los nuevos
+        # documentos. La baja SQL sigue cercada por lease/generacion confirmada.
+        _reconcile_deleted_files(
+            db, ingestion=ingestion, stats=stats, seen_paths=incremental_seen,
+            inventory=inventory, allowed_categories=allowed_categories,
+        )
+
     # --- archivos presentes en disco --------------------------------------
     seen_paths = _reconcile_present_files(
         db, ingestion=ingestion, root=root, stats=stats, force=force, inventory=inventory
     )
 
     # --- archivos eliminados del disco ------------------------------------
-    if not new_only:
+    if not new_only and not incremental:
         _reconcile_deleted_files(
             db, ingestion=ingestion, stats=stats, seen_paths=seen_paths,
             inventory=inventory, allowed_categories=allowed_categories,
@@ -361,8 +384,8 @@ def reconcile_knowledge(
         if allowed_categories is None:
             _reconcile_private_documents(db, ingestion=ingestion, stats=stats, force=force)
 
-    if new_only:
-        stats.pending_documents = max(0, stats.pending_documents - stats.new_documents)
+    if new_only or incremental:
+        stats.pending_documents = max(0, stats.pending_documents - stats.new_documents - stats.updated_documents)
 
     job.status = "failed" if stats.failures else "completed"
     job.finished_at = utcnow_naive()
@@ -377,6 +400,94 @@ def reconcile_knowledge(
         if key not in {"failures", "inventory_warnings", "new_categories", "last_scanned_path"}
     })
     return stats
+
+
+def _stable_digest(path: Path, *, max_bytes: int) -> str:
+    """SHA-256 acotado y en bloques; no extrae texto ni requiere embeddings."""
+    if any(candidate.is_symlink() or (hasattr(candidate, "is_junction") and candidate.is_junction())
+           for candidate in (path, *path.parents)):
+        raise SourceChangedError("La ruta documental ya no es directa.")
+    before = path.lstat()
+    if not stat.S_ISREG(before.st_mode) or getattr(before, "st_file_attributes", 0) & 0x400:
+        raise SourceChangedError("El documento ya no es un archivo regular directo.")
+    if before.st_size > max_bytes:
+        raise ValueError("El documento supera el limite de lectura.")
+
+    def signature(info: os.stat_result) -> tuple[int, int, int, int, int]:
+        return info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns, info.st_ctime_ns
+
+    digest = hashlib.sha256()
+    read = 0
+    flags = os.O_RDONLY | getattr(os, "O_BINARY", 0) | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0)
+    with os.fdopen(os.open(path, flags), "rb") as stream:
+        opened = os.fstat(stream.fileno())
+        if not stat.S_ISREG(opened.st_mode) or signature(opened) != signature(before):
+            raise SourceChangedError("El documento fue sustituido antes de leerlo.")
+        while chunk := stream.read(min(1_048_576, max_bytes + 1 - read)):
+            read += len(chunk)
+            if read > max_bytes:
+                raise ValueError("El documento supera el limite de lectura.")
+            digest.update(chunk)
+    after = path.lstat()
+    if (not stat.S_ISREG(after.st_mode) or getattr(after, "st_file_attributes", 0) & 0x400
+            or signature(after) != signature(before) or read != before.st_size):
+        raise SourceChangedError("El documento cambio durante la lectura.")
+    return digest.hexdigest()
+
+
+def _incremental_candidates(
+    db: Session, *, inventory: KnowledgeScan, stats: ReconcileStats, max_documents: int | None,
+) -> tuple[list[KnowledgeFile], set[str], bool]:
+    """Detecta cambios SHA sin revisar modelos/indices de archivos sin cambios.
+
+    Conserva la pasada completa diaria para cambios de pipeline, politicas y
+    recuperacion de indices. La cuota limita publicaciones; hashing usa memoria
+    constante y el mismo limite por archivo que la ingesta.
+    """
+    settings = get_settings()
+    existing = list(db.scalars(select(Document).where(Document.scope == SCOPE_CORPORATE)))
+    by_relative = {doc.relative_path: doc for doc in existing}
+    by_storage = {os.path.normcase(os.path.normpath(doc.storage_path)): doc for doc in existing if doc.storage_path}
+    seen = {item.relative_path for item in inventory.files}
+    candidates: list[KnowledgeFile] = []
+    for item in inventory.files:
+        document = by_relative.get(item.relative_path)
+        if document is None:
+            document = by_storage.get(os.path.normcase(os.path.normpath(str(item.absolute_path))))
+        if document is None:
+            document = next((by_relative[path] for path in item.legacy_relative_paths if path in by_relative and
+                             str(by_relative[path].storage_path or "").replace("\\", "/").casefold()
+                             .endswith("/data/" + path.casefold())), None)
+        if document is not None and document.relative_path:
+            seen.add(document.relative_path)
+        try:
+            info = item.absolute_path.stat()
+            if time.time() - max(info.st_mtime, info.st_ctime) < settings.rag_sync_stability_seconds:
+                stats.deferred_documents += 1
+                continue
+            if (document is not None and document.deleted_at is None and document.status in {"indexed", "empty"}
+                    and document.relative_path == item.relative_path and document.category == item.category
+                    and document.sha256 == _stable_digest(item.absolute_path, max_bytes=settings.upload_max_bytes)):
+                stats.unchanged_documents += 1
+                continue
+        except (OSError, SourceChangedError):
+            stats.deferred_documents += 1
+            continue
+        except ValueError as exc:
+            stats.failures.append({"path": item.relative_path, "error": type(exc).__name__})
+            continue
+        candidates.append(item)
+    stats.pending_documents = len(candidates) + stats.deferred_documents + len(stats.failures)
+    candidates.sort(key=lambda item: item.relative_path)
+    if max_documents is not None and candidates:
+        previous = db.scalar(select(IngestionJob).where(IngestionJob.job_type == "sync_changes")
+                             .order_by(IngestionJob.started_at.desc(), IngestionJob.id.desc()).limit(1))
+        cursor = (previous.stats or {}).get("last_scanned_path") if previous else None
+        if isinstance(cursor, str):
+            candidates = ([item for item in candidates if item.relative_path > cursor]
+                          + [item for item in candidates if item.relative_path <= cursor])
+    missing = any(doc.deleted_at is None and doc.relative_path and doc.relative_path not in seen for doc in existing)
+    return candidates[:max_documents] if max_documents is not None else candidates, seen, missing
 
 
 def _reconcile_present_files(
@@ -557,7 +668,7 @@ def _reconcile_deleted_files(
 
 def reconcile_with_lock(
     db: Session, *, trigger: str = "scheduler", force: bool = False,
-    new_only: bool = False, max_documents: int | None = None,
+    new_only: bool = False, incremental: bool = False, max_documents: int | None = None,
     allowed_categories: frozenset[str] | None = None,
 ) -> ReconcileStats | None:
     """Ejecuta la reconciliacion salvo que otra ya este en curso."""
@@ -574,11 +685,11 @@ def reconcile_with_lock(
 
                 retry_generation_write_intents(db)
                 retry_pending_generation_cleanup(db)
-            if not new_only and allowed_categories is None:
+            if not new_only and not incremental and allowed_categories is None:
                 # La limpieza global tambien incluye otros dominios y privados;
                 # pertenece al scheduler/CLI, no a una operacion administrativa parcial.
                 get_vector_store().cleanup_generations()
-            return reconcile_knowledge(db, trigger=trigger, force=force, new_only=new_only,
+            return reconcile_knowledge(db, trigger=trigger, force=force, new_only=new_only, incremental=incremental,
                                        max_documents=max_documents, allowed_categories=allowed_categories)
     except LockNotAcquired as exc:
         logger.warning("ingestion.reconcile_skipped", extra={"lock_reason": str(exc)})

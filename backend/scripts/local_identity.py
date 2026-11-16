@@ -11,12 +11,14 @@ from pathlib import Path
 from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 
+from app.audit.service import AuditRecord, get_audit_service
 from app.auth.local_accounts import (
     LOCAL_ADMIN_ROLE,
     LOCAL_READER_ROLE,
     bootstrap_administrator,
     create_local_account,
     replace_local_password,
+    update_local_account,
     validate_password,
 )
 from app.common.errors import MatrixError, ValidationFailedError
@@ -53,9 +55,18 @@ def main(argv: list[str] | None = None) -> int:
         if name == "create-user":
             command.add_argument("--display-name", default="")
             command.add_argument("--role", choices=(LOCAL_ADMIN_ROLE, LOCAL_READER_ROLE), default=LOCAL_READER_ROLE)
+    for name in ("set-active", "set-role"):
+        command = commands.add_parser(name)
+        command.add_argument("--username", required=True)
+        if name == "set-role":
+            command.add_argument("--role", choices=(LOCAL_ADMIN_ROLE, LOCAL_READER_ROLE), required=True)
+        else:
+            state = command.add_mutually_exclusive_group(required=True)
+            state.add_argument("--active", dest="is_active", action="store_true")
+            state.add_argument("--inactive", dest="is_active", action="store_false")
     args = parser.parse_args(argv)
     try:
-        password = read_password(args.password_file)
+        password = read_password(args.password_file) if hasattr(args, "password_file") else None
         with session_scope() as db:
             if args.action == "bootstrap":
                 _, created = bootstrap_administrator(db, username=args.username, password=password)
@@ -64,13 +75,30 @@ def main(argv: list[str] | None = None) -> int:
                 create_local_account(db, username=args.username, display_name=args.display_name or args.username,
                                      password=password, role_name=args.role)
                 result = {"ok": True, "action": args.action, "created": True}
-            else:
+            elif args.action == "change-password":
                 user = db.execute(select(User).where(User.username == args.username)
                                   .with_for_update()).scalar_one_or_none()
                 if user is None:
                     raise ValidationFailedError("No existe la cuenta local solicitada.")
                 count = replace_local_password(db, user=user, password=password)
                 result = {"ok": True, "action": args.action, "revoked_sessions": count}
+            else:
+                # Solo localizar el ID; update_local_account toma los locks en
+                # orden rol -> usuarios -> sesiones, tambien desde el CLI.
+                user_id = db.execute(select(User.id).where(User.username == args.username)).scalar_one_or_none()
+                if user_id is None:
+                    raise ValidationFailedError("No existe la cuenta local solicitada.")
+                user, count = update_local_account(
+                    db, user_id=user_id,
+                    is_active=args.is_active if args.action == "set-active" else None,
+                    role_name=args.role if args.action == "set-role" else None,
+                )
+                get_audit_service().record(db, AuditRecord(
+                    request_id="local-operator", event_type="auth.local_user_updated_cli",
+                    resource=user.id, authorization_decision="ALLOW",
+                ))
+                result = {"ok": True, "action": args.action, "is_active": user.is_active,
+                          "revoked_sessions": count}
         print(json.dumps(result))
         return 0
     except (MatrixError, SQLAlchemyError, OSError, UnicodeError, ValueError):

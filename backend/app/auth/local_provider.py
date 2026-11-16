@@ -8,11 +8,10 @@ de una respuesta 401 no puede borrar el contador de proteccion de la cuenta.
 
 from __future__ import annotations
 
-from datetime import timedelta
-
-from sqlalchemy import case, or_, select, update
+from sqlalchemy import case, select, update
 from sqlalchemy.orm import Session
 
+from app.auth.local_accounts import validate_username
 from app.auth.passwords import dummy_verify, verify_password
 from app.auth.provider import (
     IdentityProvider,
@@ -20,7 +19,7 @@ from app.auth.provider import (
     LoginChallenge,
     NormalizedIdentity,
 )
-from app.common.errors import ConfigurationError, RateLimitedError, UnauthorizedError
+from app.common.errors import ConfigurationError, UnauthorizedError, ValidationFailedError
 from app.common.ids import utcnow_naive
 from app.common.logging import get_logger
 from app.config import AppEnv, AuthProvider, get_settings
@@ -28,9 +27,8 @@ from app.database.models import LocalCredential, User
 
 logger = get_logger(__name__)
 
-#: Tras este numero de intentos fallidos consecutivos la cuenta queda bloqueada.
+#: Contador acotado de fallos; nunca impide verificar una contrasena correcta.
 MAX_FAILED_ATTEMPTS = 5
-LOCKOUT_MINUTES = 5
 
 
 class LocalIdentityProvider(IdentityProvider):
@@ -64,6 +62,16 @@ class LocalIdentityProvider(IdentityProvider):
         if not username or not password:
             raise UnauthorizedError("Usuario o contrasena incorrectos.")
 
+        # Las altas locales solo admiten ASCII. MySQL unicode_ci tambien
+        # compararia variantes acentuadas/compatibles con una cuenta ASCII,
+        # creando alias que el backoff casefold no puede agrupar. Rechazarlas
+        # antes de SQL conserva el contrato de alta y el error generico.
+        try:
+            validate_username(username)
+        except ValidationFailedError:
+            dummy_verify()
+            raise UnauthorizedError("Usuario o contrasena incorrectos.") from None
+
         # Orden de bloqueo compartido con cambios de contrasena: usuario,
         # credencial y finalmente sesiones. La emision de sesion pertenece a
         # esta misma transaccion, evitando autenticar con un hash ya sustituido.
@@ -88,32 +96,23 @@ class LocalIdentityProvider(IdentityProvider):
             raise UnauthorizedError("Usuario o contrasena incorrectos.")
 
         now = utcnow_naive()
-        if credential.locked_until is not None and credential.locked_until > now:
-            logger.warning(
-                "auth.local.login_locked",
-                extra={"auth_reason": "locked", "user_opaque_id": user.id},
-            )
-            raise RateLimitedError("Cuenta bloqueada temporalmente por intentos fallidos.")
-
         if not verify_password(credential.password_hash_argon2id, password):
-            # Incremento SQL atomico: aun sin SELECT FOR UPDATE en SQLite, dos
-            # verificaciones concurrentes no sobrescriben el contador entre si.
+            # Contador SQL atomico y acotado para auditoria. Un atacante no
+            # puede usarlo para bloquear al titular, ni mediante locked_until
+            # heredados de una version anterior. El backoff HTTP se aplica
+            # DESPUES del commit, sin mantener esta transaccion durante la espera.
             reaches_limit = LocalCredential.failed_attempts >= MAX_FAILED_ATTEMPTS - 1
             session.execute(
                 update(LocalCredential)
                 .where(
                     LocalCredential.user_id == user.id,
                     LocalCredential.password_hash_argon2id == credential.password_hash_argon2id,
-                    or_(LocalCredential.locked_until.is_(None), LocalCredential.locked_until <= now),
                 )
-                # MySQL evalua asignaciones de izquierda a derecha: el bloqueo
-                # debe calcularse ANTES de reiniciar failed_attempts a cero.
-                .ordered_values(
-                    (LocalCredential.locked_until,
-                     case((reaches_limit, now + timedelta(minutes=LOCKOUT_MINUTES)), else_=None)),
-                    (LocalCredential.failed_attempts,
-                     case((reaches_limit, 0), else_=LocalCredential.failed_attempts + 1)),
-                    (LocalCredential.updated_at, now),
+                .values(
+                    locked_until=None,
+                    failed_attempts=case((reaches_limit, MAX_FAILED_ATTEMPTS),
+                                         else_=LocalCredential.failed_attempts + 1),
+                    updated_at=now,
                 )
                 .execution_options(synchronize_session=False)
             )
@@ -131,7 +130,6 @@ class LocalIdentityProvider(IdentityProvider):
             update(LocalCredential).where(
                 LocalCredential.user_id == user.id,
                 LocalCredential.password_hash_argon2id == credential.password_hash_argon2id,
-                or_(LocalCredential.locked_until.is_(None), LocalCredential.locked_until <= now),
             ).values(failed_attempts=0, locked_until=None, updated_at=now)
             .execution_options(synchronize_session=False)
         )

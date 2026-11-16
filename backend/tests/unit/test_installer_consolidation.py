@@ -277,6 +277,7 @@ def test_serve_proxy_confia_solo_ips_validadas_y_no_omite_cifrado(tmp_path, monk
             captured.append({
                 "proxy_headers": self.configuration.proxy_headers,
                 "forwarded_allow_ips": self.configuration.forwarded_allow_ips,
+                "server_header": self.configuration.server_header,
             })
 
     monkeypatch.setattr(uvicorn, "Server", FakeServer)
@@ -288,6 +289,7 @@ def test_serve_proxy_confia_solo_ips_validadas_y_no_omite_cifrado(tmp_path, monk
     assert encryption_checks == [True]
     assert captured[0]["proxy_headers"] is True
     assert captured[0]["forwarded_allow_ips"] == "127.0.0.1,172.30.0.0/24"
+    assert captured[0]["server_header"] is False
 
 
 def test_paquete_conserva_readme_unico_y_excluye_historial_y_datos_runtime(tmp_path: Path):

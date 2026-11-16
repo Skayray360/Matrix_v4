@@ -6,15 +6,14 @@ from __future__ import annotations
 import secrets
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
+from datetime import timedelta
 from types import SimpleNamespace
 
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, select
-from sqlalchemy.dialects import mysql
-from sqlalchemy.orm import Session, sessionmaker
-from sqlalchemy.sql.dml import Update
+from sqlalchemy.orm import sessionmaker
 
 from app.api import deps
 from app.api.middleware import matrix_error_handler
@@ -31,6 +30,7 @@ from app.auth.passwords import verify_password
 from app.authorization import policy
 from app.authorization.categories import CategoryPolicy, CategoryRegistry
 from app.common.errors import ConfigurationError, MatrixError, UnauthorizedError, ValidationFailedError
+from app.common.ids import utcnow_naive
 from app.config import Settings
 from app.database.models import AuditEvent, Base, IdentityLink, LocalCredential, Role, SessionRecord, User
 from app.security.rate_limit import get_rate_limiter
@@ -64,10 +64,13 @@ def local_system(tmp_path, monkeypatch):
     application.include_router(auth.router, prefix="/api/v1")
     application.add_exception_handler(MatrixError, matrix_error_handler)
     get_rate_limiter().reset()
+    auth._failed_logins.reset()
+    monkeypatch.setattr(auth, "time", SimpleNamespace(sleep=lambda _seconds: None))
     with TestClient(application) as client:
         yield SimpleNamespace(client=client, app=application, factory=factory, password=password,
                               user_id=user_id, settings=settings, root=tmp_path)
     get_rate_limiter().reset()
+    auth._failed_logins.reset()
     engine.dispose()
 
 
@@ -127,16 +130,18 @@ def test_bootstrap_does_not_adopt_federated_identity_or_create_second_initial_ad
         bootstrap_administrator(db, username="OtherAdmin", password=local_system.password)
 
 
-def test_login_denial_persists_lock_across_http_rollbacks(local_system):
+def test_login_denial_persists_counter_without_blocking_the_correct_password(local_system):
     for _ in range(5):
         # secrets-scan: allow (valor sintetico aislado; ninguna credencial operativa)
         assert login(local_system, password="wrong-value").status_code == 401
     with local_system.factory() as db:
         credential = db.get(LocalCredential, local_system.user_id)
-        assert credential.locked_until is not None
-        assert credential.failed_attempts == 0
+        assert credential.locked_until is None
+        assert credential.failed_attempts == 5
         assert len(db.execute(select(AuditEvent).where(AuditEvent.event_type == "auth.login_failed")).all()) == 5
-    assert login(local_system).status_code == 429
+    assert login(local_system).status_code == 200
+    with local_system.factory() as db:
+        assert db.get(LocalCredential, local_system.user_id).failed_attempts == 0
 
 
 def test_concurrent_failed_logins_do_not_lose_account_attempts(local_system, monkeypatch):
@@ -149,27 +154,25 @@ def test_concurrent_failed_logins_do_not_lose_account_attempts(local_system, mon
 
     with ThreadPoolExecutor(max_workers=5) as workers:
         statuses = list(workers.map(denied, range(5)))
-    assert all(status in (401, 429) for status in statuses)
+    assert statuses == [401] * 5
     with local_system.factory() as db:
-        assert db.get(LocalCredential, local_system.user_id).locked_until is not None
+        credential = db.get(LocalCredential, local_system.user_id)
+        assert credential.locked_until is None
+        assert credential.failed_attempts == 5
 
 
-def test_mysql_failure_update_computes_lock_before_resetting_counter(local_system, monkeypatch):
-    statements = []
-    execute = Session.execute
-
-    def capture(self, statement, *args, **kwargs):
-        if isinstance(statement, Update) and statement.table.name == "local_credentials":
-            statements.append(str(statement.compile(dialect=mysql.dialect())))
-        return execute(self, statement, *args, **kwargs)
-
-    monkeypatch.setattr(Session, "execute", capture)
-    # secrets-scan: allow (valor sintetico aislado; ninguna credencial operativa)
-    assert login(local_system, password="wrong-value").status_code == 401
-    assert len(statements) == 1
-    assignments = statements[0].split(" SET ", 1)[1].split(" WHERE ", 1)[0]
-    # MySQL usa el valor ya asignado en expresiones posteriores del mismo UPDATE.
-    assert assignments.index("locked_until=") < assignments.index("failed_attempts=")
+def test_legacy_account_lock_cannot_deny_the_correct_password(local_system, monkeypatch):
+    delays = []
+    monkeypatch.setattr(auth.time, "sleep", delays.append)
+    with local_system.factory.begin() as db:
+        credential = db.get(LocalCredential, local_system.user_id)
+        credential.locked_until = utcnow_naive() + timedelta(minutes=5)
+        credential.failed_attempts = 5
+    assert login(local_system).status_code == 200
+    assert delays == []
+    with local_system.factory() as db:
+        credential = db.get(LocalCredential, local_system.user_id)
+        assert credential.locked_until is None and credential.failed_attempts == 0
 
 
 def test_login_verified_against_replaced_hash_cannot_issue_session(local_system, monkeypatch):

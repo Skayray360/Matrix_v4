@@ -26,7 +26,12 @@ from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from app.authorization.categories import CategoryPolicy, get_registry, validate_category_name
-from app.common.errors import ConversationCleanupPendingError, IngestionFailedError, ValidationFailedError
+from app.common.errors import (
+    ConversationCleanupPendingError,
+    ExtractionFailedError,
+    IngestionFailedError,
+    ValidationFailedError,
+)
 from app.common.ids import new_id, sha256_bytes, utcnow_naive
 from app.common.logging import get_logger
 from app.config import get_settings
@@ -37,7 +42,7 @@ from app.ingestion.loaders import mime_for_extension
 from app.llm.ollama_client import get_ollama_client
 from app.llm.provider import InferenceClient
 from app.memory.service import MemoryService
-from app.rag.chunking import ChunkDraft, chunk_blocks
+from app.rag.chunking import ChunkBudgetExceededError, ChunkDraft, TextBlock, chunk_blocks
 from app.rag.embedding_prompts import document_embedding_title, format_document
 from app.rag.generation_journal import SESSION_WRITE_TRANSACTION, GenerationIntent
 from app.rag.index_manifest import PIPELINE_VERSION, indexing_fingerprint
@@ -315,6 +320,20 @@ class IngestionService:
         db.flush()
         return self._index_document(db, document=document, data=data, category=None, prepared=prepared)
 
+    def _chunk_extracted(self, blocks: list[TextBlock]) -> list[ChunkDraft]:
+        try:
+            return chunk_blocks(
+                blocks, chunk_size_tokens=self._settings.rag_chunk_size_tokens,
+                overlap_tokens=self._settings.rag_chunk_overlap_tokens,
+            )
+        except ChunkBudgetExceededError as exc:
+            # Entrada valida como formato pero demasiado grande como unidad
+            # semantica: conservar el rechazo sin transformarlo en un HTTP 500.
+            raise ExtractionFailedError(
+                "El documento contiene una unidad demasiado grande para procesarla sin perder contenido. "
+                "Divida esa unidad en el archivo y vuelva a cargarlo."
+            ) from exc
+
     def prepare_attachment(
         self, *, data: bytes, filename: str, max_memory_bytes: int = 256 * 1024 * 1024
     ) -> PreparedAttachment:
@@ -323,10 +342,7 @@ class IngestionService:
             raise ValidationFailedError("El lote excede el presupuesto de procesamiento; divida la carga.")
         fingerprint = indexing_fingerprint(self._llm)
         extracted = extract_document(data, filename=filename)
-        drafts = chunk_blocks(
-            extracted.blocks, chunk_size_tokens=self._settings.rag_chunk_size_tokens,
-            overlap_tokens=self._settings.rag_chunk_overlap_tokens,
-        ) if not extracted.is_empty else []
+        drafts = self._chunk_extracted(extracted.blocks) if not extracted.is_empty else []
         warnings = tuple(extracted.warnings)
         extraction_incomplete = extracted.extraction_incomplete
         del extracted
@@ -515,7 +531,6 @@ class IngestionService:
         if locked_document is None:
             raise IngestionFailedError("El documento ya no existe para su indexacion.")
         document = locked_document
-        settings = self._settings
         try:
             if prepared is None:
                 extracted = extract_document(data, filename=document.filename)
@@ -554,11 +569,7 @@ class IngestionService:
                 warnings=warnings,
             )
 
-        drafts = list(prepared.drafts) if prepared is not None else chunk_blocks(
-            extracted.blocks,
-            chunk_size_tokens=settings.rag_chunk_size_tokens,
-            overlap_tokens=settings.rag_chunk_overlap_tokens,
-        )
+        drafts = list(prepared.drafts) if prepared is not None else self._chunk_extracted(extracted.blocks)
         if not drafts:
             document.status = "empty"
             document.chunk_count = 0

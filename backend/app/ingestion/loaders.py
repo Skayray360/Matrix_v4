@@ -90,22 +90,30 @@ def _decode_text(data: bytes) -> str:
     """Detecta y normaliza el encoding de forma segura.
 
     Se prueban los encodings habituales en documentos de RH generados en Windows.
-    Como ultimo recurso se decodifica con reemplazo para no perder el documento
-    entero por un byte invalido.
+    Se preservan los fallbacks heredados, pero los controles no textuales no
+    convierten un binario en documento solo porque latin-1 acepte sus bytes.
     """
     # PowerShell/Office pueden guardar TXT con BOM UTF-16. No convertir sus
     # bytes NUL en texto aparentemente valido por el fallback Windows-1252.
     if data.startswith((b"\xff\xfe", b"\xfe\xff")):
         try:
-            return data.decode("utf-16")
+            return _validate_decoded_text(data.decode("utf-16"))
         except UnicodeDecodeError as exc:
             raise ExtractionFailedError("El archivo UTF-16 esta incompleto o corrupto.") from exc
     for encoding in ("utf-8-sig", "utf-8", "cp1252", "latin-1"):
         try:
-            return data.decode(encoding)
+            return _validate_decoded_text(data.decode(encoding))
         except UnicodeDecodeError:
             continue
-    return data.decode("utf-8", errors="replace")
+    return _validate_decoded_text(data.decode("utf-8", errors="replace"))
+
+
+def _validate_decoded_text(text: str) -> str:
+    # Umbral cero para controles C0/C1/DEL, salvo separadores textuales comunes.
+    # Se comprueba despues del BOM UTF-16: sus bytes NUL no son contenido binario.
+    if any((ord(char) < 32 or 127 <= ord(char) <= 159) and char not in "\t\n\r\f\v\x85" for char in text):
+        raise ExtractionFailedError("El archivo contiene datos binarios o controles no textuales; conviertalo a texto.")
+    return text
 
 
 def extract_txt(data: bytes) -> ExtractedDocument:

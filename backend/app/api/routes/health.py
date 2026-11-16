@@ -12,10 +12,12 @@ from __future__ import annotations
 from threading import Lock
 from time import monotonic
 
-from fastapi import APIRouter, Response
+from fastapi import APIRouter, Depends, Response
 
 from app import __version__
-from app.api.schemas import HealthResponse, ReadyComponent, ReadyResponse
+from app.api.deps import require_permission
+from app.api.schemas import HealthResponse, ReadyComponent, ReadyResponse, ReadySummary
+from app.authorization.context import PERM_DIAGNOSTICS_READ, UserContext
 from app.common.logging import get_logger
 from app.config import get_settings
 
@@ -37,6 +39,7 @@ class ReadinessCache:
         self._expires_at = 0.0
 
     def check(self, response: Response) -> ReadyResponse:
+        response.headers["Cache-Control"] = "no-store"
         if not self._lock.acquire(blocking=False):
             response.status_code = 503
             response.headers["Retry-After"] = "2"
@@ -63,9 +66,18 @@ def health() -> HealthResponse:
     return HealthResponse(status="ok", app=settings.app_name, version=__version__)
 
 
-@router.get("/ready", response_model=ReadyResponse)
+@router.get("/ready", response_model=ReadySummary)
 def ready(response: Response) -> ReadyResponse:
-    """Comprueba dependencias sin amplificar sondeos concurrentes."""
+    """Estado publico 200/503; el modelo HTTP excluye todos los detalles."""
+    return _ready_cache.check(response)
+
+
+@router.get("/ready/details", response_model=ReadyResponse)
+def readiness_details(
+    response: Response,
+    ctx: UserContext = Depends(require_permission(PERM_DIAGNOSTICS_READ)),
+) -> ReadyResponse:
+    """Mismo sondeo acotado, despues de validar sesion y permiso de diagnostico."""
     return _ready_cache.check(response)
 
 

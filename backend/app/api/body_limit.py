@@ -11,9 +11,38 @@ from contextlib import ExitStack
 from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Receive, Scope, Send
 
-from app.common.errors import MatrixError
+from app.common.errors import MatrixError, OllamaUnavailableError, UploadCapacityFullError
+from app.common.ids import new_id
 from app.config import get_settings
 from app.security.admission import admission
+
+UPLOAD_ADMISSION_WAIT_SECONDS = 0.25
+
+
+async def _enter_upload(controls: ExitStack, *, capacity: int, max_waiters: int) -> None:
+    """Tolera el cierre de la solicitud anterior sin abandonar el cupo activo.
+
+    La espera no bloquea el event loop ni acumula una cola ilimitada. No libera
+    el cupo en send(): el endpoint, sus dependencias y su worker deben terminar.
+    """
+    deadline = time.monotonic() + UPLOAD_ADMISSION_WAIT_SECONDS
+    try:
+        with admission("upload_wait", max_waiters):
+            while True:
+                try:
+                    controls.enter_context(admission("upload", capacity))
+                    return
+                except OllamaUnavailableError as exc:
+                    if exc.detail != "admission_full":
+                        raise
+                    remaining = deadline - time.monotonic()
+                    if remaining <= 0:
+                        raise UploadCapacityFullError() from None
+                    await asyncio.sleep(min(remaining, 0.01))
+    except OllamaUnavailableError as exc:
+        if exc.detail != "admission_full":
+            raise
+        raise UploadCapacityFullError() from None
 
 
 class _BodyRejected(Exception):
@@ -68,6 +97,11 @@ class UploadBodyLimitMiddleware:
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] != "http":
             return await self.app(scope, receive, send)
+        # El contexto externo lo asigna normalmente. El montaje aislado tambien
+        # produce una correlacion propia, nunca tomada de cabeceras del cliente.
+        state = scope.setdefault("state", {})
+        request_id = state.get("request_id") or new_id()
+        state["request_id"] = request_id
         settings = get_settings()
         headers = scope.get("headers", [])
         content_types = [value for key, value in headers if key.lower() == b"content-type"]
@@ -82,7 +116,10 @@ class UploadBodyLimitMiddleware:
                 if len(content_types) > 1:
                     raise _BodyRejected(400, "Content-Type es ambiguo.")
                 declared = _declared_length(headers, limit)
-                controls.enter_context(admission("upload" if multipart else "http_body", capacity))
+                if multipart:
+                    await _enter_upload(controls, capacity=capacity, max_waiters=settings.http_max_inflight)
+                else:
+                    controls.enter_context(admission("http_body", capacity))
                 total = await _read_body(receive, body, limit=limit, timeout=timeout)
                 if not multipart:
                     controls.close()
@@ -95,8 +132,11 @@ class UploadBodyLimitMiddleware:
             except _BodyRejected as exc:
                 return await self._reject(scope, receive, send, exc.status, exc.message)
             except MatrixError as exc:
-                return await JSONResponse(exc.to_public_dict(), status_code=exc.status_code,
-                                          headers={"Retry-After": "5"})(scope, receive, send)
+                return await JSONResponse(
+                    exc.to_public_dict(request_id), status_code=exc.status_code,
+                    headers={"Retry-After": "1" if isinstance(exc, UploadCapacityFullError) else "5",
+                             "X-Request-ID": request_id},
+                )(scope, receive, send)
             body.seek(0)
             exhausted = False
 
@@ -114,5 +154,9 @@ class UploadBodyLimitMiddleware:
 
     @staticmethod
     async def _reject(scope: Scope, receive: Receive, send: Send, status: int, message: str) -> None:
-        await JSONResponse({"code": "file_too_large" if status == 413 else "validation_error", "message": message},
-                           status_code=status)(scope, receive, send)
+        request_id = scope.get("state", {}).get("request_id")
+        await JSONResponse(
+            {"code": "file_too_large" if status == 413 else "validation_error", "message": message,
+             "request_id": request_id},
+            status_code=status, headers={"X-Request-ID": request_id or ""},
+        )(scope, receive, send)
