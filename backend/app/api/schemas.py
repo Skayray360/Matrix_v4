@@ -10,7 +10,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, StrictBool, model_validator
 
 from app.common.answers import AnswerBasis
 
@@ -36,6 +36,19 @@ class LocalUserCreateRequest(BaseModel):
     display_name: str = Field(min_length=1, max_length=256)
     password: str = Field(min_length=16, max_length=128)
     role: Literal["matrix_admin", "prestaciones_reader"] = "prestaciones_reader"
+
+
+class LocalUserUpdateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    is_active: StrictBool | None = None
+    role: Literal["matrix_admin", "prestaciones_reader"] | None = None
+
+    @model_validator(mode="after")
+    def require_explicit_change(self) -> LocalUserUpdateRequest:
+        if not self.model_fields_set or any(getattr(self, field) is None for field in self.model_fields_set):
+            raise ValueError("Indique estado o rol; no se admiten valores nulos.")
+        return self
 
 
 class LocalUserResponse(BaseModel):
@@ -143,6 +156,12 @@ class ReadyComponent(BaseModel):
     name: str
     ok: bool
     detail: str = ""
+
+
+class ReadySummary(BaseModel):
+    """Estado publico para supervisores, sin inventario ni rutas internas."""
+
+    ready: bool
 
 
 class ReadyResponse(BaseModel):

@@ -104,6 +104,20 @@ El controlador actual requiere **Windows x64, PowerShell x64 5.1 o posterior y W
 
 Los directorios `backend/config`, `backend/runtime` y `knowledge-base` pertenecen a la instalación. No se deben borrar para actualizar código. `frontend/dist` se distribuye y se reconstruye con el Node/npm fijado; no es basura. Antes de actualizar, detenga Matrix y use `scripts.installation_backup` desde el Python de esa instalación para preparar y verificar un respaldo en frío. Ese comando no acredita una recuperación MySQL: ensáyela en una copia separada antes de reemplazar la instalación.
 
+### Gestión de cuentas locales
+
+Con `AUTH_PROVIDER=local`, un administrador con `users.admin` puede usar `PATCH /api/v1/admin/users/{id}` para cambiar `is_active` (booleano) o `role` (`matrix_admin` o `prestaciones_reader`). Requiere sesión vigente y token CSRF. Los cambios efectivos revocan las sesiones del usuario; reactivarlo no recupera sesiones antiguas ni cambia su contraseña. Se impide desactivar o degradar al último administrador local activo. Las identidades federadas se administran en su proveedor.
+
+El operador de la instalación dispone de los mismos cambios desde `backend`, con el Python de Matrix y su configuración local:
+
+```bash
+python -m scripts.local_identity set-active --username CUENTA --inactive
+python -m scripts.local_identity set-active --username CUENTA --active
+python -m scripts.local_identity set-role --username CUENTA --role prestaciones_reader
+```
+
+Son acciones administrativas explícitas: revise la cuenta antes de ejecutarlas. No borran conversaciones ni documentos. Los intentos de contraseña fallidos reciben un 401 genérico y una demora progresiva de respuesta, hasta dos segundos; no bloquean persistentemente la cuenta del titular. Se conservan los límites HTTP por IP. La protección es por proceso y no acredita resistencia a un ataque distribuido.
+
 ### Desarrollo y comprobaciones aisladas
 
 Utilice una copia sin `.env`, documentos ni datos productivos, Python 3.12 y Node compatible con `frontend/package.json`. Desde la raíz:
@@ -129,7 +143,7 @@ APP_ENV=test .venv/bin/python -m pytest tests -q -p scripts.quality_gate_pytest 
 
 En PowerShell use `$env:APP_ENV='test'` y `.venv\Scripts\python.exe`. El grupo `standalone` recopila toda la suite y selecciona únicamente casos aislados, incluidas las consultas sobre SQLite temporal. Las pruebas que requieren MySQL/Ollama, la evaluación de respuestas reales y la instalación Windows se validan por separado. El gate completo (`python -m scripts.run_quality_gate`) exige un entorno desechable y conserva el estado `INCOMPLETE` si falta evidencia; no es un comando de diagnóstico para producción. Los errores de tipado de mypy bloquean el gate local igual que CI; una herramienta ausente no permite aprobarlo.
 
-La CI también ejecuta una suite dirigida de recuperación vectorial con MySQL 8.4 y Qdrant 1.20.0 como servicios efímeros fijados por digest; repite los mismos escenarios con Qdrant embedded. Aplica las migraciones reales en una base de pruebas, utiliza embeddings deterministas y rechaza pruebas omitidas o una ejecución parcial. Esta comprobación acredita los escenarios de transacciones seleccionados, no toda la integración ni los modelos de una instalación. El job de interfaz ejecuta Chromium sobre el build con respuestas API sintéticas; el E2E contra backend real sigue siendo una comprobación separada.
+La CI también ejecuta una suite dirigida de recuperación vectorial con MySQL 8.4 y Qdrant 1.20.0 como servicios efímeros fijados por digest; repite los mismos escenarios con Qdrant embedded. Añade comprobaciones MySQL de cambios de cuentas y checkpoints del planificador. Aplica las migraciones reales en una base de pruebas, utiliza embeddings deterministas y rechaza pruebas omitidas o una ejecución parcial. Esta comprobación acredita los escenarios de transacciones seleccionados, no toda la integración ni los modelos de una instalación. El job de interfaz ejecuta Chromium sobre el build con respuestas API sintéticas; el E2E contra backend real sigue siendo una comprobación separada.
 
 La automatización de GitHub ejecuta lint, contratos, pruebas aisladas, build y auditoría de dependencias en cada pull request. Las acciones están fijadas por commit y el token tiene permiso de lectura. Los casos omitidos bloquean esa comprobación: el runner necesita PowerShell para las pruebas sintéticas del controlador. Una prueba aislada aprobada no certifica capacidad ni calidad documental con el hardware y corpus de una instalación.
 
@@ -143,16 +157,23 @@ La [auditoría del 27 de octubre de 2026](backend/release/audit-2026-10-27/repor
 
 Swagger y OpenAPI solo se publican en `development` y `test`. El diagnóstico de `standalone` consulta BitLocker en Windows y avisa si no puede verificarlo; no activa cifrado. El respaldo en frío admite `python -m scripts.installation_backup backup --require-encrypted-destination`, que rechaza la copia si el volumen de destino no tiene BitLocker completo y activo. Esta opción protege el destino comprobado al crear el respaldo: los archivos no tienen cifrado propio y moverlos a otro volumen puede dejarlos expuestos.
 
+`/ready` (también `/api/v1/ready`) devuelve solo `ready`, con HTTP 200 o 503. Los componentes internos se consultan en `/ready/details` con una sesión que tenga `diagnostics.read`; no se incluyen en la respuesta pública. El launcher soportado desactiva la cabecera `Server` de Uvicorn. `/health` conserva su información de aplicación/versión y los proxies pueden identificarse por separado.
+
+La recepción de adjuntos tolera hasta 250 ms de espera por cupo, con cantidad de esperadores limitada. Una saturación real puede devolver `503 upload_capacity_full`, `Retry-After` y un `request_id` para diagnóstico. Un archivo de texto binario o que exceda un presupuesto indivisible devuelve 422; los límites de extracción no se relajan.
+
 Desde `backend`, `python -m scripts.model_warmup` muestra un plan sin red. Añadir `--run --target both --profile fast --timeout-seconds 60` ejecuta sondas sintéticas con los modelos locales y digests configurados. Úselo sin tráfico de la aplicación: consume RAM/VRAM, puede expulsar otro modelo y no garantiza residencia simultánea. No descarga pesos ni cambia el arranque. `scripts.benchmark_response --generate` incorpora la comparación de tokens estimados con `prompt_eval_count` cuando existe un solo intento; la razón no demuestra truncamiento ni sustituye una evaluación documental.
 
 `scripts.diagnosticar_rag` mantiene su diagnóstico de metadatos por defecto. La exportación de fragmentos requiere `--export-chunks var/revision.json --username CUENTA --document-id ID` y `--root` con la raíz de la instalación; para adjuntos también requiere `--conversation-id ID`. El archivo debe ser nuevo y privado. La cuenta necesita `diagnostics.read` y acceso vigente al documento; un administrador no obtiene acceso a conversaciones ajenas. La herramienta aplica límites de contenido, comprueba la generación activa y vuelve a validar permisos antes de guardar. Revise `complete` y `truncated` antes de evaluar cobertura. Para embedded, detenga Matrix; la revisión utiliza una copia temporal privada y acotada, y rechaza índices que excedan sus límites.
 
 La [validación de mejoras del 15 de noviembre de 2026](backend/release/review-2026-11-15/report.md) contrasta cada propuesta del archivo recibido con el código actual, identifica lo aplicado y documenta lo que requiere mediciones reales.
 
+El [contraste de la auditoría E2E](backend/release/e2e-2026-11-15/report.md) documenta las correcciones de vigencia documental, cuentas, cargas y readiness, con su evidencia y límites.
+
 ### Límites y actualización segura
 
 - Los modelos y sus revisiones deben corresponder a los digests privados de la instalación. Cambiar embeddings requiere reconstruir y validar el índice.
-- Los índices anteriores a esta auditoría no acreditan cobertura completa de extracción. Ejecute una reconciliación completa para incorporar los nuevos metadatos; el alta incremental de archivos nuevos no actualiza documentos existentes. Las omisiones conocidas conservan una advertencia de respuesta parcial.
+- Los índices anteriores a esta auditoría no acreditan cobertura completa de extracción. Ejecute una reconciliación completa para incorporar los nuevos metadatos; el comando de altas `new_only` conserva ese alcance. El planificador usa una sincronización distinta que detecta altas, cambios SHA-256 y bajas, con archivos estables y lotes acotados. La vigencia no es instantánea: depende del intervalo, la carga, la disponibilidad de servicios y los errores de ingesta. Las omisiones conocidas conservan una advertencia de respuesta parcial.
+- El mantenimiento y la reconciliación completa consultan checkpoints independientes en SQL; un reinicio no reinicia su vencimiento (24 horas por defecto). Las tareas vencidas se intentan al arrancar y se reintentan de forma acotada si fallan. Una fuente no accesible o un inventario incompleto no se interpreta como eliminación de todos sus documentos. Si una revisión falla al indexarse, se conserva la generación confirmada y se registra el fallo para reintento; revise el diagnóstico antes de dar por vigente esa revisión. El hashing periódico recorre el corpus y su coste debe medirse en la instalación real.
 - La ingesta registra una intención persistente antes de escribir los vectores. El mantenimiento global recupera las candidatas pendientes después de un rollback o una interrupción de la ingesta y conserva la generación confirmada en SQL. Requiere que Qdrant y SQL vuelvan a estar disponibles y que se ejecute el reconciliador.
 - Respalde y restaure el almacenamiento Qdrant completo, incluida la colección `<colección corporativa>__generation_intents`. Restaurar únicamente las colecciones de contenido pierde las intenciones pendientes. Los respaldos nativo y preparado del proyecto conservan el árbol completo.
 - Para exposición a red se requieren HTTPS, cookies seguras y un proveedor de identidad configurado. No convierta el perfil local en publicación LAN cambiando únicamente `APP_HOST`.

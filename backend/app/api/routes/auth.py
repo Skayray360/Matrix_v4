@@ -14,6 +14,7 @@ Las cuentas reales y las sinteticas de prueba pertenecen a proveedores distintos
 from __future__ import annotations
 
 import secrets
+import time
 from collections.abc import Sequence
 from typing import Annotated
 
@@ -28,10 +29,16 @@ from app.api.schemas import (
     LocalPasswordChangeRequest,
     LocalUserCreateRequest,
     LocalUserResponse,
+    LocalUserUpdateRequest,
     MeResponse,
 )
 from app.audit.service import AuditRecord, get_audit_service
-from app.auth.local_accounts import create_local_account, replace_local_password, validate_password
+from app.auth.local_accounts import (
+    create_local_account,
+    replace_local_password,
+    update_local_account,
+    validate_password,
+)
 from app.auth.provider import NormalizedIdentity, get_identity_provider
 from app.auth.sessions import (
     cookie_parameters,
@@ -46,10 +53,28 @@ from app.common.ids import new_id, sha256_text, utcnow_naive
 from app.common.logging import get_logger
 from app.config import AuthProvider, get_settings
 from app.database.models import EntraGroupRoleMapping, IdentityLink, Role, SessionRecord, User, UserRole
-from app.security.rate_limit import get_rate_limiter
+from app.security.rate_limit import RateLimiter, get_rate_limiter
 
 logger = get_logger(__name__)
 router = APIRouter(tags=["auth"])
+
+# Un solo backend, igual que el limitador de IP. Cuenta identificadores, no
+# existencia SQL: usuarios desconocidos e inactivos reciben el mismo backoff.
+# Maximo cuatro eventos por clave / 10 000 claves / cinco minutos, sin eviction
+# de claves activas. A capacidad completa se conserva la espera maxima.
+_failed_logins = RateLimiter(window_seconds=300)
+
+
+def _failed_login_key(username: str) -> str:
+    return "failed-local:" + sha256_text(username.strip().casefold())
+
+
+def _delay_failed_login(username: str) -> None:
+    result = _failed_logins.check(_failed_login_key(username), limit=4)
+    count = 4 - result.remaining if result.allowed else 4
+    # Retraso de respuesta acotado, no bloqueo de la cuenta ni defensa DDoS.
+    # El llamador ya cerro la transaccion; no retener locks/conexiones SQL.
+    time.sleep(0.25 * (2 ** (count - 1)))
 
 
 def _client_key(request: Request, suffix: str = "") -> str:
@@ -66,7 +91,7 @@ def _issue_session_cookie(response: Response, token: str) -> None:
 def _authenticate_local(db: Session, request: Request, *, username: str, password: str) -> NormalizedIdentity:
     """Frontera de transaccion: confirmar intentos fallidos antes del HTTP 401."""
     try:
-        return get_identity_provider().authenticate(db, username=username, password=password)
+        identity = get_identity_provider().authenticate(db, username=username, password=password)
     except (UnauthorizedError, RateLimitedError):
         get_audit_service().record(db, AuditRecord(
             request_id=getattr(request.state, "request_id", ""), event_type="auth.login_failed",
@@ -76,7 +101,10 @@ def _authenticate_local(db: Session, request: Request, *, username: str, passwor
         # reautenticacion, last_seen de la propia sesion). Ningun cambio de
         # contrasena/permisos o nueva sesion se ha ejecutado todavia.
         db.commit()
+        _delay_failed_login(username)
         raise
+    _failed_logins.reset(_failed_login_key(username))
+    return identity
 
 
 # ---------------------------------------------------------------------------
@@ -162,10 +190,10 @@ def local_login(
         logger.warning("auth.local_login_blocked", extra={"app_env": str(settings.app_env)})
         raise ForbiddenError("El inicio de sesion local no esta habilitado en este entorno.")
 
-    # Rate limiting por IP y por usuario: frena tanto el barrido de cuentas como
-    # la fuerza bruta contra una cuenta concreta.
+    # Limites por IP y pareja IP/usuario antes de Argon2. El backoff adicional
+    # de errores se comparte por identificador incluso entre IPs distintas.
     limiter = get_rate_limiter()
-    for key in (_client_key(request), _client_key(request, sha256_text(payload.username)[:16])):
+    for key in (_client_key(request), _client_key(request, sha256_text(payload.username.strip().casefold())[:16])):
         if not limiter.check(key, limit=settings.rate_limit_login_per_minute).allowed:
             raise RateLimitedError()
 
@@ -211,6 +239,10 @@ def change_local_password(
         "password-change:" + ctx.user_id, limit=get_settings().rate_limit_login_per_minute,
     ).allowed:
         raise RateLimitedError()
+    # CSRF ya se verifico; soltar last_seen de dependencias antes del orden
+    # usuario -> credencial -> sesiones, compartido con bajas/cambios de rol.
+    # La sesion se vuelve a validar bajo lock despues de la reautenticacion.
+    db.rollback()
     try:
         identity = _authenticate_local(db, request, username=ctx.username, password=payload.current_password)
     except UnauthorizedError as exc:
@@ -267,11 +299,38 @@ def create_local_user(
 ) -> LocalUserResponse:
     if get_settings().auth_provider is not AuthProvider.LOCAL or ctx.auth_source != "local":
         raise ForbiddenError()
+    # Igual que PATCH: no conservar locks de last_seen ni permisos anteriores
+    # mientras se espera el mutex de administracion local.
+    db.rollback()
     user = create_local_account(db, username=payload.username, display_name=payload.display_name,
-                                password=payload.password, role_name=payload.role)
+                                password=payload.password, role_name=payload.role, actor=ctx)
     get_audit_service().record_from_context(db, ctx, event_type="auth.local_user_created",
                                           resource=user.id, authorization_decision="ALLOW")
-    return _local_user_payload(db, user)
+    result = _local_user_payload(db, user)
+    db.commit()
+    return result
+
+
+@router.patch("/admin/users/{user_id}", response_model=LocalUserResponse, dependencies=[Depends(require_csrf)])
+def update_local_user(
+    user_id: str,
+    payload: LocalUserUpdateRequest,
+    db: Session = Depends(get_db),
+    ctx: UserContext = Depends(require_permission(PERM_USERS_ADMIN)),
+) -> LocalUserResponse:
+    if get_settings().auth_provider is not AuthProvider.LOCAL or ctx.auth_source != "local":
+        raise ForbiddenError()
+    # Las dependencias solo leyeron identidad/CSRF y actualizaron last_seen.
+    # Liberar ese lock antes del orden rol -> usuarios -> sesiones. El contexto
+    # firmado no autoriza por si solo: el servicio revalida la sesion y permisos.
+    db.rollback()
+    user, _ = update_local_account(db, user_id=user_id, is_active=payload.is_active, role_name=payload.role, actor=ctx)
+    get_audit_service().record_from_context(db, ctx, event_type="auth.local_user_updated",
+                                          resource=user.id, authorization_decision="ALLOW")
+    result = _local_user_payload(db, user)
+    # No informar exito antes de que la desactivacion/revocacion sea durable.
+    db.commit()
+    return result
 
 
 # ---------------------------------------------------------------------------

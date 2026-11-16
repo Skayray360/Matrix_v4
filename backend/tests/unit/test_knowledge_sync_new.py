@@ -519,7 +519,7 @@ def test_scheduler_prioritizes_chat_and_eventually_attempts_one_document(env, mo
         scheduler.run_sync_once()
     assert scheduler.state.sync_last_status == "deferred_busy" and not reconcile.called
     scheduler.run_sync_once()
-    assert reconcile.call_args.kwargs == {"trigger": "scheduler_sync", "new_only": True, "max_documents": 1}
+    assert reconcile.call_args.kwargs == {"trigger": "scheduler_sync", "incremental": True, "max_documents": 1}
     assert scheduler.state.sync_last_status == "completed"
 
 
@@ -527,24 +527,25 @@ def test_scheduler_reports_pending_failures_and_survives_exception(env, monkeypa
     from app.jobs.scheduler import ReconcileScheduler
 
     scheduler = ReconcileScheduler()
-    reconcile = Mock(side_effect=[ReconcileStats(pending_documents=1),
+    reconcile = Mock(side_effect=[ReconcileStats(pending_documents=1), ReconcileStats(preserved_documents=1),
                                   ReconcileStats(failures=[{"path": "hidden", "error": "RuntimeError"}]),
                                   RuntimeError("sintetico"), ReconcileStats()])
     monkeypatch.setattr("app.ingestion.reconciler.reconcile_with_lock", reconcile)
-    for expected in ("pending", "partial_failure", "error:RuntimeError", "completed"):
+    for expected in ("pending", "pending", "partial_failure", "error:RuntimeError", "completed"):
         scheduler.run_sync_once()
         assert scheduler.state.sync_last_status == expected
     assert scheduler.state.sync_last_run_at
 
 
-def test_scheduler_initial_sync_does_not_trigger_full_reindex(env, monkeypatch):
+def test_scheduler_loop_uses_durable_due_check_before_incremental_sync(env, monkeypatch):
     from app.jobs.scheduler import ReconcileScheduler
 
     scheduler = ReconcileScheduler()
-    monkeypatch.setattr(scheduler, "run_once", Mock(side_effect=AssertionError("full no solicitado")))
+    due = Mock()
+    monkeypatch.setattr(scheduler, "run_due_once", due)
     monkeypatch.setattr(scheduler, "run_sync_once", lambda: scheduler._stop.set())
     scheduler._loop(immediate=False)
-    assert scheduler._stop.is_set()
+    assert scheduler._stop.is_set() and due.call_count == 1
 
 
 @pytest.mark.parametrize("path,method", [("/admin/knowledge/sync", "post"),

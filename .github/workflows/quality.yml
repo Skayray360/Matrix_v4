@@ -315,3 +315,42 @@ jobs:
               summary.write("Suite dirigida; no acredita toda la integracion, modelos, Windows o failover.\n")
           raise SystemExit(0 if all_complete else 1)
           PY
+      - name: Cuentas locales y planificador con MySQL real
+        env:
+          QDRANT_URL: http://127.0.0.1:${{ job.services.qdrant.ports['6333'] }}
+          MYSQL_TEST_PORT: ${{ job.services.mysql.ports['3306'] }}
+        run: |
+          .venv/bin/python - <<'PY'
+          import json
+          import os
+          import sys
+          from dataclasses import asdict
+          from pathlib import Path
+          from sqlalchemy import URL
+          os.environ["DATABASE_URL"] = URL.create(
+              "mysql+pymysql", username="matrix_ci", password=os.environ["MYSQL_TEST_PASSWORD"],
+              host="127.0.0.1", port=int(os.environ["MYSQL_TEST_PORT"]),
+              database="matrix_rh_test_vectors", query={"charset": "utf8mb4"},
+          ).render_as_string(hide_password=False)
+          from scripts.test_environment import require_disposable_database
+          require_disposable_database()
+          from scripts.run_quality_gate import BACKEND_ROOT, PASS, _run
+          reports = Path(os.environ["RUNNER_TEMP"]) / "lifecycle-scheduler"
+          reports.mkdir(parents=True, exist_ok=True)
+          junit, collection = reports / "junit.xml", reports / "collection.json"
+          command = [sys.executable, "-m", "pytest",
+                     "tests/integration/test_local_lifecycle_mysql.py",
+                     "tests/integration/test_scheduler_freshness_mysql.py",
+                     "-q", "-p", "scripts.quality_gate_pytest", "--matrix-test-group", "integration_services",
+                     "--matrix-collection-report", str(collection), "--junitxml", str(junit)]
+          result = _run(command, cwd=BACKEND_ROOT, name="cuentas y planificador MySQL",
+                        require_complete_junit=junit)
+          print(json.dumps(asdict(result), indent=2))
+          inventory = json.loads(collection.read_text())
+          complete = (result.status == PASS and inventory["selected"] > 0
+                      and inventory["selected"] == inventory["collected_total"] == result.junit_testcases)
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as summary:
+              summary.write(f"Cuentas y planificador MySQL: **{'PASS' if complete else 'FAIL'}**, "
+                            f"{result.junit_testcases} casos. Datos sinteticos; sin modelos reales.\n")
+          raise SystemExit(0 if complete else 1)
+          PY

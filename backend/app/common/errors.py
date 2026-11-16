@@ -27,6 +27,7 @@ class ErrorCode(StrEnum):
     CONVERSATION_CLEANUP_PENDING = "conversation_cleanup_pending"
     OLLAMA_UNAVAILABLE = "ollama_unavailable"
     CHAT_CAPACITY_FULL = "chat_capacity_full"
+    UPLOAD_CAPACITY_FULL = "upload_capacity_full"
     EMBEDDING_DIMENSION_MISMATCH = "embedding_dimension_mismatch"
     QDRANT_UNAVAILABLE = "qdrant_unavailable"
     INDEX_UPDATE_REQUIRED = "index_update_required"
@@ -66,6 +67,12 @@ class CapacityFullError(MatrixError):
     code = ErrorCode.CHAT_CAPACITY_FULL
     status_code = 503
     default_message = "La cola esta completa. Su solicitud no fue aceptada. Intente de nuevo mas tarde."
+
+
+class UploadCapacityFullError(MatrixError):
+    code = ErrorCode.UPLOAD_CAPACITY_FULL
+    status_code = 503
+    default_message = "La capacidad de cargas esta ocupada. Espere un momento y vuelva a adjuntar el archivo."
 
 
 class UnauthorizedError(MatrixError):

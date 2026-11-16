@@ -239,6 +239,7 @@ class TestScheduler:
         # La sincronizacion inicial ahora es inmediata; este contrato comprueba
         # el ciclo de vida del hilo, sin abrir una base real ni ingerir archivos.
         monkeypatch.setattr(scheduler, "run_sync_once", lambda: None)
+        monkeypatch.setattr(scheduler, "run_due_once", lambda: None)
         scheduler.start()
         scheduler.start()  # segunda llamada: no duplica el hilo
         assert scheduler.state.running is True
