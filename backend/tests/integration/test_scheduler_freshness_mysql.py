@@ -11,6 +11,7 @@ from sqlalchemy import delete, select, update
 
 from app.common.ids import new_id, utcnow_naive
 from app.database.models import Document, IngestionJob
+from app.ingestion.knowledge_layout import scan_knowledge
 from app.ingestion.reconciler import reconcile_with_lock
 from app.jobs.scheduler import ReconcileScheduler
 from app.rag.retriever import Retriever
@@ -22,15 +23,24 @@ mysql_engine = fixtures.mysql_engine
 environment = fixtures.environment
 
 
+class SyntheticRetrievalEmbeddings(fixtures.SyntheticEmbeddings):
+    """Mismo vector determinista para ingesta y la consulta del recuperador."""
+
+    def embed_one(self, text: str) -> list[float]:
+        return self.embed([text])[0]
+
+
 @pytest.fixture()
 def freshness(environment, tmp_path, monkeypatch):
     env = environment
-    root = tmp_path / "knowledge"
+    # Una unica raiz canonica: una raiz configurada adicional cambiaria los
+    # relative_path y dejaria una fuente canonica ausente en el inventario.
+    root = tmp_path / "knowledge-base" / "documents"
     folder = root / "prestaciones"
     folder.mkdir(parents=True)
     suffix = new_id()
     paths = {name: folder / f"{suffix}-{name}.md" for name in ("changed", "removed")}
-    relatives = {f"prestaciones/{path.name}" for path in paths.values()}
+    storage_paths = {str(path) for path in paths.values()}
     settings = env.settings.model_copy(update={"rag_knowledge_root": str(root),
                                                 "rag_sync_stability_seconds": 0, "rag_min_similarity": 0})
     for module in ("app.jobs.scheduler", "app.jobs.retention", "app.ingestion.reconciler",
@@ -40,7 +50,7 @@ def freshness(environment, tmp_path, monkeypatch):
     monkeypatch.setattr("app.ingestion.knowledge_layout.PROJECT_ROOT", tmp_path)
     monkeypatch.setattr("app.rag.vector_store.get_vector_store", lambda: env.store)
     monkeypatch.setattr("app.ingestion.service.get_vector_store", lambda: env.store)
-    llm = fixtures.SyntheticEmbeddings()
+    llm = SyntheticRetrievalEmbeddings()
     monkeypatch.setattr("app.ingestion.service.get_ollama_client", lambda: llm)
     monkeypatch.setattr("app.security.admission.snapshot", lambda: {})
     own_job_ids = set()
@@ -67,12 +77,20 @@ def freshness(environment, tmp_path, monkeypatch):
 
     monkeypatch.setattr("app.database.engine.session_scope", scope_with_commits)
     monkeypatch.setattr("app.rag.index_manifest.session_scope", scope_with_commits)
+    inventory = scan_knowledge(knowledge_root=root)
+    assert [source.source_id for source in inventory.sources] == ["knowledge"]
+    assert not inventory.warnings and not inventory.unavailable_sources and not inventory.incomplete_sources
     try:
         yield SimpleNamespace(env=env, paths=paths, scope=scope_with_commits, llm=llm, own_job_ids=own_job_ids)
     finally:
-        # Solo documentos/rutas y jobs de este caso; no limpiar tablas globales.
+        # Tambien se ejecuta si falla una asercion o la recuperacion. Los paths
+        # absolutos exactos son los dos creados para este caso, sin LIKE/prefijos
+        # ni suposiciones sobre el namespace del manifest. El fixture exterior
+        # elimina estos IDs y sus dependencias; nunca se limpian tablas globales.
         with env.factory.begin() as db:
-            env.document_ids.update(db.scalars(select(Document.id).where(Document.relative_path.in_(relatives))))
+            env.document_ids.update(db.scalars(select(Document.id).where(
+                Document.scope == "corporate", Document.storage_path.in_(storage_paths),
+            )))
             if own_job_ids:
                 db.execute(delete(IngestionJob).where(IngestionJob.id.in_(own_job_ids)))
 
@@ -104,7 +122,7 @@ def test_mysql_daily_checkpoints_survive_restart_and_expire_in_sql(freshness):
     fx = freshness
     first = ReconcileScheduler()
     first.run_due_once()
-    assert first.state.run_count == 1 and first.state.maintenance_status == "completed"
+    assert first.state.run_count == 1 and first.state.last_status == first.state.maintenance_status == "completed"
     restarted = ReconcileScheduler()
     restarted.run_due_once()
     assert restarted.state.run_count == 0 and restarted.state.maintenance_status == "never_run"
@@ -113,7 +131,7 @@ def test_mysql_daily_checkpoints_survive_restart_and_expire_in_sql(freshness):
                        .values(finished_at=utcnow_naive() - timedelta(hours=25)))
     expired = ReconcileScheduler()
     expired.run_due_once()
-    assert expired.state.run_count == 1 and expired.state.maintenance_status == "completed"
+    assert expired.state.run_count == 1 and expired.state.last_status == expired.state.maintenance_status == "completed"
 
 
 def test_mysql_full_success_does_not_hide_failed_maintenance_checkpoint(freshness, monkeypatch):
@@ -123,7 +141,8 @@ def test_mysql_full_success_does_not_hide_failed_maintenance_checkpoint(freshnes
     monkeypatch.setattr(retention, "run_maintenance", Mock(side_effect=RuntimeError("Synthetic failure")))
     first = ReconcileScheduler()
     first.run_due_once()
-    assert first.state.run_count == 1 and first.state.maintenance_status == "error:RuntimeError"
+    assert first.state.run_count == 1 and first.state.last_status == "completed"
+    assert first.state.maintenance_status == "error:RuntimeError"
     monkeypatch.setattr(retention, "run_maintenance", original)
     restarted = ReconcileScheduler()
     restarted.run_due_once()

@@ -99,16 +99,31 @@
     "backend/scripts/bootstrap.py": "0ed312c822a75d5515093e7fa894fa1d3f7d75233840b9da4c64073b5f807dff",
     "backend/scripts/local_identity.py": "5c9fe6badf15c4c8c0b88f22b1a57850ac923a6fcc22f703476d9af691c0276c",
     "backend/tests/integration/test_local_lifecycle_mysql.py": "bb81bc344bcb9047da3d34ee5f7ff8e50c423fce3d27aa2211b5039f23800cfa",
-    "backend/tests/integration/test_scheduler_freshness_mysql.py": "b583962d86b2bf8c2da057f55b99485abf2f81654c4b9fd785308ee6da0e1766",
+    "backend/tests/integration/test_scheduler_freshness_mysql.py": "d3a442fa27dfc21d63de08b79bf49c770203bb1684782cb2589429325a21ba29",
     "backend/tests/integration/test_sessions_and_migrations.py": "8cc5677b999ddef68b4c5824c29855ab566544a3d9ed78ebcfe299fd74f20267",
     "backend/tests/security/test_readiness_privacy.py": "6da7e8b43ef0482cdddb04dcc64aff352b2173740ade634ee48558b7c8949edd",
     "backend/tests/unit/test_installer_consolidation.py": "566b8c4b027fdbe094e6982134089359463e265edbce855024d9d705861ca06f",
     "backend/tests/unit/test_knowledge_sync_new.py": "739eeecbe5d01f231d31e826dddf5ab832da72d4a285b6e98f78e241d9342635",
     "backend/tests/unit/test_local_account_lifecycle.py": "a8ac19b3b4938d7d0c2bc6d88f33cfa41d23b57db4f66085b4205cf607afef33",
     "backend/tests/unit/test_local_identity_standalone.py": "45741d665d01bda593cea53efea74afb74f5875efd7cf82396ad01dc868876da",
-    "backend/tests/unit/test_local_login_backoff.py": "9411bd4853d87dde59424ea0644546d12c6102bf7f7587a89f3cca91f2981d11",
+    "backend/tests/unit/test_local_login_backoff.py": "97ab188db4b97a367daa38c7548fcb7f4444d16062584a608273ed1c78b31f25",
     "backend/tests/unit/test_scheduler_document_freshness.py": "23d61ad1619720714ee455f8f3a0c318ca55152cb0674269708ab10a2d58a65a",
     "backend/tests/unit/test_services_isolated.py": "30cb01ea61952b90439114c7d08cc06901e4d4eb3bb26905e0025058d07beea6",
     "backend/tests/unit/test_upload_e2e_regressions.py": "99d80f5c7fb82471c3f0b965c7570c5a744563018cacbc9bf0854777febc28c0"
-  }
+  },
+  "integration_fixture_followup": {
+    "initial_ci": "https://github.com/Skayray360/Matrix_v4/actions/runs/43793899401",
+    "initial_mysql_result": "7 passed, 3 failed in scheduler fixtures",
+    "correction": "Canonical knowledge root, exact owned storage_path cleanup and complete synthetic retrieval embedding interface; assertions preserved and strengthened. No application change.",
+    "revalidation": "PENDING_CI"
+  },
+  "initial_ci_backend": {
+    "status": "PASS",
+    "unique_cases": 3870,
+    "skipped": 0,
+    "collection_total": 4049,
+    "source_commit": "459808675a8d69a5ccb885739bcae56db58f181b",
+    "run": "https://github.com/Skayray360/Matrix_v4/actions/runs/43793899401"
+  },
+  "synthetic_credentials_followup": "Reused the existing central synthetic test password after the secret scanner rejected eight fixture literals; scanner unchanged. Final CI evidence in PR #14."
 }

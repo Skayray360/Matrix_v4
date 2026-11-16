@@ -17,8 +17,11 @@ from app.common.ids import utcnow_naive
 from app.database.models import AuditEvent, LocalCredential, SessionRecord, User
 from app.security import rate_limit
 from app.security.rate_limit import RateLimiter, get_rate_limiter
+from seeds.identity_seed import SYNTHETIC_TEST_PASSWORD
 from tests.unit.test_local_identity_standalone import local_system, login
 
+# La clave sintetica central tiene ocho caracteres; nunca coincide con la
+# credencial aleatoria de 32 caracteres generada por local_system.
 __all__ = ["local_system"]
 
 
@@ -38,7 +41,7 @@ def test_all_invalid_accounts_use_same_401_and_progressive_failure_delay(local_s
     username = "UnknownSynthetic" if state == "unknown" else "Matrix"
     payloads = []
     for _ in range(6):
-        response = login(local_system, username=username, password="invalid-synthetic-password")
+        response = login(local_system, username=username, password=SYNTHETIC_TEST_PASSWORD)
         assert response.status_code == 401
         payloads.append(response.json())
     assert all(value == payloads[0] for value in payloads)
@@ -51,14 +54,14 @@ def test_success_clears_failure_backoff_and_never_delays_valid_credentials(local
     delays = []
     monkeypatch.setattr(auth.time, "sleep", delays.append)
     for _ in range(7):
-        assert login(local_system, password="invalid-synthetic-password").status_code == 401
+        assert login(local_system, password=SYNTHETIC_TEST_PASSWORD).status_code == 401
     assert delays[-1] == 2
     with local_system.factory() as db:
         assert db.get(LocalCredential, local_system.user_id).failed_attempts == 5
     count = len(delays)
     assert login(local_system).status_code == 200
     assert len(delays) == count
-    assert login(local_system, password="invalid-synthetic-password").status_code == 401
+    assert login(local_system, password=SYNTHETIC_TEST_PASSWORD).status_code == 401
     assert delays[-1] == 0.25
 
 
@@ -75,7 +78,7 @@ def test_backoff_waits_only_after_commit_has_released_the_database_transaction(l
 
         monkeypatch.setattr(auth.time, "sleep", wait)
         with pytest.raises(UnauthorizedError):
-            auth._authenticate_local(db, request, username="Matrix", password="invalid-synthetic-password")
+            auth._authenticate_local(db, request, username="Matrix", password=SYNTHETIC_TEST_PASSWORD)
     assert observed == [0.25]
 
 
@@ -103,7 +106,7 @@ def test_ip_limit_still_prevents_password_work_regardless_of_account_existence(l
     monkeypatch.setattr(local_provider, "verify_password", lambda *_: work.append("real") or False)
     monkeypatch.setattr(local_provider, "dummy_verify", lambda: work.append("dummy"))
     get_rate_limiter().reset()
-    responses = [login(local_system, username=username, password="invalid-synthetic-password") for _ in range(3)]
+    responses = [login(local_system, username=username, password=SYNTHETIC_TEST_PASSWORD) for _ in range(3)]
     assert [response.status_code for response in responses] == [401, 401, 429]
     assert len(work) == 2
 
@@ -127,12 +130,12 @@ def test_attack_from_one_ip_does_not_lock_valid_owner_on_another_ip(local_system
     local_system.settings.rate_limit_login_per_minute = 5
     with TestClient(local_system.app, client=("192.0.2.10", 1234)) as attacker:
         for _ in range(5):
-            assert login(local_system, client=attacker, password="invalid-synthetic-password").status_code == 401
-        assert login(local_system, client=attacker, password="invalid-synthetic-password").status_code == 429
+            assert login(local_system, client=attacker, password=SYNTHETIC_TEST_PASSWORD).status_code == 401
+        assert login(local_system, client=attacker, password=SYNTHETIC_TEST_PASSWORD).status_code == 429
         with TestClient(local_system.app, client=("192.0.2.20", 1234)) as owner:
             assert login(local_system, client=owner).status_code == 200
         # El acceso correcto no borra el limite de la IP que envio los errores.
-        assert login(local_system, client=attacker, password="invalid-synthetic-password").status_code == 429
+        assert login(local_system, client=attacker, password=SYNTHETIC_TEST_PASSWORD).status_code == 429
 
 
 def test_password_change_releases_dependency_locks_and_rejects_intermediate_session_revocation(
