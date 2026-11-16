@@ -1,0 +1,41 @@
+{
+  "base_commit": "bcd074a3e3b7df5beb1b797a0ed105cd1ec86f5d",
+  "date": "2026-11-16",
+  "scope": "synthetic_unified_audit_remediation",
+  "local_python": "3.12.14",
+  "ci_python": "3.12.16",
+  "local_checks": {
+    "ruff": "PASS",
+    "mypy_app": "PASS",
+    "headers": "PASS",
+    "documentation": "PASS",
+    "secrets": "PASS",
+    "integrity": "PASS"
+  },
+  "standalone_at_initial_publication": "RUNNING",
+  "docker_at_initial_publication": "PENDING_CI",
+  "real_models": "NOT_EVALUATED",
+  "production": "NOT_EVALUATED",
+  "external_audit_outputs": "NOT_PROVIDED",
+  "changes_sha256": {
+    "backend/app/agents/chat_queue.py": "718cdd4063d6c77f541011b037bfdae1eec20ad926b59960a110e8272ff87e9a",
+    "backend/app/api/middleware.py": "8eeeeed28cc5b41b2c14cd37260f6b5134d89b4c992db4de3f102cda7b7736f2",
+    "backend/app/api/routes/conversations.py": "b2ac2d412ddcbf21f3e66d58385d76c0c5d21de04eedfb7e46e6cefd06a44d8a",
+    "backend/app/llm/model_policy.py": "72e25fcb51b2aa97b1cefe47b6cdc327c40c8c80be626a1353eb034a78c9f8ed",
+    "backend/app/main.py": "0ed18b239bc41856ac5da20bf8f69f6bbd6a211b68a6cc959fffc19e0ab67e96",
+    "backend/scripts/docker_prepare.py": "13f64185fd32333715274152b0e58ac51b73c259095d51bf0649b0537efdbaae",
+    "backend/scripts/rag_eval.py": "b8369e90a7149b94cde889e75c296a0ab8455ad47afc71e7bda93b4b90ac29f8",
+    "backend/tests/fixtures/docker_smoke/compose.yaml": "f58f2c13bb0393029abb5e8bdd04ea862eef48a902cf39e7358abe1c40b12461",
+    "backend/tests/fixtures/docker_smoke/ollama.py": "2f9e1efe9d2c92ddd402ada93456a8fedb2129b228e5417698dd9debad526deb",
+    "backend/tests/fixtures/docker_smoke/redact_logs.py": "f411aab7e3d86625379524b16c288149035432bebff44bbe385b0b69521ed528",
+    "backend/tests/fixtures/docker_smoke/verify.py": "8f13633bab706eaba2507c9b09d548770a9e24a26ecf5496e542c08b357f74b7",
+    "backend/tests/integration/test_conversation_visibility_mysql.py": "5c5d104c9c21decc036624a681f65ebbaebde734e236562d48aa09b276b89fc4",
+    "backend/tests/security/test_local_runtime_compose.py": "fe441aa4ac71ea354226863d5a8911c4329a4ac6313e9d896bfc54440be1cfa3",
+    "backend/tests/security/test_profile_security.py": "d0a819cb48dd62998752bbcb38e333334caa15120ac406a4ca62438b835b2ee8",
+    "backend/tests/unit/test_conversation_creation_visibility.py": "27372c4bcce7acf556a804ba30990ed819e6b43711ccf43b4672a6c1bb7e7773",
+    "backend/tests/unit/test_database_pool_capacity.py": "cf99c16cf0b44d91b58164435c46aeb364116bd4d28abda8e718168a20c34718",
+    "backend/tests/unit/test_docker_preparation.py": "0595886fdab8b864b93c21792daebdebfd73821d4a9151817b969616472b0886",
+    "backend/tests/unit/test_queue_wait_admission.py": "284695ee0d39f2c78ba4d0803a5fcd03b23eccbaab942ac8b436c04c2153bdd2",
+    "backend/tests/unit/test_unified_grounding_regressions.py": "7341bf3892818fec52b3bf473180cd1f0a54fa211134bf36be2bfba4d12761fc"
+  }
+}

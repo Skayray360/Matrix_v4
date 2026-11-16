@@ -12,10 +12,11 @@ import time
 
 from fastapi import Request
 from fastapi.responses import JSONResponse
+from sqlalchemy.exc import TimeoutError as SQLAlchemyTimeoutError
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.responses import Response
 
-from app.common.errors import ErrorCode, MatrixError
+from app.common.errors import DatabaseUnavailableError, ErrorCode, MatrixError
 from app.common.ids import new_id
 from app.common.logging import bind_request_context, get_logger, reset_request_context, safe_error_fields
 from app.config import get_settings
@@ -117,6 +118,19 @@ async def matrix_error_handler(request: Request, exc: MatrixError) -> JSONRespon
         content=exc.to_public_dict(request_id),
         headers={"Retry-After": "5"} if exc.status_code in (429, 503) else None,
     )
+
+
+async def database_pool_timeout_handler(request: Request, exc: SQLAlchemyTimeoutError) -> JSONResponse:
+    """Agotamiento temporal del pool: rechazo reintentable, nunca texto SQL.
+
+    Este tipo es distinto de TimeoutError de Python (red, disco o inferencia).
+    No convertir fallos de integridad/programacion en problemas de capacidad.
+    """
+    logger.warning("db.pool_capacity_exhausted", extra={
+        "request_id": getattr(request.state, "request_id", None),
+        "error_type": type(exc).__name__,
+    })
+    return await matrix_error_handler(request, DatabaseUnavailableError())
 
 
 async def unhandled_error_handler(request: Request, exc: Exception) -> JSONResponse:

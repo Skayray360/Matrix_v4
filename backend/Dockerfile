@@ -14,6 +14,8 @@ RUN corepack npm audit --audit-level=low --include=dev --include=optional --incl
 RUN corepack npm ci --ignore-scripts --no-audit --no-fund --include=dev --include=optional --include=peer
 RUN corepack npm audit signatures
 COPY frontend/ ./
+# El typecheck incluye el contrato compartido, solo en el stage de compilacion.
+COPY backend/tests/fixtures/chat_contract.json /build/backend/tests/fixtures/chat_contract.json
 RUN python3 /checks/backend/scripts/verify_supply_chain.py --frontend /build/frontend
 RUN corepack npm run build
 

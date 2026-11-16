@@ -269,6 +269,14 @@ _BENEFIT_NAMES = (
     "apoyo", "apoyos", "prestacion", "prestaciones", "vacaciones", "aguinaldo",
     "prima vacacional", "bono", "bonos", "casamiento", "fondo de ahorro",
 )
+# Un presupuesto concreto de un periodo o ya aprobado es un dato de negocio,
+# aunque no mencione «empresa». No alcanza a «que es un presupuesto» ni a
+# «como elaborar un presupuesto para el proximo trimestre».
+_SPECIFIC_BUDGET_REFERENCE = re.compile(r"\b(?:el|del|al|este|ese|nuestro|mi) presupuestos?\b")
+_BUDGET_SCOPE_REFERENCE = re.compile(
+    r"\b(?:proxim[oa]s?|siguientes?|pasad[oa]s?|anterior(?:es)?|aprobados?|autorizados?|"
+    r"asignados?|ejecutados?|ejercidos?|20\d{2})\b"
+)
 _AMBIGUOUS_FOLLOWUP = re.compile(
     r"(?:y |pero )?(?:en ese caso|en esa situacion|entonces|eso|que pasa entonces|que hago ahora)"
 )
@@ -348,6 +356,7 @@ class ModelPolicy:
             or _PERSONAL_OR_CURRENT_REFERENCE.search(text)
             or _SPECIFIC_PEOPLE_REFERENCE.search(text)
             or (_BENEFIT_AMOUNT.search(text) and _contains_phrase(text, _BENEFIT_NAMES))
+            or (_SPECIFIC_BUDGET_REFERENCE.search(text) and _BUDGET_SCOPE_REFERENCE.search(text))
             or _AMBIGUOUS_FOLLOWUP.fullmatch(text.strip(" ¿?¡!.,;:"))
             or _NAMED_BENEFIT_REFERENCE.search(text)
             or _DEFINITE_BENEFIT_REFERENCE.search(text)

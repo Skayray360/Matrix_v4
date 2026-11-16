@@ -17,11 +17,13 @@ from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
+from sqlalchemy.exc import TimeoutError as SQLAlchemyTimeoutError
 
 from app import __version__
 from app.api.middleware import (
     RequestContextMiddleware,
     SecurityHeadersMiddleware,
+    database_pool_timeout_handler,
     matrix_error_handler,
     unhandled_error_handler,
 )
@@ -86,14 +88,15 @@ def create_app() -> FastAPI:
     """Construye la aplicacion FastAPI."""
     settings = get_settings()
     configure_logging(settings.app_log_level)
-    expose_docs = settings.app_env in {AppEnv.DEVELOPMENT, AppEnv.TEST}
+    expose_docs = (settings.app_env in {AppEnv.DEVELOPMENT, AppEnv.TEST}
+                   and settings.matrix_install_mode.casefold() != "docker_local")
 
     app = FastAPI(
         title=settings.app_name,
         version=__version__,
         lifespan=lifespan,
         # Solo los perfiles de desarrollo/pruebas publican el esquema y Swagger.
-        # Standalone y staging tambien alojan datos de una instalacion real.
+        # Standalone, staging y Docker local tambien alojan datos reales.
         docs_url="/api/docs" if expose_docs else None,
         redoc_url=None,
         openapi_url="/api/openapi.json" if expose_docs else None,
@@ -101,6 +104,7 @@ def create_app() -> FastAPI:
 
 
     app.add_exception_handler(MatrixError, matrix_error_handler)  # type: ignore[arg-type]
+    app.add_exception_handler(SQLAlchemyTimeoutError, database_pool_timeout_handler)  # type: ignore[arg-type]
     app.add_exception_handler(Exception, unhandled_error_handler)
 
     @app.exception_handler(RequestValidationError)

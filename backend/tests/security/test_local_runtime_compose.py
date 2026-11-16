@@ -152,3 +152,23 @@ def test_storage_guard_precedes_every_writer_and_has_no_datadir_or_credentials()
     assert all(v["read_only"] and not v["bind"]["create_host_path"] for v in guard["volumes"])
     assert services["qdrant"]["environment"]["QDRANT__CLUSTER__ENABLED"] == "false"
     assert services["qdrant"]["environment"]["QDRANT__SERVICE__ENFORCE_INTERNAL_AUTH"] == "true"
+
+
+@pytest.mark.parametrize("name", ["qdrant", "ollama", "model-download"])
+def test_tmpfs_options_remain_one_mount_after_yaml_parsing(name):
+    mounts = _compose()["services"][name]["tmpfs"]
+    assert len(mounts) == 1
+    target, options = mounts[0].split(":", 1)
+    assert target == "/tmp"
+    assert {"rw", "nosuid", "mode=1777"}.issubset(options.split(","))
+    assert any(option.startswith("size=") for option in options.split(","))
+
+
+def test_backend_and_proxy_reserve_distinct_addresses_without_sharing_prepare_ip():
+    services = _compose()["services"]
+    backend_address = services["backend"]["networks"]["matrix_proxy"]["ipv4_address"]
+    proxy_address = services["nginx"]["networks"]["matrix_proxy"]["ipv4_address"]
+    assert "MATRIX_BACKEND_IP:?" in backend_address
+    assert "MATRIX_NGINX_IP:?" in proxy_address
+    assert backend_address != proxy_address
+    assert isinstance(services["prepare"]["networks"], list)

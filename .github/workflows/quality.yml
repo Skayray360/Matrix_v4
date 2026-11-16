@@ -341,6 +341,7 @@ jobs:
           command = [sys.executable, "-m", "pytest",
                      "tests/integration/test_local_lifecycle_mysql.py",
                      "tests/integration/test_scheduler_freshness_mysql.py",
+                     "tests/integration/test_conversation_visibility_mysql.py",
                      "-q", "-p", "scripts.quality_gate_pytest", "--matrix-test-group", "integration_services",
                      "--matrix-collection-report", str(collection), "--junitxml", str(junit)]
           result = _run(command, cwd=BACKEND_ROOT, name="cuentas y planificador MySQL",
@@ -354,3 +355,58 @@ jobs:
                             f"{result.junit_testcases} casos. Datos sinteticos; sin modelos reales.\n")
           raise SystemExit(0 if complete else 1)
           PY
+
+  docker_smoke:
+    name: Docker limpio (HTTPS real, modelos sinteticos)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Construir imagen distribuida desde checkout limpio
+        run: docker build --tag matrix-rh-backend:1.4.2 --file backend/Dockerfile .
+      - name: Preparar configuracion privada como operador sin privilegios
+        run: |
+          test "$(id -u)" -ne 0
+          docker run --rm --network none --user "$(id -u):$(id -g)" \
+            --mount "type=bind,src=$PWD,dst=/workspace" --entrypoint python \
+            matrix-rh-backend:1.4.2 -m scripts.docker_prepare --root /workspace
+          python - <<'PY'
+          from pathlib import Path
+          directory = Path("knowledge-base/documents/prestaciones")
+          directory.mkdir(parents=True, exist_ok=True)
+          (directory / "ci-synthetic.md").write_text(
+              "# Fixture de despliegue\n\nDocumento sintetico exclusivo de CI. No constituye una politica empresarial.\n",
+              encoding="utf-8",
+          )
+          PY
+      - name: Validar Compose y ejecutar preparacion real
+        run: |
+          docker compose --env-file backend/config/docker.env -f docker-compose.yml \
+            -f backend/tests/fixtures/docker_smoke/compose.yaml config --quiet
+          docker compose --env-file backend/config/docker.env -f docker-compose.yml \
+            -f backend/tests/fixtures/docker_smoke/compose.yaml run --rm prepare
+      - name: Arrancar servicios y verificar HTTPS, identidad y documentos
+        run: |
+          docker compose --env-file backend/config/docker.env -f docker-compose.yml \
+            -f backend/tests/fixtures/docker_smoke/compose.yaml up --detach --wait --wait-timeout 240 backend nginx
+          python backend/tests/fixtures/docker_smoke/verify.py
+          echo 'Docker limpio: build, preparacion, migraciones, ingesta, HTTPS, login y conversacion **PASS**. MySQL/Qdrant/Nginx reales; solo Ollama es simulado. No acredita pesos, calidad, GPU ni capacidad real.' >> "$GITHUB_STEP_SUMMARY"
+      - name: Diagnostico acotado sin credenciales
+        if: failure()
+        run: |
+          if test -f backend/config/docker.env; then
+            docker compose --env-file backend/config/docker.env -f docker-compose.yml \
+              -f backend/tests/fixtures/docker_smoke/compose.yaml logs --no-color --tail 80 2>&1 \
+              | python backend/tests/fixtures/docker_smoke/redact_logs.py
+          fi
+      - name: Retirar exclusivamente recursos efimeros del job
+        if: always()
+        run: |
+          if test -f backend/config/docker.env; then
+            docker compose --env-file backend/config/docker.env -f docker-compose.yml \
+              -f backend/tests/fixtures/docker_smoke/compose.yaml ps --all
+            docker compose --env-file backend/config/docker.env -f docker-compose.yml \
+              -f backend/tests/fixtures/docker_smoke/compose.yaml down --volumes --remove-orphans --timeout 30
+          fi

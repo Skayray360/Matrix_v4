@@ -10,7 +10,10 @@
 backend/config/secrets
 backend/runtime
 backend/logs
-backend/tests
+backend/tests/*
+!backend/tests/fixtures/
+backend/tests/fixtures/*
+!backend/tests/fixtures/chat_contract.json
 knowledge-base
 **/.venv
 **/node_modules

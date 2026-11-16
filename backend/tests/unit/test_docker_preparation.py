@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import ipaddress
 import json
 import shutil
 import subprocess
@@ -56,6 +57,11 @@ def test_prepare_idempotent_preserves_credentials_models_and_documents(project):
     assert "@mysql:3306/matrix_rh?" in values["DATABASE_URL"]
     assert values["MATRIX_DOCKER_MYSQL_PASSWORD"] in values["DATABASE_URL"]
     assert len(values["MATRIX_DOCKER_PROJECT_ID"]) == 16
+    network = ipaddress.ip_network(values["MATRIX_PROXY_SUBNET"])
+    backend = ipaddress.ip_address(values["MATRIX_BACKEND_IP"])
+    proxy = ipaddress.ip_address(values["MATRIX_NGINX_IP"])
+    assert backend in network and proxy in network and backend != proxy
+    assert values["FORWARDED_ALLOW_IPS"] == str(proxy)
     assert values["APP_SECRET_KEY"] not in json.dumps(second)
     assert all(values[key] == "" for key in prepare.PIN_KEYS)
     assert not (project / "backend/config/.env").exists()

@@ -1,6 +1,7 @@
 # Creado por Aldo Garcia.
 # Preparar primero con scripts.docker_prepare; ver el unico README.md.
-# APP_ENV=development es un perfil LOCAL. No acredita cifrado ni despliegue corporativo.
+# Perfil LOCAL con docs desactivados por MATRIX_INSTALL_MODE=docker_local.
+# APP_ENV=development no acredita cifrado ni despliegue corporativo.
 name: "matrixrh-${MATRIX_DOCKER_PROJECT_ID:?ejecute docker_prepare}"
 
 x-logging: &logging
@@ -147,7 +148,8 @@ services:
         bind: {create_host_path: false}
     networks: [matrix_data]
     read_only: true
-    tmpfs: [/tmp:rw,noexec,nosuid,size=128m,mode=1777]
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=128m,mode=1777
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
     mem_limit: 2g
@@ -186,7 +188,8 @@ services:
         bind: {create_host_path: false}
     networks: [matrix_llm]
     read_only: true
-    tmpfs: [/tmp:rw,nosuid,size=1g,mode=1777]
+    tmpfs:
+      - /tmp:rw,nosuid,size=1g,mode=1777
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
     mem_limit: "${OLLAMA_MEMORY_LIMIT:-24g}"
@@ -202,6 +205,13 @@ services:
 
   backend:
     <<: *backend
+    # Reservar ambas direcciones impide que la asignacion dinamica ocupe la de Nginx.
+    # prepare conserva direccion dinamica y se elimina antes de levantar backend.
+    networks:
+      matrix_data: {}
+      matrix_llm: {}
+      matrix_proxy:
+        ipv4_address: "${MATRIX_BACKEND_IP:?configure MATRIX_BACKEND_IP en docker.env}"
     restart: unless-stopped
     command: [serve]
     volumes:
@@ -305,7 +315,8 @@ services:
         bind: {create_host_path: false}
     networks: [matrix_download]
     read_only: true
-    tmpfs: [/tmp:rw,nosuid,size=1g,mode=1777]
+    tmpfs:
+      - /tmp:rw,nosuid,size=1g,mode=1777
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
     mem_limit: 2g
