@@ -44,6 +44,7 @@ export function MessageList({
     return (
       <div className="messages" id="conversacion">
         <div className="welcome-state">
+          <Mascot className="welcome-mascot" alt="Asistente IA Matrix" />
           <span className="welcome-eyebrow">
             <Icon name="chat" size={14} />
             Asistente documental
@@ -70,7 +71,6 @@ export function MessageList({
               <span>Información general y permisos específicos de su cuenta.</span>
             </div>
           </div>
-          <Mascot className="welcome-mascot" alt="Asistente IA Matrix" />
         </div>
       </div>
     );

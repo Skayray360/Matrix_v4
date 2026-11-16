@@ -25,13 +25,13 @@ test.describe("Autenticacion", () => {
 
     // Usuario inexistente
     await page.getByLabel("Usuario").fill("UsuarioQueNoExiste");
-    await page.getByLabel("Contrasena").fill("cualquier-cosa");
+    await page.getByLabel("Contraseña").fill("cualquier-cosa");
     await page.getByRole("button", { name: "Entrar" }).click();
     const unknownUserMessage = await page.getByTestId("login-error").innerText();
 
     // Usuario existente con contrasena incorrecta
     await page.getByLabel("Usuario").fill(ADMIN_USER);
-    await page.getByLabel("Contrasena").fill("contrasena-incorrecta");
+    await page.getByLabel("Contraseña").fill("contrasena-incorrecta");
     await page.getByRole("button", { name: "Entrar" }).click();
     const badPasswordMessage = await page.getByTestId("login-error").innerText();
 
