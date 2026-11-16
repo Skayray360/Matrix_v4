@@ -237,7 +237,8 @@ def prepare(root: Path, *, uid: int | None = None, gid: int | None = None) -> di
             "MATRIX_DOCKER_UID": str(owner_uid), "MATRIX_DOCKER_GID": str(owner_gid),
             "MATRIX_DOCKER_PROJECT_ID": secrets.token_hex(8),
             "MATRIX_DOCKER_ADMIN": "Matrix", "MATRIX_PROXY_SUBNET": "172.31.240.0/28",
-            "MATRIX_NGINX_IP": "172.31.240.2", "FORWARDED_ALLOW_IPS": "172.31.240.2",
+            "MATRIX_NGINX_IP": "172.31.240.2", "MATRIX_BACKEND_IP": "172.31.240.3",
+            "FORWARDED_ALLOW_IPS": "172.31.240.2",
             "OLLAMA_MEMORY_LIMIT": "24g", "OLLAMA_CPUS": "4",
         })
         values.update(dict.fromkeys(PIN_KEYS, ""))

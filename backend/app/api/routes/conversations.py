@@ -85,12 +85,17 @@ def create_conversation(
     ctx: UserContext = Depends(get_user_context),
 ) -> ConversationSummaryResponse:
     conversation = _memory.create_conversation(db, ctx, title=payload.title)
-    return ConversationSummaryResponse(
+    response = ConversationSummaryResponse(
         id=conversation.id,
         title=conversation.title,
         created_at=conversation.created_at,
         updated_at=conversation.updated_at,
     )
+    # El teardown de get_db puede ocurrir despues de enviar la respuesta. El
+    # cliente puede adjuntar inmediatamente: confirmar antes de publicar el ID
+    # evita un 404 transitorio y un falso 200 si la confirmacion SQL falla.
+    db.commit()
+    return response
 
 
 @router.get("/conversations/{conversation_id}", response_model=ConversationDetailResponse)

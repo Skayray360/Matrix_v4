@@ -120,8 +120,35 @@ def terminal_metrics(db: Session) -> dict:
             **{name: _duration_summary([getattr(row, name) for row in rows])
                for name in ("queue_ms", "execution_ms", "total_ms")},
         }
-        _metrics_cache[engine] = (now, result)
+        # Cancelaciones, fallos rapidos y tiempos historicos desconocidos no
+        # estiman el coste de una respuesta completada. Reutilizar esta consulta
+        # acotada sin publicar datos adicionales ni aumentar sondeos SQL.
+        completed_ms = _duration_summary([
+            row.execution_ms for row in rows
+            if row.status == "completed" and row.execution_ms is not None and row.execution_ms > 0
+        ])["p95"]
+        _metrics_cache[engine] = (now, result, completed_ms)
         return result
+
+
+def _estimated_queue_wait_ms(db: Session, capacity: dict) -> int | None:
+    """Estimacion conservadora por oleadas FIFO, no una promesa de latencia.
+
+    Usa el p95 medido de respuestas completadas en la misma muestra de hasta
+    1000 terminales. Sin mediciones positivas no inventa duraciones: sigue
+    aplicando el limite de cantidad y el deadline. No descuenta el tiempo de
+    workers activos, pues una inferencia larga no necesariamente esta por acabar.
+    """
+    terminal_metrics(db)
+    bind = db.get_bind()
+    engine = getattr(bind, "engine", bind)
+    with _metrics_lock:
+        cached = _metrics_cache.get(engine)
+        completed_ms = cached[2] if cached is not None else None
+    if completed_ms is None:
+        return None
+    waves_ahead = (capacity["active"] + capacity["queued"]) // capacity["limit"]
+    return waves_ahead * completed_ms
 
 
 def capacity_status(db: Session) -> dict:
@@ -300,6 +327,18 @@ class ChatQueue:
                 resources = self.reserve(user_id=operation.user_id, conversation_id=operation.conversation_id)
         if resources is None and capacity["queued"] >= get_settings().chat_queue_max_size:
             raise CapacityFullError()
+        if resources is None:
+            estimate_ms = _estimated_queue_wait_ms(db, capacity)
+            timeout_ms = get_settings().chat_queue_timeout_seconds * 1000
+            if estimate_ms is not None and estimate_ms >= timeout_ms:
+                logger.info("chat.queue_wait_rejected", extra={
+                    "estimated_queue_ms": estimate_ms, "queue_timeout_ms": timeout_ms,
+                    "queue_depth": capacity["queued"],
+                })
+                raise CapacityFullError(
+                    "La espera estimada alcanza el limite de la cola. "
+                    "Su solicitud no fue aceptada; intente de nuevo mas tarde."
+                )
         operation.created_at = operation.created_at or utcnow_naive()
         operation.status = "running" if resources else "queued"
         operation.started_at = utcnow_naive() if resources else None

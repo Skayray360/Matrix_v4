@@ -14,15 +14,16 @@ from scripts import preflight
 pytestmark = [pytest.mark.unit, pytest.mark.security]
 
 
+@pytest.mark.parametrize("install_mode", ["windows_local", "docker_local", "DOCKER_LOCAL"])
 @pytest.mark.parametrize("environment", list(AppEnv))
 @pytest.mark.parametrize("path", ["/api/docs", "/api/openapi.json"])
-def test_documentation_endpoints_exist_only_in_development_and_test(monkeypatch, environment, path):
-    settings = get_settings().model_copy(update={"app_env": environment})
+def test_documentation_endpoints_exist_only_in_development_and_test(monkeypatch, environment, path, install_mode):
+    settings = get_settings().model_copy(update={"app_env": environment, "matrix_install_mode": install_mode})
     monkeypatch.setattr(main, "get_settings", lambda: settings)
     # No lifespan: esta prueba HTTP no arranca scheduler, SQL ni modelos.
     client = TestClient(main.create_app(), base_url="http://127.0.0.1")
     response = client.get(path)
-    exposed = environment in {AppEnv.DEVELOPMENT, AppEnv.TEST}
+    exposed = environment in {AppEnv.DEVELOPMENT, AppEnv.TEST} and install_mode.casefold() != "docker_local"
     assert response.status_code == (200 if exposed else 404)
     if path.endswith(".json") and exposed:
         assert "/api/v1/chat/submit" in response.json()["paths"]

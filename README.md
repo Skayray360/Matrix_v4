@@ -104,6 +104,29 @@ El controlador actual requiere **Windows x64, PowerShell x64 5.1 o posterior y W
 
 Los directorios `backend/config`, `backend/runtime` y `knowledge-base` pertenecen a la instalación. No se deben borrar para actualizar código. `frontend/dist` se distribuye y se reconstruye con el Node/npm fijado; no es basura. Antes de actualizar, detenga Matrix y use `scripts.installation_backup` desde el Python de esa instalación para preparar y verificar un respaldo en frío. Ese comando no acredita una recuperación MySQL: ensáyela en una copia separada antes de reemplazar la instalación.
 
+### Linux con Docker
+
+Use una copia Linux separada y un operador **no root**, con Docker Engine/Compose, acceso al daemon y el puerto local 8443 disponible. No comparta directorios de datos activos con Windows ni con otra instalación. Desde la raíz del repositorio:
+
+```bash
+docker build -f backend/Dockerfile -t matrix-rh-backend:1.4.2 .
+docker run --rm --network none --user "$(id -u):$(id -g)" \
+  --mount "type=bind,src=$PWD,dst=/project" --entrypoint python \
+  matrix-rh-backend:1.4.2 -m scripts.docker_prepare --root /project
+docker compose --env-file backend/config/docker.env config --quiet
+docker compose --env-file backend/config/docker.env --profile prepare run --rm model-download
+docker compose --env-file backend/config/docker.env --profile prepare run --rm prepare
+docker compose --env-file backend/config/docker.env up -d --wait
+```
+
+El build consulta distribuidores y avisos de dependencias; `model-download` descarga los modelos fijados. `prepare` aplica migraciones e inicializa la cuenta/índice. Antes de repetir esa secuencia, detenga esta instalación con `docker compose --env-file backend/config/docker.env down`. `model-download` no debe convivir con el servicio Ollama activo; `prepare` sí necesita Ollama y Compose lo inicia como dependencia. `down` conserva los directorios persistentes; no borre datos ni use `down -v` para actualizar.
+
+Compruebe el estado con `docker compose --env-file backend/config/docker.env ps` y abra `https://127.0.0.1:8443`. El certificado generado es local; valide/confíe explícitamente en él en su equipo. La contraseña inicial está en `backend/config/secrets/docker/bootstrap-admin-password.txt`: consúltela solo localmente y cámbiela al entrar. **Compose necesita `--env-file backend/config/docker.env` en todos los comandos**: el `env_file` del servicio no sustituye la interpolación de Compose. No publique la salida completa de `compose config`, que puede contener secretos.
+
+Una copia Docker preparada antes de esta corrección debe añadir a su `docker.env` una `MATRIX_BACKEND_IP` libre dentro de `MATRIX_PROXY_SUBNET` (predeterminada `172.31.240.3`), diferente de Nginx y del gateway; conserve los secretos existentes. Si la subred predeterminada coincide con otra red, elija una libre y ajuste conjuntamente `MATRIX_PROXY_SUBNET`, `MATRIX_NGINX_IP`, `MATRIX_BACKEND_IP` y `FORWARDED_ALLOW_IPS` antes de crear la red. No se modifica automáticamente ninguna red del host.
+
+Docker local conserva `APP_ENV=development`, pero deshabilita `/api/docs` y `/api/openapi.json` por su modo de instalación. Esto no lo convierte en un despliegue corporativo certificado. `OLLAMA_MEMORY_LIMIT=24g` es un límite máximo del contenedor, **no una reserva de RAM ni un mínimo garantizado**. Dimensione pesos de modelos, contexto/KV, concurrencia, MySQL, Qdrant y sistema operativo; mida en el hardware destino. Un host con 15 GiB y un límite de Ollama reducido a 9 GiB no acredita capacidad para los modelos fijados.
+
 ### Gestión de cuentas locales
 
 Con `AUTH_PROVIDER=local`, un administrador con `users.admin` puede usar `PATCH /api/v1/admin/users/{id}` para cambiar `is_active` (booleano) o `role` (`matrix_admin` o `prestaciones_reader`). Requiere sesión vigente y token CSRF. Los cambios efectivos revocan las sesiones del usuario; reactivarlo no recupera sesiones antiguas ni cambia su contraseña. Se impide desactivar o degradar al último administrador local activo. Las identidades federadas se administran en su proveedor.
@@ -155,9 +178,11 @@ La [auditoría del 27 de octubre de 2026](backend/release/audit-2026-10-27/repor
 
 ### Diagnóstico y medición opcionales
 
-Swagger y OpenAPI solo se publican en `development` y `test`. El diagnóstico de `standalone` consulta BitLocker en Windows y avisa si no puede verificarlo; no activa cifrado. El respaldo en frío admite `python -m scripts.installation_backup backup --require-encrypted-destination`, que rechaza la copia si el volumen de destino no tiene BitLocker completo y activo. Esta opción protege el destino comprobado al crear el respaldo: los archivos no tienen cifrado propio y moverlos a otro volumen puede dejarlos expuestos.
+Swagger y OpenAPI solo se publican en `development` y `test` cuando el modo de instalación no es `docker_local`. El diagnóstico de `standalone` consulta BitLocker en Windows y avisa si no puede verificarlo; no activa cifrado. El respaldo en frío admite `python -m scripts.installation_backup backup --require-encrypted-destination`, que rechaza la copia si el volumen de destino no tiene BitLocker completo y activo. Esta opción protege el destino comprobado al crear el respaldo: los archivos no tienen cifrado propio y moverlos a otro volumen puede dejarlos expuestos.
 
 `/ready` (también `/api/v1/ready`) devuelve solo `ready`, con HTTP 200 o 503. Los componentes internos se consultan en `/ready/details` con una sesión que tenga `diagnostics.read`; no se incluyen en la respuesta pública. El launcher soportado desactiva la cabecera `Server` de Uvicorn. `/health` conserva su información de aplicación/versión y los proxies pueden identificarse por separado.
+
+El agotamiento del pool SQL devuelve `503 database_unavailable`, `Retry-After: 5` y un identificador de solicitud; no se aumenta el pool automáticamente. La cola usa el p95 observado de ejecuciones completadas y las oleadas pendientes para rechazar con `503 chat_capacity_full` cuando la espera estimada alcanza el plazo de cola. Sin historial positivo sigue aplicando cupo y expiración; la estimación no garantiza latencia ni sustituye medir el hardware real.
 
 La recepción de adjuntos tolera hasta 250 ms de espera por cupo, con cantidad de esperadores limitada. Una saturación real puede devolver `503 upload_capacity_full`, `Retry-After` y un `request_id` para diagnóstico. Un archivo de texto binario o que exceda un presupuesto indivisible devuelve 422; los límites de extracción no se relajan.
 
@@ -166,6 +191,8 @@ Desde `backend`, `python -m scripts.model_warmup` muestra un plan sin red. Añad
 `scripts.diagnosticar_rag` mantiene su diagnóstico de metadatos por defecto. La exportación de fragmentos requiere `--export-chunks var/revision.json --username CUENTA --document-id ID` y `--root` con la raíz de la instalación; para adjuntos también requiere `--conversation-id ID`. El archivo debe ser nuevo y privado. La cuenta necesita `diagnostics.read` y acceso vigente al documento; un administrador no obtiene acceso a conversaciones ajenas. La herramienta aplica límites de contenido, comprueba la generación activa y vuelve a validar permisos antes de guardar. Revise `complete` y `truncated` antes de evaluar cobertura. Para embedded, detenga Matrix; la revisión utiliza una copia temporal privada y acotada, y rechaza índices que excedan sus límites.
 
 La [validación de mejoras del 15 de noviembre de 2026](backend/release/review-2026-11-15/report.md) contrasta cada propuesta del archivo recibido con el código actual, identifica lo aplicado y documenta lo que requiere mediciones reales.
+
+El [contraste del informe unificado](backend/release/unified-2026-11-16/report.md) distingue hallazgos históricos, nuevas correcciones y límites de la evidencia.
 
 El [contraste de la auditoría E2E](backend/release/e2e-2026-11-15/report.md) documenta las correcciones de vigencia documental, cuentas, cargas y readiness, con su evidencia y límites.
 
@@ -178,7 +205,7 @@ El [contraste de la auditoría E2E](backend/release/e2e-2026-11-15/report.md) do
 - Respalde y restaure el almacenamiento Qdrant completo, incluida la colección `<colección corporativa>__generation_intents`. Restaurar únicamente las colecciones de contenido pierde las intenciones pendientes. Los respaldos nativo y preparado del proyecto conservan el árbol completo.
 - Para exposición a red se requieren HTTPS, cookies seguras y un proveedor de identidad configurado. No convierta el perfil local en publicación LAN cambiando únicamente `APP_HOST`.
 - Las políticas de categorías rechazan campos desconocidos, nombres repetidos y claves YAML duplicadas: corrija la configuración si el arranque la rechaza.
-- El perfil Docker usa otra copia Linux y estado separado; no comparte un datadir activo con la instalación Windows. Su build y arranque necesitan validación específica en el entorno destino.
+- El perfil Docker usa otra copia Linux y estado separado; no comparte un datadir activo con la instalación Windows. La CI comprueba build y arranque con un doble local de Ollama; los modelos reales y los recursos necesitan validación específica en el entorno destino.
 
 Los seis PDF retirados del árbol también se eliminaron del historial de las cuatro ramas. Consulte la [evidencia y los pasos pendientes de caché/PR en GitHub](backend/release/audit-2026-10-27/history-cleanup.md). Un clon anterior debe actualizarse sin fusionar la historia retirada.
 

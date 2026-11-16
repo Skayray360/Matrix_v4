@@ -453,7 +453,17 @@ def evaluate_full(cases: list[dict[str, Any]]) -> EvaluationReport:
                 detail = "" if passed else f"contrato de denegacion incumplido: {found}"
             else:  # unsupported
                 passed = refused and not leak and not outcome.evidences
-                detail = "" if passed else "no declaro insuficiencia"
+                reasons = []
+                if not refused:
+                    reasons.append("no declaro insuficiencia")
+                if leak:
+                    reasons.append("recuperacion fuera del alcance autorizado")
+                if outcome.evidences:
+                    # No confundir recuperacion irrelevante con una respuesta
+                    # inventada. El contrato sigue exigiendo recuperacion vacia,
+                    # aunque las fuentes no lleguen a public_sources().
+                    reasons.append("recupero fuentes en un caso sin respaldo; el contrato exige recuperacion vacia")
+                detail = "; ".join(reasons)
 
             report.results.append(
                 CaseResult(

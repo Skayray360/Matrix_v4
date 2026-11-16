@@ -1,0 +1,26 @@
+# Creado por Aldo Garcia.
+# Solo CI: pesos/inferencia simulados; Compose, MySQL, Qdrant y HTTPS reales.
+services:
+  ollama:
+    image: matrix-rh-backend:1.4.2
+    entrypoint: [python]
+    command: [/fixture/ollama.py]
+    working_dir: /app/backend
+    environment:
+      OLLAMA_FAST_MODEL: "${OLLAMA_FAST_MODEL}"
+      OLLAMA_DEEP_MODEL: "${OLLAMA_DEEP_MODEL}"
+      OLLAMA_EMBEDDING_MODEL: "${OLLAMA_EMBEDDING_MODEL}"
+      OLLAMA_EMBEDDING_DIMENSION: "${OLLAMA_EMBEDDING_DIMENSION}"
+    volumes:
+      - type: bind
+        source: ./backend/tests/fixtures/docker_smoke/ollama.py
+        target: /fixture/ollama.py
+        read_only: true
+        bind: {create_host_path: false}
+    mem_limit: 256m
+    cpus: 1
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:11434/api/tags', timeout=3)"]
+      interval: 5s
+      timeout: 4s
+      retries: 12
