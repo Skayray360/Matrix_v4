@@ -27,6 +27,9 @@ type Props = {
 };
 
 const ACCEPTED = ".docx,.md,.pdf,.pptx,.txt,.xlsx,.csv";
+const ACCEPTED_LABEL = ACCEPTED.split(",")
+  .map((extension) => extension.slice(1).toUpperCase())
+  .join(", ");
 
 function attachmentStatus(status: string): string {
   switch (status) {
@@ -159,6 +162,7 @@ export function Composer({
             onClick={() => fileInput.current?.click()}
             disabled={disabled}
             aria-label="Adjuntar archivo a esta conversacion"
+            aria-describedby="attachment-help"
             title="Adjuntar archivo a esta conversacion"
           >
             <Icon name="paperclip" size={20} />
@@ -183,7 +187,7 @@ export function Composer({
             ref={textarea}
             id="composer-input"
             data-testid="composer-input"
-            placeholder="Escribe tu consulta o adjunta un archivo para analizarlo..."
+            placeholder="Escriba su consulta…"
             value={text}
             disabled={disabled}
             maxLength={8000}
@@ -209,9 +213,8 @@ export function Composer({
           <span className="character-count">{text.length} / 8000</span>
         </div>
 
-        <p className="composer-note">
-          Arrastre un archivo ({ACCEPTED}) o use el clip para analizarlo{" "}
-          <strong>solo en esta conversacion</strong>.
+        <p className="composer-note" id="attachment-help">
+          <strong>Solo en esta conversación.</strong> {ACCEPTED_LABEL}.
         </p>
       </div>
     </div>

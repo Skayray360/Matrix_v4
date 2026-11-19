@@ -127,6 +127,16 @@ jobs:
         run: |
           node node_modules/@playwright/test/cli.js install --with-deps --only-shell chromium
           node node_modules/@playwright/test/cli.js test --config=playwright.visual.config.ts
+      - name: Conservar capturas y resultados del navegador
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: frontend-visual-${{ github.sha }}
+          path: |
+            frontend/test-results/
+            reports/tests/visual-results.json
+          retention-days: 14
+          if-no-files-found: ignore
 
   windows_controller:
     name: Controlador Windows (${{ matrix.shell }}, sintetico)

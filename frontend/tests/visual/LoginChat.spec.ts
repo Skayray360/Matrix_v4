@@ -1,6 +1,7 @@
 /* Creado por Aldo Garcia. */
 /** Navegador real con API sintetica: no certifica el IdP ni la inferencia. */
 import { test, expect, type Page } from "@playwright/test";
+import type { Me } from "../../src/services/contracts";
 
 const profile = {
   user_id: "ui",
@@ -49,7 +50,7 @@ const reply = {
   latency_ms: 240,
 };
 
-async function mockApi(page: Page, queued = false, general = false) {
+async function mockApi(page: Page, queued = false, general = false, session: Me = profile) {
   const response = general ? { ...reply, intent: "general", grounded: false, sources: [] } : reply;
   let authenticated = false;
   let completed = false;
@@ -87,11 +88,11 @@ async function mockApi(page: Page, queued = false, general = false) {
       route.fulfill({ status: code, contentType: "application/json", body: JSON.stringify(json) });
     if (path === "/me")
       return authenticated
-        ? send(profile)
+        ? send(session)
         : send({ code: "unauthenticated", message: "Inicie sesión" }, 401);
     if (path === "/auth/local/login") {
       authenticated = true;
-      return send(profile);
+      return send(session);
     }
     if (path === "/auth/logout") {
       authenticated = false;
@@ -145,7 +146,7 @@ async function mockApi(page: Page, queued = false, general = false) {
 async function login(page: Page) {
   await page.goto("/");
   await page.getByLabel("Usuario", { exact: true }).fill("usuario-ui");
-  await page.getByLabel("Contrasena", { exact: true }).fill("dato-sintetico");
+  await page.getByLabel("Contraseña", { exact: true }).fill("dato-sintetico");
   await page.getByRole("button", { name: "Entrar", exact: true }).click();
   await expect(page.getByTestId("identity-user")).toHaveText("MatrixR1");
 }
@@ -275,21 +276,23 @@ test("un perfil malformado se rechaza antes de renderizar y permite reintentar",
   expect(errors).toEqual([]);
 });
 
-for (const viewport of [
-  { width: 1440, height: 900 },
-  { width: 390, height: 844 },
-  { width: 320, height: 667 },
-]) {
-  test(`login y chat sin recortes a ${viewport.width}x${viewport.height}`, async ({
+for (const { viewport, colorScheme } of [
+  { viewport: { width: 1440, height: 900 }, colorScheme: "light" },
+  { viewport: { width: 390, height: 844 }, colorScheme: "light" },
+  { viewport: { width: 320, height: 667 }, colorScheme: "light" },
+  { viewport: { width: 1440, height: 900 }, colorScheme: "dark" },
+] as const) {
+  test(`login y chat ${colorScheme} sin recortes a ${viewport.width}x${viewport.height}`, async ({
     page,
   }, testInfo) => {
     await page.setViewportSize(viewport);
+    await page.emulateMedia({ colorScheme });
     const api = await mockApi(page);
     await page.goto("/");
     await expect(
       page.getByRole("link", { name: "Continuar con acceso corporativo" }),
     ).toHaveAttribute("href", "/api/v1/auth/login");
-    await expect(page.locator(".login-shell")).toHaveCSS("background-image", /login-bg/);
+    await expect(page.locator(".login-intro")).toHaveCSS("background-image", /login-bg/);
     await noOverflow(page);
     await page.screenshot({
       path: testInfo.outputPath(`login-${viewport.width}.png`),
@@ -359,7 +362,7 @@ test("acceso y consulta con teclado conservan el salto de línea y las fuentes",
   await page.keyboard.press("Tab");
   await expect(page.getByRole("button", { name: "Mostrar", exact: true })).toBeFocused();
   await page.keyboard.press("Tab");
-  await expect(page.getByLabel("Contrasena", { exact: true })).toBeFocused();
+  await expect(page.getByLabel("Contraseña", { exact: true })).toBeFocused();
   await page.keyboard.type("dato-sintetico");
   await page.keyboard.press("Enter");
   await expect(page.getByTestId("identity-user")).toHaveText("MatrixR1");
@@ -475,6 +478,123 @@ test("menú móvil, tema oscuro y adjunto privado", async ({ page }, testInfo) =
       .filter((m) => m.path !== "/auth/local/login")
       .every((m) => m.csrf === profile.csrf_token),
   ).toBe(true);
+  expect(api.errors).toEqual([]);
+  expect(api.unexpected).toEqual([]);
+});
+
+for (const colorScheme of ["light", "dark"] as const) {
+  test(`acceso ${colorScheme}: contraseña alcanzable con teclado y objetivo táctil`, async ({
+    page,
+  }, testInfo) => {
+    await page.setViewportSize({ width: 320, height: 667 });
+    await page.emulateMedia({ colorScheme });
+    const api = await mockApi(page);
+    await page.goto("/");
+    await expect(page.getByRole("heading", { name: "Inicie sesión", exact: true })).toBeVisible();
+
+    const password = page.getByLabel("Contraseña", { exact: true });
+    await password.fill("dato-sintetico");
+    await page.keyboard.press("Shift+Tab");
+    const toggle = page.getByRole("button", { name: "Mostrar", exact: true });
+    await expect(toggle).toBeFocused();
+    await expect(toggle).not.toHaveCSS("outline-style", "none");
+    const target = await toggle.boundingBox();
+    expect(target).not.toBeNull();
+    expect(target!.width).toBeGreaterThanOrEqual(44);
+    expect(target!.height).toBeGreaterThanOrEqual(44);
+
+    await page.keyboard.press("Space");
+    await expect(password).toHaveAttribute("type", "text");
+    await expect(password).toHaveValue("dato-sintetico");
+    await expect(page.getByRole("button", { name: "Ocultar", exact: true })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    await page.keyboard.press("Space");
+    await expect(password).toHaveAttribute("type", "password");
+    await expect(password).toHaveValue("dato-sintetico");
+    expect(api.mutations).toEqual([]);
+    await noOverflow(page);
+    await page.screenshot({
+      path: testInfo.outputPath(`login-${colorScheme}.png`),
+      fullPage: true,
+    });
+    expect(api.errors).toEqual([]);
+    expect(api.unexpected).toEqual([]);
+  });
+}
+
+test("texto al 200 por ciento conserva acceso, consulta y fuentes en móvil", async ({
+  page,
+}, testInfo) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const api = await mockApi(page, false, false, { ...profile, auth_source: "local" });
+  await page.goto("/");
+  // Emula una preferencia de texto ampliado, no zoom de página ni una pantalla real.
+  await page.evaluate(() => {
+    document.documentElement.style.fontSize = "200%";
+  });
+  await expect(page.locator("body")).toHaveCSS("font-size", "32px");
+  await page.getByLabel("Usuario", { exact: true }).fill("usuario-ui");
+  await page.getByLabel("Contraseña", { exact: true }).fill("dato-sintetico");
+  await noOverflow(page);
+  await page.screenshot({ path: testInfo.outputPath("login-large-text.png"), fullPage: true });
+  await page.getByRole("button", { name: "Entrar", exact: true }).click();
+  await expect(page.getByTestId("identity-user")).toHaveText("MatrixR1");
+  const changePassword = page.getByRole("button", { name: "Cambiar contraseña", exact: true });
+  const logout = page.getByRole("button", { name: "Salir", exact: true });
+  await expect(changePassword).toBeInViewport({ ratio: 1 });
+  await expect(logout).toBeInViewport({ ratio: 1 });
+  for (let step = 0; step < 30; step += 1) {
+    if (await changePassword.evaluate((node) => node === document.activeElement)) break;
+    await page.keyboard.press("Tab");
+  }
+  await expect(changePassword).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("dialog", { name: "Cambiar contraseña" })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog", { name: "Cambiar contraseña" })).toBeHidden();
+  await expect(changePassword).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(logout).toBeFocused();
+  await expect(logout).toBeInViewport({ ratio: 1 });
+  const composer = page.getByTestId("composer-input");
+  await expect(composer).toBeInViewport();
+  await composer.fill("Consulta sintética con texto ampliado");
+  await page.getByTestId("send-button").click();
+  await expect(page.getByTestId("message-assistant")).toContainText("respuesta sintética");
+  await page.getByRole("link", { name: "Ver fuente 1" }).click();
+  await expect(page.getByTestId("sources").locator("li")).toBeFocused();
+  await noOverflow(page);
+  await page.screenshot({ path: testInfo.outputPath("chat-large-text.png"), fullPage: true });
+  await expect(page.getByTestId("sources").locator("li")).toBeInViewport({ ratio: 1 });
+  expect(api.errors).toEqual([]);
+  expect(api.unexpected).toEqual([]);
+});
+
+test("colores forzados y movimiento reducido conservan foco, menú y consulta", async ({
+  page,
+}, testInfo) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.emulateMedia({ forcedColors: "active", reducedMotion: "reduce" });
+  const api = await mockApi(page);
+  await page.goto("/");
+  await expect(page.getByRole("button", { name: "Entrar", exact: true })).toBeVisible();
+  await page.keyboard.press("Tab");
+  const corporateAccess = page.getByRole("link", { name: "Continuar con acceso corporativo" });
+  await expect(corporateAccess).toBeFocused();
+  await expect(corporateAccess).not.toHaveCSS("outline-style", "none");
+  await expect(corporateAccess).not.toHaveCSS("outline-color", "rgba(0, 0, 0, 0)");
+  await login(page);
+  await page.getByRole("button", { name: "Conversaciones", exact: true }).click();
+  await expect(page.locator(".sidebar")).toBeVisible();
+  await page.locator(".sidebar-close").click();
+  await expect(page.locator(".sidebar")).toBeHidden();
+  await page.getByTestId("composer-input").fill("Consulta sintética accesible");
+  await page.getByTestId("send-button").click();
+  await expect(page.getByTestId("sources")).toContainText("Manual de prueba");
+  await noOverflow(page);
+  await page.screenshot({ path: testInfo.outputPath("chat-forced-colors.png"), fullPage: true });
   expect(api.errors).toEqual([]);
   expect(api.unexpected).toEqual([]);
 });

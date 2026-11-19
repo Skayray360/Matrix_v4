@@ -14,7 +14,7 @@ export const RESTRICTED_USER = "MatrixR1";
 export async function login(page: Page, username: string, password = TEST_PASSWORD): Promise<void> {
   await page.goto("/");
   await page.getByLabel("Usuario").fill(username);
-  await page.getByLabel("Contrasena").fill(password);
+  await page.getByLabel("Contraseña").fill(password);
   await page.getByRole("button", { name: "Entrar" }).click();
   await expect(page.getByTestId("identity-user")).toBeVisible({ timeout: 30_000 });
 }

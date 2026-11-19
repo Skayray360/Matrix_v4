@@ -81,7 +81,7 @@ describe("Composer", () => {
 
   it("advierte que el adjunto es privado de la conversacion", () => {
     render(<Composer disabled={false} attachments={[]} onSend={vi.fn()} onUpload={vi.fn()} />);
-    expect(screen.getByText(/solo en esta conversacion/i)).toBeInTheDocument();
+    expect(screen.getByText(/solo en esta conversación/i)).toBeInTheDocument();
   });
 
   it("informa que un archivo sin texto no está listo para consultar", () => {

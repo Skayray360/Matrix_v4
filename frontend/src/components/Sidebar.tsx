@@ -60,7 +60,7 @@ export function Sidebar({
           </span>
           <div className="brand-text">
             <strong>IA Matrix</strong>
-            <span>Asistente local RAG</span>
+            <span>Recursos Humanos</span>
           </div>
         </div>
         <button

@@ -54,21 +54,23 @@ export function LoginPage({ onAuthenticated, notice }: Props): JSX.Element {
   return (
     <main className="login-shell" aria-label="Acceso a IA Matrix">
       <section className="login-card" aria-labelledby="login-title">
-        <div className="login-brand">
-          <span className="login-brand-mark">
-            <Mascot />
-          </span>
-          <div>
-            <p className="login-kicker">Plataforma empresarial</p>
-            <h1 id="login-title">IA Matrix</h1>
+        <div className="login-intro">
+          <div className="login-brand">
+            <span className="login-brand-mark">
+              <Mascot />
+            </span>
+            <div>
+              <p className="login-kicker">Recursos Humanos</p>
+              <h1 id="login-title">IA Matrix</h1>
+            </div>
           </div>
+          <p className="login-subtitle">
+            Consulte políticas y procesos internos con la información autorizada para su cuenta.
+          </p>
         </div>
-        <p className="login-subtitle">
-          Acceso al asistente interno de Recursos Humanos y a la información autorizada para su
-          cuenta.
-        </p>
         <div className="login-access">
-          <h2 className="visually-hidden">Iniciar sesion</h2>
+          <p className="login-access-label">Acceso privado</p>
+          <h2>Inicie sesión</h2>
 
           <a className="entra-button" href="/api/v1/auth/login" rel="noreferrer">
             <Icon name="microsoft" size={18} />
@@ -95,6 +97,9 @@ export function LoginPage({ onAuthenticated, notice }: Props): JSX.Element {
                 id="username"
                 name="username"
                 autoComplete="username"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
                 value={username}
                 onChange={(event) => setUsername(event.target.value)}
                 required
@@ -105,7 +110,7 @@ export function LoginPage({ onAuthenticated, notice }: Props): JSX.Element {
 
             <div className="field">
               <div className="field-head">
-                <label htmlFor="password">Contrasena</label>
+                <label htmlFor="password">Contraseña</label>
                 <button
                   className="field-toggle"
                   type="button"

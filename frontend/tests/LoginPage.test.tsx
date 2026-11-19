@@ -39,7 +39,7 @@ describe("Login visual con autenticacion Matrix", () => {
     const user = userEvent.setup();
     render(<LoginPage onAuthenticated={authenticated} />);
     await user.type(screen.getByLabelText("Usuario"), "usuario-ui");
-    await user.type(screen.getByLabelText("Contrasena"), "dato-sintetico");
+    await user.type(screen.getByLabelText("Contraseña"), "dato-sintetico");
     await user.click(screen.getByRole("button", { name: "Entrar" }));
     expect(api.localLogin).toHaveBeenCalledWith("usuario-ui", "dato-sintetico");
     expect(screen.getByRole("button", { name: "Verificando..." })).toBeDisabled();
@@ -61,7 +61,7 @@ describe("Login visual con autenticacion Matrix", () => {
   it("mostrar y ocultar no modifica la contraseña", async () => {
     const user = userEvent.setup();
     render(<LoginPage onAuthenticated={vi.fn()} />);
-    const field = screen.getByLabelText("Contrasena");
+    const field = screen.getByLabelText("Contraseña");
     await user.type(field, "dato-sintetico");
     await user.click(screen.getByRole("button", { name: "Mostrar" }));
     expect(field).toHaveAttribute("type", "text");
